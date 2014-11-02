@@ -54,6 +54,9 @@ public:
 
 	QNode(int argc, char** argv );
 	virtual ~QNode();
+	//This reimplements the QThread's run() function. This run() will get called
+	//after the call to QThread::start() in the constructor. Returning from
+	//this run() method will end the execution of this thread
 	void run();
 	void setupSubscriptions();
 	void imageCallback(const sensor_msgs::ImageConstPtr &msg_left,

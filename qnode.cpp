@@ -10,8 +10,9 @@ QNode::QNode(int argc, char** argv )
 	//Add your ros communications here.
 	this->setupSubscriptions();
 
-	//Executes this QThread, enters main event loop
-	//this->run();
+	//Begin executing this QThread. After this, it will call this->run().
+	//Returning from run() will end the execution of the thread
+	QThread::start();
 }
 
 QNode::~QNode()
@@ -62,13 +63,13 @@ void QNode::setupSubscriptions()
   //the messages published to these topics will come at slightly different
   //time points. Last param is queue size
   message_filters::Subscriber<sensor_msgs::Image> left_image_sub(*m_nh,
-                                                            m_topic_names[0], 1);
+                                                           m_topic_names[0], 1);
   message_filters::Subscriber<sensor_msgs::Image> right_image_sub(*m_nh,
-                                                            m_topic_names[1], 1);
+                                                           m_topic_names[1], 1);
   message_filters::Subscriber<sensor_msgs::Image> disp_image_sub(*m_nh,
-                                                            m_topic_names[2], 1);
+                                                           m_topic_names[2], 1);
   message_filters::Subscriber<sensor_msgs::Image> depth_image_sub(*m_nh,
-                                                            m_topic_names[3], 1);
+                                                           m_topic_names[3], 1);
   //Using the policy typedef'd in the header file, we approximate the
   //message publish time instants and produce a single callback for all
   //of them. syncPolicy takes a queue size as its constructor argument,

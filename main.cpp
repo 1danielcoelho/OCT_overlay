@@ -8,7 +8,7 @@
  *
  *  -Implement OCT_wrapper request
  *
- *
+ *  -Change everything to VTK, implement automatic pruning for vis
  *
  *
  *

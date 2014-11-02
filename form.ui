@@ -208,12 +208,18 @@
               <property name="text">
                <string>Connected to Master</string>
               </property>
+              <property name="checkable">
+               <bool>false</bool>
+              </property>
              </widget>
             </item>
             <item>
              <widget class="QCheckBox" name="oct_wrapper_checkbox">
               <property name="text">
                <string>OCT_wrapper exists</string>
+              </property>
+              <property name="checkable">
+               <bool>false</bool>
               </property>
              </widget>
             </item>
