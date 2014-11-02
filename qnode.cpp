@@ -1,0 +1,109 @@
+#include "qnode.h"
+
+
+
+QNode::QNode(int argc, char** argv )
+{
+	ros::init(argc,argv,"OCT_overlay");
+	m_nh = new ros::NodeHandle;
+
+	//Add your ros communications here.
+	this->setupSubscriptions();
+
+	//Executes this QThread, enters main event loop
+	//this->run();
+}
+
+QNode::~QNode()
+{
+  if(ros::isStarted())
+  {
+    ros::shutdown();
+    ros::waitForShutdown();
+  }
+  wait();
+  delete m_nh;
+}
+
+void QNode::run()
+{
+	ros::Rate loop_rate(1);
+
+	while ( ros::ok() )
+	{
+		//Leave a blank line after ROS_INFO. QtCreator doesn't like these macros
+		ROS_INFO("Executing");
+
+		ros::spinOnce();
+		loop_rate.sleep();
+	}
+	ROS_INFO("Shutting down");
+
+	//Emits a signal caught by MainWindow, shutting it down
+	Q_EMIT rosShutdown(); //same as 'emit'
+}
+
+void QNode::setupSubscriptions()
+{
+  //Fetches the image topic names from the ROS param server, or uses the
+  //default values (last arguments in the param calls)
+  m_topic_names = new std::string[4];
+  m_nh->param<std::string>("leftImageTopicName", m_topic_names[0],
+      "/stereomatching/image_left");
+  m_nh->param<std::string>("rightImageTopicName", m_topic_names[1],
+      "/stereomatching/image_right");
+  m_nh->param<std::string>("dispImageTopicName", m_topic_names[2],
+      "/stereomatching/disparity_map");
+  m_nh->param<std::string>("depthImageTopicName", m_topic_names[3],
+      "/stereomatching/depth_map");
+  ROS_INFO("Topic names fetched");
+
+  //Subscribes to all four image topics. We use message_filters here since
+  //the messages published to these topics will come at slightly different
+  //time points. Last param is queue size
+  message_filters::Subscriber<sensor_msgs::Image> left_image_sub(*m_nh,
+                                                            m_topic_names[0], 1);
+  message_filters::Subscriber<sensor_msgs::Image> right_image_sub(*m_nh,
+                                                            m_topic_names[1], 1);
+  message_filters::Subscriber<sensor_msgs::Image> disp_image_sub(*m_nh,
+                                                            m_topic_names[2], 1);
+  message_filters::Subscriber<sensor_msgs::Image> depth_image_sub(*m_nh,
+                                                            m_topic_names[3], 1);
+  //Using the policy typedef'd in the header file, we approximate the
+  //message publish time instants and produce a single callback for all
+  //of them. syncPolicy takes a queue size as its constructor argument,
+  //which we need to be 4 to hold all four images before syncing
+  message_filters::Synchronizer<sync_policy> synchronizer(sync_policy(4),
+      left_image_sub, right_image_sub, disp_image_sub, depth_image_sub);
+  //Register which callback will receive the sync'd messages.
+  //registerCallback expects a functor (not func pointer) so we use
+  //boost::bind
+  synchronizer.registerCallback(boost::bind(
+      &QNode::imageCallback, this, _1, _2, _3, _4));
+  ROS_INFO("Topic subscription and synchronization completed");
+
+}
+
+void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
+                          const sensor_msgs::ImageConstPtr &msg_right,
+                          const sensor_msgs::ImageConstPtr &msg_disp,
+                          const sensor_msgs::ImageConstPtr &msg_depth)
+{
+  ROS_INFO("imageCallback called");
+
+  //Creates CV matrices for all incoming images
+  cv::Mat image_left, image_right, disp_map, depth_map;
+
+  //cv_bridges convert between ROS image messages and opencv images.
+  //Here, we create cv images from ROS image messages by doing a deep
+  //copy of the ROS image data and returning a mutable object
+  m_cv_image_ptr = cv_bridge::toCvCopy(msg_left, enc::RGB8);
+  image_left = m_cv_image_ptr->image;
+  m_cv_image_ptr = cv_bridge::toCvCopy(msg_right, enc::RGB8);
+  image_right = m_cv_image_ptr->image;
+  m_cv_image_ptr = cv_bridge::toCvCopy(msg_disp, enc::TYPE_32FC1);
+  disp_map = m_cv_image_ptr->image;
+  m_cv_image_ptr = cv_bridge::toCvCopy(msg_depth, enc::TYPE_32FC3);
+  depth_map = m_cv_image_ptr->image;
+  ROS_INFO("Image data fetched");
+}

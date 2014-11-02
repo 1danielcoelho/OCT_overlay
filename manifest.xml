@@ -1,0 +1,28 @@
+<package>
+  <description brief="OCT_overlay">
+
+     OCT_overlay
+
+  </description>
+  <author>Daniel</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/OCT_overlay</url>
+
+  <rosdep name="qt4"/>
+
+  <!--<rosdep name="boost"/>-->
+  <depend package="qt_build"/>
+  <depend package="cv_bridge"/>
+  <depend package="image_transport"/>
+  <depend package="roscpp"/>
+  <depend package="message_filters"/>
+  <depend package="std_msgs"/>
+  <depend package="sensor_msgs"/> 
+  <depend package="dynamic_reconfigure"/>   
+  <depend package="pcl"/>
+  <depend package="pcl_ros"/>
+  <!--<depend package="utilities"/>-->
+</package>
+
+
