@@ -62,24 +62,26 @@ void QNode::setupSubscriptions()
   //Subscribes to all four image topics. We use message_filters here since
   //the messages published to these topics will come at slightly different
   //time points. Last param is queue size
-  message_filters::Subscriber<sensor_msgs::Image> left_image_sub(*m_nh,
-                                                           m_topic_names[0], 1);
-  message_filters::Subscriber<sensor_msgs::Image> right_image_sub(*m_nh,
-                                                           m_topic_names[1], 1);
-  message_filters::Subscriber<sensor_msgs::Image> disp_image_sub(*m_nh,
-                                                           m_topic_names[2], 1);
-  message_filters::Subscriber<sensor_msgs::Image> depth_image_sub(*m_nh,
-                                                           m_topic_names[3], 1);
+  m_left_image_sub = new
+  message_filters::Subscriber<sensor_msgs::Image>(*m_nh, m_topic_names[0], 1);
+  m_right_image_sub = new
+  message_filters::Subscriber<sensor_msgs::Image>(*m_nh, m_topic_names[1], 1);
+  m_disp_image_sub = new
+  message_filters::Subscriber<sensor_msgs::Image>(*m_nh, m_topic_names[2], 1);
+  m_depth_image_sub = new
+  message_filters::Subscriber<sensor_msgs::Image>(*m_nh, m_topic_names[3], 1);
+
   //Using the policy typedef'd in the header file, we approximate the
   //message publish time instants and produce a single callback for all
   //of them. syncPolicy takes a queue size as its constructor argument,
   //which we need to be 4 to hold all four images before syncing
-  message_filters::Synchronizer<sync_policy> synchronizer(sync_policy(4),
-      left_image_sub, right_image_sub, disp_image_sub, depth_image_sub);
+  m_synchronizer = new message_filters::Synchronizer<myPolicyType>
+      (myPolicyType(4),*m_left_image_sub, *m_right_image_sub, *m_disp_image_sub,
+      *m_depth_image_sub);
   //Register which callback will receive the sync'd messages.
   //registerCallback expects a functor (not func pointer) so we use
   //boost::bind
-  synchronizer.registerCallback(boost::bind(
+  m_synchronizer->registerCallback(boost::bind(
       &QNode::imageCallback, this, _1, _2, _3, _4));
   ROS_INFO("Topic subscription and synchronization completed");
 

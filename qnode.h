@@ -33,7 +33,7 @@
 typedef message_filters::sync_policies::ApproximateTime
         <sensor_msgs::Image, sensor_msgs::Image,
         sensor_msgs::Image, sensor_msgs::Image>
-        sync_policy;
+        myPolicyType;
 
 //Simply shortens code. This namespace is used by the cv_bridge conversions
 namespace enc = sensor_msgs::image_encodings;
@@ -72,6 +72,12 @@ private:
 	ros::NodeHandle* m_nh;
 	std::string* m_topic_names;
 	cv_bridge::CvImagePtr m_cv_image_ptr;
+
+	message_filters::Subscriber<sensor_msgs::Image>* m_left_image_sub;
+	message_filters::Subscriber<sensor_msgs::Image>* m_right_image_sub;
+	message_filters::Subscriber<sensor_msgs::Image>* m_disp_image_sub;
+	message_filters::Subscriber<sensor_msgs::Image>* m_depth_image_sub;
+	message_filters::Synchronizer<myPolicyType>* m_synchronizer;
 };
 
 
