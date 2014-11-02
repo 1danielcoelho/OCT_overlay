@@ -74,6 +74,8 @@ class Form : public QMainWindow
   private Q_SLOTS:
   void on_browse_button_clicked();
 
+  void on_connected_master_checkbox_clicked(bool checked);
+
   private:
   Ui::Form *m_ui;
   QNode m_qnode;

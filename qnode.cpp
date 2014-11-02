@@ -4,11 +4,10 @@
 
 QNode::QNode(int argc, char** argv )
 {
-	ros::init(argc,argv,"OCT_overlay");
-	m_nh = new ros::NodeHandle;
+	ros::init(argc,argv,"OCT_overlay");		
 
-	//Add your ros communications here.
-	this->setupSubscriptions();
+	m_connected_to_master = false;
+	m_oct_wrapper_exists = false;
 
 	//Begin executing this QThread. After this, it will call this->run().
 	//Returning from run() will end the execution of the thread
@@ -26,17 +25,42 @@ QNode::~QNode()
   delete m_nh;
 }
 
+void QNode::connectToMaster()
+{
+  //If there's no Master available, just return false
+  if(!ros::master::check())
+  {
+    m_connected_to_master = false;
+    return;
+  }
+
+  m_connected_to_master = true;
+
+  //Create a new handle. It's a class variable so no need for ros::start()
+  m_nh = new ros::NodeHandle;
+
+  //Setup subscriptions
+  this->setupSubscriptions();
+}
+
 void QNode::run()
 {
+	//We can't use ros::Rate before Master is running
+	while(!m_connected_to_master) connectToMaster();
+
+	//Signal the UI that Master has connected
+	Q_EMIT rosMasterChanged(m_connected_to_master);
+
 	ros::Rate loop_rate(1);
 
 	while ( ros::ok() )
 	{
-		//Leave a blank line after ROS_INFO. QtCreator doesn't like these macros
 		ROS_INFO("Executing");
 
-		ros::spinOnce();
 		loop_rate.sleep();
+
+		ros::spinOnce();
+
 	}
 	ROS_INFO("Shutting down");
 
@@ -109,4 +133,9 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
   m_cv_image_ptr = cv_bridge::toCvCopy(msg_depth, enc::TYPE_32FC3);
   depth_map = m_cv_image_ptr->image;
   ROS_INFO("Image data fetched");
+}
+
+bool QNode::getMasterStatus()
+{
+  return m_connected_to_master;
 }

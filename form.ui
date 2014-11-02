@@ -205,11 +205,14 @@
             </item>
             <item>
              <widget class="QCheckBox" name="connected_master_checkbox">
+              <property name="enabled">
+               <bool>false</bool>
+              </property>
               <property name="text">
                <string>Connected to Master</string>
               </property>
               <property name="checkable">
-               <bool>false</bool>
+               <bool>true</bool>
               </property>
              </widget>
             </item>

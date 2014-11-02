@@ -15,6 +15,10 @@ Form::Form(int argc, char** argv, QWidget *parent) :
   //Has qnode's rosShutdown() signal activate MainWindow's close() method
   QObject::connect(&m_qnode, SIGNAL(rosShutdown()), this, SLOT(close()));
 
+  //Keeps the checkbox updated with the status of the master
+  QObject::connect(&m_qnode, SIGNAL(rosMasterChanged(bool)),
+   this, SLOT(on_connected_master_checkbox_clicked(bool)));
+
   //Update status bar
   this->m_ui->status_bar->showMessage("Ready");
   QApplication::processEvents();
@@ -73,6 +77,9 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data)
   //Creates an array for point coordinates, and one for the scalars
   VTK_NEW(vtkPoints, points);
   VTK_NEW(vtkTypeUInt8Array, dataArray);
+
+  points->SetNumberOfPoints(raw_length * raw_width * raw_depth);
+  dataArray->SetNumberOfValues(raw_length * raw_width * raw_depth);
 
   //Update status bar
   this->statusBar()->showMessage("Building raw point data... ");
@@ -291,4 +298,11 @@ void Form::on_browse_button_clicked()
     this->m_ui->status_bar->showMessage("Readying cloud for render... ");
     QApplication::processEvents();
   }
+}
+
+void Form::on_connected_master_checkbox_clicked(bool checked)
+{
+  qDebug() << "Called!";
+  qDebug() << checked;
+  this->m_ui->connected_master_checkbox->setChecked(checked);
 }

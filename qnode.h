@@ -54,6 +54,9 @@ public:
 
 	QNode(int argc, char** argv );
 	virtual ~QNode();
+	//Checks to see if a master node exists. If it does, it creates a handle for
+	//this node and returns true
+	void connectToMaster();
 	//This reimplements the QThread's run() function. This run() will get called
 	//after the call to QThread::start() in the constructor. Returning from
 	//this run() method will end the execution of this thread
@@ -63,15 +66,20 @@ public:
 										 const sensor_msgs::ImageConstPtr &msg_right,
 										 const sensor_msgs::ImageConstPtr &msg_disp,
 										 const sensor_msgs::ImageConstPtr &msg_depth);
+	bool getMasterStatus();
 
 Q_SIGNALS: //Same as 'signals'
 	//Signal emitted when the node is about to shut down
 	void rosShutdown();	
+	void rosMasterChanged(bool);
 
 private:
 	ros::NodeHandle* m_nh;
 	std::string* m_topic_names;
 	cv_bridge::CvImagePtr m_cv_image_ptr;
+
+	bool m_connected_to_master;
+	bool m_oct_wrapper_exists;
 
 	message_filters::Subscriber<sensor_msgs::Image>* m_left_image_sub;
 	message_filters::Subscriber<sensor_msgs::Image>* m_right_image_sub;
