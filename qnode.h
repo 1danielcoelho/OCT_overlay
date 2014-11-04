@@ -26,6 +26,7 @@
 #include <QTextStream>
 #include <QThread>
 #include <QStringListModel>
+#include <QDebug>
 
 //Create a synchronization policy used to match messages based on their
 //approximate timestamp. Permits a single callback for multiple,
@@ -66,20 +67,27 @@ public:
 										 const sensor_msgs::ImageConstPtr &msg_right,
 										 const sensor_msgs::ImageConstPtr &msg_disp,
 										 const sensor_msgs::ImageConstPtr &msg_depth);
-	bool getMasterStatus();
+	void stopCurrentNode();
 
-Q_SIGNALS: //Same as 'signals'
-	//Signal emitted when the node is about to shut down
-	void rosShutdown();	
+
+	Q_SIGNALS: //Same as 'signals'
 	void rosMasterChanged(bool);
 
-private:
+	public Q_SLOTS:
+	//Just calls the constructor. Used by the UI application to signal that
+	//we should shut down for good
+	void terminateThread();
+
+	private:
 	ros::NodeHandle* m_nh;
 	std::string* m_topic_names;
 	cv_bridge::CvImagePtr m_cv_image_ptr;
 
-	bool m_connected_to_master;
-	bool m_oct_wrapper_exists;
+	int no_argc;
+	char** no_argv;
+
+	//bool m_connected_to_master;
+	bool m_finish_this_thread;
 
 	message_filters::Subscriber<sensor_msgs::Image>* m_left_image_sub;
 	message_filters::Subscriber<sensor_msgs::Image>* m_right_image_sub;

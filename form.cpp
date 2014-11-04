@@ -12,8 +12,7 @@ Form::Form(int argc, char** argv, QWidget *parent) :
 {
   m_ui->setupUi(this);
 
-  //Has qnode's rosShutdown() signal activate MainWindow's close() method
-  QObject::connect(&m_qnode, SIGNAL(rosShutdown()), this, SLOT(close()));
+  QObject::connect(this, SIGNAL(shutdownROS()), &m_qnode, SLOT(terminateThread()));
 
   //Keeps the checkbox updated with the status of the master
   QObject::connect(&m_qnode, SIGNAL(rosMasterChanged(bool)),
@@ -48,6 +47,7 @@ Form::Form(int argc, char** argv, QWidget *parent) :
 Form::~Form()
 {
   delete m_ui;
+  Q_EMIT shutdownROS();
 }
 
 
@@ -302,7 +302,5 @@ void Form::on_browse_button_clicked()
 
 void Form::on_connected_master_checkbox_clicked(bool checked)
 {
-  qDebug() << "Called!";
-  qDebug() << checked;
   this->m_ui->connected_master_checkbox->setChecked(checked);
 }

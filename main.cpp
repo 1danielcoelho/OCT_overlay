@@ -1,5 +1,10 @@
 /*  TODO:
  *
+ *  -Survive between roscores
+ *    .Doesn't shut down when app quits
+ *    .Doesn't reconnect when new roscore starts
+ *    .Doesn't update the checkbox on first boot
+ *
  *  -Progress bar widget inside status bar
  *
  *  -Scale the sample based on scanWidth/scanDepth/etc
@@ -8,7 +13,7 @@
  *
  *  -Implement OCT_wrapper request
  *
- *  -Change everything to VTK, implement automatic pruning for vis
+ *
  *
  *
  *

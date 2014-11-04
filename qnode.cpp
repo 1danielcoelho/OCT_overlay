@@ -2,71 +2,93 @@
 
 
 
-QNode::QNode(int argc, char** argv )
+QNode::QNode(int argc, char** argv ) : no_argc(argc), no_argv(argv)
 {
-	ros::init(argc,argv,"OCT_overlay");		
-
-	m_connected_to_master = false;
-	m_oct_wrapper_exists = false;
+	m_finish_this_thread = false;
 
 	//Begin executing this QThread. After this, it will call this->run().
 	//Returning from run() will end the execution of the thread
 	QThread::start();
 }
 
+
+
+
+
 QNode::~QNode()
 {
-  if(ros::isStarted())
-  {
-    ros::shutdown();
-    ros::waitForShutdown();
-  }
-  wait();
-  delete m_nh;
+	ROS_INFO("Shutting down");
+
+	qDebug() << "Called destructor";
 }
+
+
+
+
 
 void QNode::connectToMaster()
 {
-  //If there's no Master available, just return false
-  if(!ros::master::check())
+  qDebug() << "connectToMaster called";
+  ros::init(no_argc,no_argv,"OCT_overlay");
+
+  //Wait for a master
+  while(!ros::master::check())
   {
-    m_connected_to_master = false;
-    return;
+    ;
   }
 
-  m_connected_to_master = true;
+  //This needs to be called before a node is created to prevent ros from
+  //permanently shutting us down after said node is explicitly deleted
+  ros::start();
 
-  //Create a new handle. It's a class variable so no need for ros::start()
+  qDebug() << "Master found";
+
+	//Signal the UI that Master has connected
+	Q_EMIT rosMasterChanged(true);
+
+  //Create a new handle
   m_nh = new ros::NodeHandle;
 
   //Setup subscriptions
   this->setupSubscriptions();
 }
 
+
+
+
+
 void QNode::run()
 {
-	//We can't use ros::Rate before Master is running
-	while(!m_connected_to_master) connectToMaster();
+	qDebug() << "run called\n";
 
-	//Signal the UI that Master has connected
-	Q_EMIT rosMasterChanged(m_connected_to_master);
+	//We can't use ros::Rate before Master is running
+	connectToMaster();
 
 	ros::Rate loop_rate(1);
 
-	while ( ros::ok() )
-	{
-		ROS_INFO("Executing");
+	while (!m_finish_this_thread)
+	{		
+		qDebug() << "loop";
 
 		loop_rate.sleep();
 
 		ros::spinOnce();
 
-	}
-	ROS_INFO("Shutting down");
+		//If Master has shut down, kill node and wait for a new master
+		if(!ros::master::check())
+		{
+			qDebug() << "run - shutting down\n";
+			stopCurrentNode();
 
-	//Emits a signal caught by MainWindow, shutting it down
-	Q_EMIT rosShutdown(); //same as 'emit'
+			Q_EMIT rosMasterChanged(false);
+			connectToMaster();
+		}		
+	}
 }
+
+
+
+
 
 void QNode::setupSubscriptions()
 {
@@ -111,6 +133,10 @@ void QNode::setupSubscriptions()
 
 }
 
+
+
+
+
 void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
                           const sensor_msgs::ImageConstPtr &msg_right,
                           const sensor_msgs::ImageConstPtr &msg_disp,
@@ -133,9 +159,36 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
   m_cv_image_ptr = cv_bridge::toCvCopy(msg_depth, enc::TYPE_32FC3);
   depth_map = m_cv_image_ptr->image;
   ROS_INFO("Image data fetched");
+
 }
 
-bool QNode::getMasterStatus()
+
+
+
+
+void QNode::stopCurrentNode()
 {
-  return m_connected_to_master;
+  if(ros::isStarted())
+  {
+    qDebug() << " is started";
+    ros::shutdown();
+    ros::waitForShutdown();
+  }
+  delete m_nh;
 }
+
+
+
+
+void QNode::terminateThread()
+{
+  qDebug() << "Called terminateThread\n";
+  stopCurrentNode();
+
+  m_finish_this_thread = true;
+}
+
+
+
+
+
