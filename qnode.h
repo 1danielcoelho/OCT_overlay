@@ -39,7 +39,7 @@ typedef message_filters::sync_policies::ApproximateTime
 //Simply shortens code. This namespace is used by the cv_bridge conversions
 namespace enc = sensor_msgs::image_encodings;
 
-class QNode : public QThread
+class QNode : public QObject
 {
 	Q_OBJECT
 
@@ -61,7 +61,6 @@ public:
 	//This reimplements the QThread's run() function. This run() will get called
 	//after the call to QThread::start() in the constructor. Returning from
 	//this run() method will end the execution of this thread
-	void run();
 	void setupSubscriptions();
 	void imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
 										 const sensor_msgs::ImageConstPtr &msg_right,
@@ -72,11 +71,12 @@ public:
 
 	Q_SIGNALS: //Same as 'signals'
 	void rosMasterChanged(bool);
+	void finished();
 
 	public Q_SLOTS:
 	//Just calls the constructor. Used by the UI application to signal that
 	//we should shut down for good
-	void terminateThread();
+	void process();
 
 	private:
 	ros::NodeHandle* m_nh;
@@ -85,9 +85,6 @@ public:
 
 	int no_argc;
 	char** no_argv;
-
-	//bool m_connected_to_master;
-	bool m_finish_this_thread;
 
 	message_filters::Subscriber<sensor_msgs::Image>* m_left_image_sub;
 	message_filters::Subscriber<sensor_msgs::Image>* m_right_image_sub;

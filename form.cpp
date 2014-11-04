@@ -7,16 +7,23 @@
 
 Form::Form(int argc, char** argv, QWidget *parent) :
   QMainWindow(parent),
-  m_ui(new Ui::Form),
-  m_qnode(argc, argv)
+  m_ui(new Ui::Form)
 {
   m_ui->setupUi(this);
 
-  QObject::connect(this, SIGNAL(shutdownROS()), &m_qnode, SLOT(terminateThread()));
+  m_qthread = new QThread;
+  m_qnode = new QNode(argc, argv);
 
-  //Keeps the checkbox updated with the status of the master
-  QObject::connect(&m_qnode, SIGNAL(rosMasterChanged(bool)),
-   this, SLOT(on_connected_master_checkbox_clicked(bool)));
+  m_qnode->moveToThread(m_qthread);
+
+  //Connect signals and slots. See http://mayaposch.wordpress.com/2011/11/01/how-to-really-truly-use-qthreads-the-full-explanation/
+  connect(m_qnode, SIGNAL(rosMasterChanged(bool)), this,
+      SLOT(on_connected_master_checkbox_clicked(bool)));
+  connect(m_qthread, SIGNAL(started()), m_qnode, SLOT(process()));
+  connect(m_qnode, SIGNAL(finished()), m_qthread, SLOT(quit()));
+  connect(m_qnode, SIGNAL(finished()), m_qthread, SLOT(deleteLater()));
+  connect(m_qthread, SIGNAL(finished()), m_qthread, SLOT(deleteLater()));
+  m_qthread->start();
 
   //Update status bar
   this->m_ui->status_bar->showMessage("Ready");
@@ -47,7 +54,6 @@ Form::Form(int argc, char** argv, QWidget *parent) :
 Form::~Form()
 {
   delete m_ui;
-  Q_EMIT shutdownROS();
 }
 
 

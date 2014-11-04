@@ -4,11 +4,9 @@
 
 QNode::QNode(int argc, char** argv ) : no_argc(argc), no_argv(argv)
 {
-	m_finish_this_thread = false;
-
 	//Begin executing this QThread. After this, it will call this->run().
 	//Returning from run() will end the execution of the thread
-	QThread::start();
+	//QThread::start();
 }
 
 
@@ -57,7 +55,7 @@ void QNode::connectToMaster()
 
 
 
-void QNode::run()
+void QNode::process()
 {
 	qDebug() << "run called\n";
 
@@ -66,7 +64,7 @@ void QNode::run()
 
 	ros::Rate loop_rate(1);
 
-	while (!m_finish_this_thread)
+	while (1)
 	{		
 		qDebug() << "loop";
 
@@ -180,13 +178,6 @@ void QNode::stopCurrentNode()
 
 
 
-void QNode::terminateThread()
-{
-  qDebug() << "Called terminateThread\n";
-  stopCurrentNode();
-
-  m_finish_this_thread = true;
-}
 
 
 

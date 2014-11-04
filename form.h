@@ -6,6 +6,7 @@
 #include <assert.h>
 
 //QT
+#include <QThread>
 #include <QMainWindow>
 #include <QFileDialog>
 #include <QFile>
@@ -76,11 +77,12 @@ class Form : public QMainWindow
   void on_connected_master_checkbox_clicked(bool checked);
 
   Q_SIGNALS:
-  void shutdownROS();
+
 
   private:
   Ui::Form *m_ui;
-  QNode m_qnode;
+  QNode* m_qnode;
+  QThread* m_qthread;
 
   //VTK objects
   //Data structures
