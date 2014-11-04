@@ -1,25 +1,13 @@
 #ifndef OCT_stereocamera_overlay_QNODE_HPP_
 #define OCT_stereocamera_overlay_QNODE_HPP_
 
-
-#include <ros/ros.h>
-#include <ros/package.h>
-
-#include <sensor_msgs/Image.h>
-#include <sensor_msgs/image_encodings.h>
-#include <message_filters/subscriber.h>
-#include <message_filters/synchronizer.h>
-#include <message_filters/sync_policies/approximate_time.h>
-
-#include <boost/filesystem.hpp>
-#include <cv.h>
-#include <cv_bridge/cv_bridge.h>
+//C, C++
 #include <iostream>
 #include <math.h>
-#include <opencv2/opencv.hpp>
 #include <stdio.h>
 #include <string>
 
+//QT
 #include <QObject>
 #include <QFile>
 #include <QStringList>
@@ -27,6 +15,26 @@
 #include <QThread>
 #include <QStringListModel>
 #include <QDebug>
+#include <QCoreApplication>
+
+//ROS
+#include <ros/ros.h>
+#include <ros/package.h>
+#include <sensor_msgs/Image.h>
+#include <sensor_msgs/image_encodings.h>
+#include <message_filters/subscriber.h>
+#include <message_filters/synchronizer.h>
+#include <message_filters/sync_policies/approximate_time.h>
+#include <cv_bridge/cv_bridge.h>
+//#include <oct_client/octClientServiceTCP.h>
+
+//Boost
+#include <boost/filesystem.hpp>
+
+//OpenCV
+#include <cv.h>
+#include <opencv2/opencv.hpp>
+
 
 //Create a synchronization policy used to match messages based on their
 //approximate timestamp. Permits a single callback for multiple,
@@ -38,6 +46,11 @@ typedef message_filters::sync_policies::ApproximateTime
 
 //Simply shortens code. This namespace is used by the cv_bridge conversions
 namespace enc = sensor_msgs::image_encodings;
+
+
+
+
+
 
 class QNode : public QObject
 {
@@ -67,24 +80,34 @@ public:
 										 const sensor_msgs::ImageConstPtr &msg_disp,
 										 const sensor_msgs::ImageConstPtr &msg_depth);
 	void stopCurrentNode();
+	std::vector<uint8_t>& getDataReference();
 
-
-	Q_SIGNALS: //Same as 'signals'
+Q_SIGNALS: //Same as 'signals'
 	void rosMasterChanged(bool);
 	void finished();
+	void receivedData();
 
-	public Q_SLOTS:
+public Q_SLOTS:
 	//Just calls the constructor. Used by the UI application to signal that
 	//we should shut down for good
 	void process();
+	void requestScan(int length_steps, int width_steps,
+									 int depth_steps, float length_range,
+									 float width_range, float depth_range,
+									 float length_offset, float width_offset);
 
-	private:
+private:
 	ros::NodeHandle* m_nh;
+	ros::ServiceClient m_clientTCPOCT;
 	std::string* m_topic_names;
 	cv_bridge::CvImagePtr m_cv_image_ptr;
+	std::vector<uint8_t> m_data;
 
+	//We don't use these
 	int no_argc;
 	char** no_argv;
+
+	bool m_shutdown;
 
 	message_filters::Subscriber<sensor_msgs::Image>* m_left_image_sub;
 	message_filters::Subscriber<sensor_msgs::Image>* m_right_image_sub;
@@ -92,6 +115,10 @@ public:
 	message_filters::Subscriber<sensor_msgs::Image>* m_depth_image_sub;
 	message_filters::Synchronizer<myPolicyType>* m_synchronizer;
 };
+
+
+
+
 
 
 #endif /* OCT_stereocamera_overlay_QNODE_HPP_ */

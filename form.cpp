@@ -11,14 +11,36 @@ Form::Form(int argc, char** argv, QWidget *parent) :
 {
   m_ui->setupUi(this);
 
+  //Initialize the oct parameters
+  m_len_steps = this->m_ui->len_steps_spinbox->value();
+  m_wid_steps = this->m_ui->wid_steps_spinbox->value();
+  m_dep_steps = this->m_ui->dep_steps_spinbox->value();
+  m_len_range = this->m_ui->len_range_spinbox->value();
+  m_wid_range = this->m_ui->wid_range_spinbox->value();
+  m_dep_range = this->m_ui->dep_range_spinbox->value();
+  m_len_offset = this->m_ui->len_off_spinbox->value();
+  m_wid_offset = this->m_ui->wid_off_spinbox->value();
+
   m_qthread = new QThread;
   m_qnode = new QNode(argc, argv);
 
   m_qnode->moveToThread(m_qthread);
 
-  //Connect signals and slots. See http://mayaposch.wordpress.com/2011/11/01/how-to-really-truly-use-qthreads-the-full-explanation/
+
   connect(m_qnode, SIGNAL(rosMasterChanged(bool)), this,
-      SLOT(on_connected_master_checkbox_clicked(bool)));
+          SLOT(on_connected_master_checkbox_clicked(bool)));
+
+  connect(this,
+          SIGNAL(requestScan(int, int, int, float, float, float, float, float)),
+          m_qnode,
+          SLOT(requestScan(int, int, int, float, float, float, float, float)),
+          Qt::QueuedConnection); //Runs slot on receiving thread, according to
+                                 //its own event loop
+
+  connect(m_qnode, SIGNAL(receivedData()), this,
+          SLOT(on_received_data_checkbox_clicked()), Qt::QueuedConnection);
+
+
   connect(m_qthread, SIGNAL(started()), m_qnode, SLOT(process()));
   connect(m_qnode, SIGNAL(finished()), m_qthread, SLOT(quit()));
   connect(m_qnode, SIGNAL(finished()), m_qthread, SLOT(deleteLater()));
@@ -43,6 +65,10 @@ Form::Form(int argc, char** argv, QWidget *parent) :
   //Others
   m_renderer = vtkSmartPointer<vtkRenderer>::New();
 
+  m_renderer->SetBackground(0, 0, 0);
+  m_renderer->SetBackground2(0.1, 0.1, 0.1);
+  m_renderer->SetGradientBackground(1);
+
   //Adds our renderer to the QVTK widget
   this->m_ui->qvtkWidget->GetRenderWindow()->AddRenderer(m_renderer);
 }
@@ -54,61 +80,77 @@ Form::Form(int argc, char** argv, QWidget *parent) :
 Form::~Form()
 {
   delete m_ui;
+  delete m_qnode;
+
+  //Waits until the m_qnode's destructor has finished before killing the thread
+  m_qthread->wait();
+  delete m_qthread;
 }
 
 
 
 
 
-void Form::loadRawOCTData(std::vector<uint8_t>& oct_data)
+void Form::loadRawOCTData(std::vector<uint8_t>& oct_data,
+      int file_header /*= 512*/, int frame_header /*= 40*/, int length /*= 0*/,
+      int width /*= 0*/, int depth /*= 0*/, float length_range /*= 0*/,
+      float width_range /*= 0*/)
 {
-  uint32_t raw_length, raw_width, raw_depth, file_header, frame_header;
-  float raw_length_mm, raw_width_mm;
+  //Default parameters means we're opening a img file
+  if(file_header == 512 && (length == 0 || width == 0 || depth == 0))
+  {
+    //Extract the data dimensions from the header
+    std::memcpy(&length, &(oct_data[16]), 4*sizeof(uint8_t));
+    std::memcpy(&width, &(oct_data[20]), 4*sizeof(uint8_t));
+    std::memcpy(&depth, &(oct_data[24]), 4*sizeof(uint8_t));
+    std::memcpy(&length_range, &(oct_data[72]), 4*sizeof(uint8_t));
+    std::memcpy(&width_range, &(oct_data[76]), 4*sizeof(uint8_t));
+  }
 
-  file_header = 512;
-  frame_header = 40;
-
-  //Extract the data dimensions from the header
-  std::memcpy(&raw_length, &(oct_data[16]), 4*sizeof(uint8_t));
-  std::memcpy(&raw_width, &(oct_data[20]), 4*sizeof(uint8_t));
-  std::memcpy(&raw_depth, &(oct_data[24]), 4*sizeof(uint8_t));
-  std::memcpy(&raw_length_mm, &(oct_data[72]), 4*sizeof(uint8_t));
-  std::memcpy(&raw_width_mm, &(oct_data[76]), 4*sizeof(uint8_t));
+  float length_incrm = 1;
+  float width_incrm = 1;
+  float depth_incrm = 1;
 
   //Determines the spatial increments for each dimension
-  float length_incrm = raw_length_mm/raw_length;
-  float width_incrm = raw_width_mm/raw_width;
-  float depth_incrm = 2.762/1024; //Fixed axial resolution
+  if(length_range != 0 && width_range !=0)
+  {
+    length_incrm = length_range/length;
+    width_incrm = width_range/width;
+    depth_incrm = 2.762/1024; //Fixed axial resolution
+  }
 
   //Creates an array for point coordinates, and one for the scalars
   VTK_NEW(vtkPoints, points);
   VTK_NEW(vtkTypeUInt8Array, dataArray);
 
-  points->SetNumberOfPoints(raw_length * raw_width * raw_depth);
-  dataArray->SetNumberOfValues(raw_length * raw_width * raw_depth);
+  points->SetNumberOfPoints(length * width * depth);
+  dataArray->SetNumberOfValues(length * width * depth);
 
   //Update status bar
   this->statusBar()->showMessage("Building raw point data... ");
   QApplication::processEvents();
 
-  for(unsigned int i = 0; i < raw_length; i++)
+  for(int i = 0; i < length; i++)
   {
-    for(unsigned int j = 0; j < raw_width; j++)
+    for(int j = 0; j < width; j++)
     {
-      for(unsigned int k = 0; k < raw_depth; k++)
+      for(int k = 0; k < depth; k++)
       {
         //Thorlabs img files use 40 bytes of NULL between each B-scan
-        int val = oct_data[i*raw_width*raw_depth + j*raw_depth +
+        int val = oct_data[i*width*depth + j*depth +
                            k + frame_header*i + file_header];
 
         points->InsertNextPoint(i*length_incrm, j*width_incrm, k*depth_incrm);
         dataArray->InsertNextValue(val);
+
+        //std::cout << "x: " << i*length_incrm << "\t\ty: " << j*width_incrm <<
+        //   "\t\tz: " << k*depth_incrm << "\t\tval: " << val << std::endl;
       }
     }
 
     //Update status bar
     this->statusBar()->showMessage("Building raw point data... " +
-        QString::number(i) + " of " + QString::number(raw_length));
+        QString::number(i) + " of " + QString::number(length));
     QApplication::processEvents();
   }
 
@@ -306,7 +348,99 @@ void Form::on_browse_button_clicked()
   }
 }
 
+
+
 void Form::on_connected_master_checkbox_clicked(bool checked)
 {
   this->m_ui->connected_master_checkbox->setChecked(checked);
+}
+
+
+
+
+
+void Form::on_len_steps_spinbox_editingFinished()
+{
+  m_len_steps = this->m_ui->len_steps_spinbox->value();
+}
+
+void Form::on_wid_steps_spinbox_editingFinished()
+{
+  m_wid_steps = this->m_ui->wid_steps_spinbox->value();
+}
+
+void Form::on_dep_steps_spinbox_editingFinished()
+{
+  m_dep_steps = this->m_ui->dep_steps_spinbox->value();
+}
+
+void Form::on_len_range_spinbox_editingFinished()
+{
+  m_len_range = this->m_ui->len_range_spinbox->value();
+}
+
+void Form::on_wid_range_spinbox_editingFinished()
+{
+  m_wid_range = this->m_ui->wid_range_spinbox->value();
+}
+
+void Form::on_dep_range_spinbox_editingFinished()
+{
+  m_dep_range = this->m_ui->dep_range_spinbox->value();
+}
+
+void Form::on_len_off_spinbox_editingFinished()
+{
+  m_len_offset = this->m_ui->len_off_spinbox->value();
+}
+
+void Form::on_wid_off_spinbox_editingFinished()
+{
+  m_wid_offset = this->m_ui->wid_off_spinbox->value();
+}
+
+void Form::on_request_scan_button_clicked()
+{
+  //Requests a scan from our qnode
+  qDebug() << "Send request";
+
+  //Disables controls until we get a response
+  m_ui->len_steps_spinbox->setDisabled(true);
+  m_ui->wid_steps_spinbox->setDisabled(true);
+  m_ui->dep_steps_spinbox->setDisabled(true);
+  m_ui->len_range_spinbox->setDisabled(true);
+  m_ui->wid_range_spinbox->setDisabled(true);
+  m_ui->dep_range_spinbox->setDisabled(true);
+  m_ui->len_off_spinbox->setDisabled(true);
+  m_ui->wid_off_spinbox->setDisabled(true);
+  m_ui->request_scan_button->setDisabled(true);
+
+  m_ui->received_data_checkbox->setChecked(false);
+
+  Q_EMIT requestScan(m_len_steps, m_wid_steps, m_dep_steps,
+                     m_len_range, m_wid_range, m_dep_range,
+                     m_len_offset, m_wid_offset);
+}
+
+void Form::on_received_data_checkbox_clicked()
+{
+  m_ui->received_data_checkbox->setChecked(true);
+
+  //Loads m_qnode's data vector into m_raw_oct_poly_data
+  loadRawOCTData(m_qnode->getDataReference(), 0, 0, m_len_steps, m_wid_steps,
+      m_dep_steps, m_len_range, m_wid_range);
+
+  //Immediately render it
+  renderPointPolyData();
+
+  //Re-enables controls for a potential new scan
+  m_ui->len_steps_spinbox->setDisabled(false);
+  m_ui->wid_steps_spinbox->setDisabled(false);
+  m_ui->dep_steps_spinbox->setDisabled(false);
+  m_ui->len_range_spinbox->setDisabled(false);
+  m_ui->wid_range_spinbox->setDisabled(false);
+  m_ui->dep_range_spinbox->setDisabled(false);
+  m_ui->len_off_spinbox->setDisabled(false);
+  m_ui->wid_off_spinbox->setDisabled(false);
+  m_ui->request_scan_button->setDisabled(false);
 }

@@ -4,9 +4,7 @@
 
 QNode::QNode(int argc, char** argv ) : no_argc(argc), no_argv(argv)
 {
-	//Begin executing this QThread. After this, it will call this->run().
-	//Returning from run() will end the execution of the thread
-	//QThread::start();
+	m_shutdown = false;
 }
 
 
@@ -15,9 +13,11 @@ QNode::QNode(int argc, char** argv ) : no_argc(argc), no_argv(argv)
 
 QNode::~QNode()
 {
-	ROS_INFO("Shutting down");
+	stopCurrentNode();
+	m_shutdown = true;
 
-	qDebug() << "Called destructor";
+	//Tells the GUI that we're finished deconstructing everything
+	Q_EMIT finished();
 }
 
 
@@ -26,20 +26,17 @@ QNode::~QNode()
 
 void QNode::connectToMaster()
 {
-  qDebug() << "connectToMaster called";
   ros::init(no_argc,no_argv,"OCT_overlay");
 
-  //Wait for a master
+  //Wait for a master, or break out of we need to shutdown with no Master
   while(!ros::master::check())
   {
-    ;
+    if(m_shutdown) return;
   }
 
   //This needs to be called before a node is created to prevent ros from
   //permanently shutting us down after said node is explicitly deleted
   ros::start();
-
-  qDebug() << "Master found";
 
 	//Signal the UI that Master has connected
 	Q_EMIT rosMasterChanged(true);
@@ -55,41 +52,12 @@ void QNode::connectToMaster()
 
 
 
-void QNode::process()
-{
-	qDebug() << "run called\n";
-
-	//We can't use ros::Rate before Master is running
-	connectToMaster();
-
-	ros::Rate loop_rate(1);
-
-	while (1)
-	{		
-		qDebug() << "loop";
-
-		loop_rate.sleep();
-
-		ros::spinOnce();
-
-		//If Master has shut down, kill node and wait for a new master
-		if(!ros::master::check())
-		{
-			qDebug() << "run - shutting down\n";
-			stopCurrentNode();
-
-			Q_EMIT rosMasterChanged(false);
-			connectToMaster();
-		}		
-	}
-}
-
-
-
-
-
 void QNode::setupSubscriptions()
 {
+  //Setup a service client for the TCP OCT service from oct_client
+  //m_clientTCPOCT = m_nh->
+  //    serviceClient<oct_client::octClientServiceTCP>("oct_client_service_TCP");
+
   //Fetches the image topic names from the ROS param server, or uses the
   //default values (last arguments in the param calls)
   m_topic_names = new std::string[4];
@@ -168,18 +136,110 @@ void QNode::stopCurrentNode()
 {
   if(ros::isStarted())
   {
-    qDebug() << " is started";
     ros::shutdown();
     ros::waitForShutdown();
+
+    //Deletes the node handle manually, so it can be created again
+    delete m_nh;
   }
-  delete m_nh;
 }
 
 
 
 
 
+void QNode::process()
+{
+	//We can't use ros::Rate before Master is running
+	connectToMaster();
+
+	while (!m_shutdown)
+	{
+		static ros::Rate loop_rate(1);
+		loop_rate.sleep();
+
+		ROS_INFO("Executing");
+
+		ros::spinOnce();
+		QCoreApplication::processEvents(); //Check for signals from main thread
+
+		//If Master has shut down, kill node and wait for a new master
+		if(!ros::master::check())
+		{
+			stopCurrentNode();
+
+			//Updates the checkbox
+			Q_EMIT rosMasterChanged(false);
+
+			connectToMaster();
+		}		
+	}
+}
 
 
+
+
+
+void QNode::requestScan(int length_steps, int width_steps,
+		int depth_steps, float length_range, float width_range,
+		float depth_range,float length_offset,float width_offset)
+{
+	ROS_INFO("Requested a scan");
+
+	qDebug() << "Requesting a scan";
+	qDebug() << length_steps;
+	qDebug() << length_range;
+	qDebug() << length_offset;
+
+	m_data.resize(length_steps * width_steps * depth_steps);
+
+	for(int i = 0; i < 100000000; i++)
+	{
+		;
+	}
+
+//	oct_client::octClientServiceTCP octSrvMessage;
+
+//	octSrvMessage.request.x_steps = length_steps;
+//	octSrvMessage.request.y_steps = width_steps;
+//	octSrvMessage.request.z_steps = depth_steps;
+
+//	octSrvMessage.request.x_range = length_range;
+//	octSrvMessage.request.y_range = width_range;
+//	octSrvMessage.request.z_range = depth_range;
+
+//	octSrvMessage.request.x_offset = length_offset;
+//	octSrvMessage.request.y_offset = depth_offset;
+
+	//Waits for a response
+//	if(m_clientTCPOCT.exists())
+//	{
+//		if(m_clientTCPOCT.call(octSrvMessage))
+//		{
+//			//This should be a deep copy
+//			m_data = octSrvMessage.response.octImage;
+//		}
+//		else
+//		{
+//			ROS_WARN("Call to service failed!");
+//		}
+//	}
+//	else
+//	{
+//		ROS_WARN("Service does not exist!");
+//	}
+
+
+	Q_EMIT receivedData();
+}
+
+
+
+
+
+std::vector<uint8_t>& QNode::getDataReference()
+{
+	return m_data;
+}
 
 

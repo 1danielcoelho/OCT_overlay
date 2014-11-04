@@ -58,7 +58,7 @@ class Form : public QMainWindow
 {
   Q_OBJECT
 
-  public:
+public:
 
   //Constructor
   explicit Form(int argc, char** argv, QWidget *parent = 0);
@@ -66,23 +66,48 @@ class Form : public QMainWindow
   ~Form();
   //Loads data from a depth-fast, width-medium, length-slow vector octdata
   //Into raw_oct_poly_data, using frame and file headers for parsing
-  void loadRawOCTData(std::vector<uint8_t>& oct_data);
+  void loadRawOCTData(std::vector<uint8_t>& oct_data, int file_header = 512,
+      int frame_header = 40, int length = 0, int width = 0, int depth = 0,
+      float length_range = 0, float width_range = 0);
 
   //Renders a poly data containing points as individual vertices. Prunes
   //points based on their scalar values to keep up to MAX_RENDER_POINTS
   void renderPointPolyData();
 
-  private Q_SLOTS:
+private Q_SLOTS:
   void on_browse_button_clicked();
   void on_connected_master_checkbox_clicked(bool checked);
+  void on_len_steps_spinbox_editingFinished();
+  void on_wid_steps_spinbox_editingFinished();
+  void on_dep_steps_spinbox_editingFinished();
+  void on_len_range_spinbox_editingFinished();
+  void on_wid_range_spinbox_editingFinished();
+  void on_dep_range_spinbox_editingFinished();
+  void on_len_off_spinbox_editingFinished();
+  void on_wid_off_spinbox_editingFinished();
+  void on_request_scan_button_clicked();
+
+  void on_received_data_checkbox_clicked();
 
   Q_SIGNALS:
+  void requestScan(int length_steps, int width_steps,
+                   int depth_steps, float length_range,
+                   float width_range, float depth_range,
+                   float length_offset, float width_offset);
 
-
-  private:
+private:
   Ui::Form *m_ui;
   QNode* m_qnode;
   QThread* m_qthread;
+
+  int m_len_steps;
+  int m_wid_steps;
+  int m_dep_steps;
+  float m_len_range;
+  float m_wid_range;
+  float m_dep_range;
+  float m_len_offset;
+  float m_wid_offset;
 
   //VTK objects
   //Data structures
