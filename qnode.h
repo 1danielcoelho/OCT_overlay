@@ -99,7 +99,6 @@ public Q_SLOTS:
 private:
 	ros::NodeHandle* m_nh;
 	ros::ServiceClient m_clientTCPOCT;
-	std::string* m_topic_names;
 	cv_bridge::CvImagePtr m_cv_image_ptr;
 	std::vector<uint8_t> m_data;
 
@@ -109,11 +108,16 @@ private:
 
 	bool m_shutdown;
 
-	message_filters::Subscriber<sensor_msgs::Image>* m_left_image_sub;
-	message_filters::Subscriber<sensor_msgs::Image>* m_right_image_sub;
-	message_filters::Subscriber<sensor_msgs::Image>* m_disp_image_sub;
-	message_filters::Subscriber<sensor_msgs::Image>* m_depth_image_sub;
-	message_filters::Synchronizer<myPolicyType>* m_synchronizer;
+	boost::shared_ptr<message_filters::Subscriber<sensor_msgs::Image> >
+			m_left_image_sub;
+	boost::shared_ptr<message_filters::Subscriber<sensor_msgs::Image> >
+			m_right_image_sub;
+	boost::shared_ptr<message_filters::Subscriber<sensor_msgs::Image> >
+			m_disp_image_sub;
+	boost::shared_ptr<message_filters::Subscriber<sensor_msgs::Image> >
+			m_depth_image_sub;
+	boost::shared_ptr<message_filters::Synchronizer<myPolicyType> >
+			m_synchronizer;
 };
 
 

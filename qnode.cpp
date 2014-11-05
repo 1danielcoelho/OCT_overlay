@@ -16,6 +16,8 @@ QNode::~QNode()
 	stopCurrentNode();
 	m_shutdown = true;
 
+	m_data.clear();
+
 	//Tells the GUI that we're finished deconstructing everything
 	Q_EMIT finished();
 }
@@ -60,36 +62,36 @@ void QNode::setupSubscriptions()
 
   //Fetches the image topic names from the ROS param server, or uses the
   //default values (last arguments in the param calls)
-  m_topic_names = new std::string[4];
-  m_nh->param<std::string>("leftImageTopicName", m_topic_names[0],
+  std::string topic_names[4];
+  m_nh->param<std::string>("leftImageTopicName", topic_names[0],
       "/stereomatching/image_left");
-  m_nh->param<std::string>("rightImageTopicName", m_topic_names[1],
+  m_nh->param<std::string>("rightImageTopicName", topic_names[1],
       "/stereomatching/image_right");
-  m_nh->param<std::string>("dispImageTopicName", m_topic_names[2],
+  m_nh->param<std::string>("dispImageTopicName", topic_names[2],
       "/stereomatching/disparity_map");
-  m_nh->param<std::string>("depthImageTopicName", m_topic_names[3],
+  m_nh->param<std::string>("depthImageTopicName", topic_names[3],
       "/stereomatching/depth_map");
   ROS_INFO("Topic names fetched");
 
   //Subscribes to all four image topics. We use message_filters here since
   //the messages published to these topics will come at slightly different
   //time points. Last param is queue size
-  m_left_image_sub = new
-  message_filters::Subscriber<sensor_msgs::Image>(*m_nh, m_topic_names[0], 1);
-  m_right_image_sub = new
-  message_filters::Subscriber<sensor_msgs::Image>(*m_nh, m_topic_names[1], 1);
-  m_disp_image_sub = new
-  message_filters::Subscriber<sensor_msgs::Image>(*m_nh, m_topic_names[2], 1);
-  m_depth_image_sub = new
-  message_filters::Subscriber<sensor_msgs::Image>(*m_nh, m_topic_names[3], 1);
+  m_left_image_sub.reset( new
+  message_filters::Subscriber<sensor_msgs::Image>(*m_nh, topic_names[0], 1));
+  m_right_image_sub.reset( new
+  message_filters::Subscriber<sensor_msgs::Image>(*m_nh, topic_names[1], 1));
+  m_disp_image_sub.reset( new
+  message_filters::Subscriber<sensor_msgs::Image>(*m_nh, topic_names[2], 1));
+  m_depth_image_sub.reset( new
+  message_filters::Subscriber<sensor_msgs::Image>(*m_nh, topic_names[3], 1));
 
   //Using the policy typedef'd in the header file, we approximate the
   //message publish time instants and produce a single callback for all
   //of them. syncPolicy takes a queue size as its constructor argument,
   //which we need to be 4 to hold all four images before syncing
-  m_synchronizer = new message_filters::Synchronizer<myPolicyType>
+  m_synchronizer.reset( new message_filters::Synchronizer<myPolicyType>
       (myPolicyType(4),*m_left_image_sub, *m_right_image_sub, *m_disp_image_sub,
-      *m_depth_image_sub);
+      *m_depth_image_sub));
   //Register which callback will receive the sync'd messages.
   //registerCallback expects a functor (not func pointer) so we use
   //boost::bind
@@ -124,6 +126,9 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
   disp_map = m_cv_image_ptr->image;
   m_cv_image_ptr = cv_bridge::toCvCopy(msg_depth, enc::TYPE_32FC3);
   depth_map = m_cv_image_ptr->image;
+
+  m_cv_image_ptr.reset();
+
   ROS_INFO("Image data fetched");
 
 }
