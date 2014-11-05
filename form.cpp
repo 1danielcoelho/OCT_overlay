@@ -21,26 +21,20 @@ Form::Form(int argc, char** argv, QWidget *parent) :
   m_len_offset = this->m_ui->len_off_spinbox->value();
   m_wid_offset = this->m_ui->wid_off_spinbox->value();
 
+  //Creates qnode and it's thread, connecting signals and slots
   m_qthread = new QThread;
   m_qnode = new QNode(argc, argv);
-
   m_qnode->moveToThread(m_qthread);
-
-
   connect(m_qnode, SIGNAL(rosMasterChanged(bool)), this,
           SLOT(on_connected_master_checkbox_clicked(bool)));
-
   connect(this,
           SIGNAL(requestScan(int, int, int, float, float, float, float, float)),
           m_qnode,
           SLOT(requestScan(int, int, int, float, float, float, float, float)),
           Qt::QueuedConnection); //Runs slot on receiving thread, according to
                                  //its own event loop
-
   connect(m_qnode, SIGNAL(receivedData()), this,
           SLOT(on_received_data_checkbox_clicked()), Qt::QueuedConnection);
-
-
   connect(m_qthread, SIGNAL(started()), m_qnode, SLOT(process()));
   connect(m_qnode, SIGNAL(finished()), m_qthread, SLOT(quit()));
   connect(m_qnode, SIGNAL(finished()), m_qthread, SLOT(deleteLater()));
@@ -66,8 +60,8 @@ Form::Form(int argc, char** argv, QWidget *parent) :
   m_renderer = vtkSmartPointer<vtkRenderer>::New();
 
   m_renderer->SetBackground(0, 0, 0);
-  m_renderer->SetBackground2(0.1, 0.1, 0.1);
-  m_renderer->SetGradientBackground(1);
+  //m_renderer->SetBackground2(0.1, 0.1, 0.1);
+  //m_renderer->SetGradientBackground(1);
 
   //Adds our renderer to the QVTK widget
   this->m_ui->qvtkWidget->GetRenderWindow()->AddRenderer(m_renderer);
@@ -307,27 +301,39 @@ void Form::on_browse_button_clicked()
     QApplication::processEvents(QEventLoop::ExcludeSocketNotifiers, 10);
 
     //Update status bar
-    this->m_ui->status_bar->showMessage("Analyzing file... ");
+    this->m_ui->status_bar->showMessage("Reading file... ");
     QApplication::processEvents();
 
-    //Create an input file stream
-    std::ifstream input_file(file_name.toStdString().c_str());
+    //Create the input_file. C file I/O is the fastest there is, don't use
+    //C++ streams unless you have to!
+    std::FILE* input_file;
+    input_file = std::fopen(file_name.toStdString().c_str(), "rb");
 
     //If the file isn't open, show an error box
-    if(!input_file)
+    if(input_file == NULL)
     {
-      QMessageBox::critical(this, tr("Error"), tr("Could not open file."));
+      QMessageBox::critical(this, tr("Error"), tr("Could not open file!"));
       return;
     }
 
     //Get the file size
-    input_file.seekg(0, std::ios::end);
-    int file_size = input_file.tellg();
-    input_file.seekg(0, std::ios::beg);
+    std::fseek(input_file, 0, SEEK_END);
+    int file_size = std::ftell(input_file);
+    std::rewind(input_file);
 
     //Read the file into data
     std::vector<uint8_t> data(file_size);
-    input_file.read((char*) &data[0], file_size);    
+    int bytes_read = std::fread(&(data[0]), 1, file_size, input_file);
+
+    std::fclose(input_file);
+
+    //Check to see if we read everything
+    if(bytes_read != file_size)
+    {
+      QMessageBox::critical(this, tr("Error"),
+          tr("Could not read the entire file!"));
+      return;
+    }
 
     //Update status bar
     this->m_ui->status_bar->showMessage("Loading data into point cloud... ");
@@ -399,6 +405,11 @@ void Form::on_wid_off_spinbox_editingFinished()
   m_wid_offset = this->m_ui->wid_off_spinbox->value();
 }
 
+
+
+
+
+
 void Form::on_request_scan_button_clicked()
 {
   //Requests a scan from our qnode
@@ -414,6 +425,7 @@ void Form::on_request_scan_button_clicked()
   m_ui->len_off_spinbox->setDisabled(true);
   m_ui->wid_off_spinbox->setDisabled(true);
   m_ui->request_scan_button->setDisabled(true);
+  m_ui->save_button->setDisabled(true);
 
   m_ui->received_data_checkbox->setChecked(false);
 
@@ -421,6 +433,11 @@ void Form::on_request_scan_button_clicked()
                      m_len_range, m_wid_range, m_dep_range,
                      m_len_offset, m_wid_offset);
 }
+
+
+
+
+
 
 void Form::on_received_data_checkbox_clicked()
 {
@@ -443,4 +460,71 @@ void Form::on_received_data_checkbox_clicked()
   m_ui->len_off_spinbox->setDisabled(false);
   m_ui->wid_off_spinbox->setDisabled(false);
   m_ui->request_scan_button->setDisabled(false);
+  m_ui->save_button->setDisabled(false);
+}
+
+
+
+
+
+
+void Form::on_save_button_clicked()
+{
+  if(!m_ui->received_data_checkbox->isChecked())
+  {
+    QMessageBox::critical(this, tr("Error"), tr("No received data to save!"));
+    return;
+  }
+
+  QString file_name = QFileDialog::getSaveFileName(this, tr("Save as img file"),
+      "", tr("Image file (*.img)"));
+
+  if(!file_name.isEmpty())
+  {
+    //Allows the file dialog to close before resuming computations
+    QApplication::processEvents(QEventLoop::ExcludeSocketNotifiers, 10);
+
+    //Update status bar
+    this->m_ui->status_bar->showMessage("Writing data to file... ");
+    QApplication::processEvents();
+
+    std::FILE* output_file;
+    output_file = std::fopen(file_name.toStdString().c_str(), "wb"); //write,
+                                                                     //binary
+    //If the file isn't open, show an error box
+    if(output_file == NULL)
+    {
+      QMessageBox::critical(this, tr("Error"), tr("Could not open file!"));
+      return;
+    }
+
+    std::vector<uint8_t> header;
+    header.resize(512);
+
+    memcpy(&header[16], &m_len_steps, 4*sizeof(uint8_t));
+    memcpy(&header[20], &m_wid_steps, 4*sizeof(uint8_t));
+    memcpy(&header[24], &m_dep_steps, 4*sizeof(uint8_t));
+    memcpy(&header[72], &m_len_range, 4*sizeof(uint8_t));
+    memcpy(&header[76], &m_wid_range, 4*sizeof(uint8_t));
+
+    //Writes header.size() elements of size 1, starting at &(data[0]) to output
+    int bytes_written = fwrite(&(header[0]), 1, header.size(), output_file);
+
+    //Write the actual data
+    std::vector<uint8_t> data = m_qnode->getDataReference();
+    bytes_written += fwrite(&(data[0]), 1, data.size(), output_file);
+
+    fclose(output_file);
+
+    //Check to see if we wrote everything
+    if(bytes_written != (header.size() + data.size()))
+    {
+      QMessageBox::critical(this, tr("Error"),
+          tr("Could not write the entire header and data!"));
+    }
+
+    //Update status bar
+    this->m_ui->status_bar->showMessage("Writing data to file... done!");
+    QApplication::processEvents();
+  }
 }

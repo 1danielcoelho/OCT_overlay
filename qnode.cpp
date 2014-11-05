@@ -191,16 +191,11 @@ void QNode::requestScan(int length_steps, int width_steps,
 {
 	ROS_INFO("Requested a scan");
 
-	qDebug() << "Requesting a scan";
-	qDebug() << length_steps;
-	qDebug() << length_range;
-	qDebug() << length_offset;
-
 	m_data.resize(length_steps * width_steps * depth_steps);
 
-	for(int i = 0; i < 100000000; i++)
+	for(int i = 0; i < m_data.size(); i++)
 	{
-		;
+		m_data[i] = i%256;
 	}
 
 //	oct_client::octClientServiceTCP octSrvMessage;

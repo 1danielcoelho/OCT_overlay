@@ -22,6 +22,8 @@
   <depend package="dynamic_reconfigure"/>   
   <depend package="pcl"/>
   <depend package="pcl_ros"/>
+  <!--<depend package="OCT_wrapper"/>-->
+  <!--<depend package="oct_client"/>-->
   <!--<depend package="utilities"/>-->
 </package>
 

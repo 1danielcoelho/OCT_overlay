@@ -4,6 +4,7 @@
 //C, C++
 #include <stdint.h>
 #include <assert.h>
+#include <stdio.h>
 
 //QT
 #include <QThread>
@@ -88,6 +89,8 @@ private Q_SLOTS:
   void on_request_scan_button_clicked();
 
   void on_received_data_checkbox_clicked();
+
+  void on_save_button_clicked();
 
   Q_SIGNALS:
   void requestScan(int length_steps, int width_steps,

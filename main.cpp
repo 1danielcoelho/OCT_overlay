@@ -1,10 +1,12 @@
 /*  TODO:
  *
- *  -Progress bar widget inside status bar
- * *
- *  -Find a cheap way to change the color to white
+ *  -Change file input to C style
  *
- *  -Implement OCT_wrapper request
+ *  -Have the depth range and steps be tied together
+ *
+ *  -Bug by 50,50,100, 5.0, 5.0, x
+ *
+ *
  *
  *
  *
