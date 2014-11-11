@@ -73,6 +73,11 @@ void QNode::setupSubscriptions()
       "/stereomatching/depth_map");
   ROS_INFO("Topic names fetched");
 
+  //Swaps the current synchronizer object for nothing, effectively deleting the
+  //previous one. Since it needs to disconnect it's previous subscriptions, we
+  //need to run this, disconnecting them before they get deleted right below
+  m_synchronizer.reset();
+
   //Subscribes to all four image topics. We use message_filters here since
   //the messages published to these topics will come at slightly different
   //time points. Last param is queue size
@@ -89,14 +94,16 @@ void QNode::setupSubscriptions()
   //message publish time instants and produce a single callback for all
   //of them. syncPolicy takes a queue size as its constructor argument,
   //which we need to be 4 to hold all four images before syncing
-  m_synchronizer.reset( new message_filters::Synchronizer<myPolicyType>
-      (myPolicyType(4),*m_left_image_sub, *m_right_image_sub, *m_disp_image_sub,
-      *m_depth_image_sub));
+  m_synchronizer.reset( new
+  message_filters::Synchronizer<myPolicyType>(myPolicyType(4),*m_left_image_sub,
+      *m_right_image_sub, *m_disp_image_sub, *m_depth_image_sub));
+
   //Register which callback will receive the sync'd messages.
   //registerCallback expects a functor (not func pointer) so we use
   //boost::bind
   m_synchronizer->registerCallback(boost::bind(
       &QNode::imageCallback, this, _1, _2, _3, _4));
+
   ROS_INFO("Topic subscription and synchronization completed");
 
 }

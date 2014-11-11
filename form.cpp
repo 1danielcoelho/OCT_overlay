@@ -190,19 +190,11 @@ void Form::renderPointPolyData()
   //Get the number of points
   uint32_t num_pts = m_raw_oct_poly_data->GetPointData()->GetNumberOfTuples();
 
-  //float mask_ratio = 1;
-
   if(num_pts == 0)
   {
     qDebug() << "m_raw_oct_poly_data is empty!";
     return;
   }
-//  else if (num_pts > MAX_RENDER_POINTS)
-//  {
-//    //Calculate the integer mask ratio to get approx. up to MAX_RENDER_POINTS
-//    //vertices
-//    mask_ratio = (uint32_t)(totalPoints/MAX_RENDER_POINTS + 0.5);
-//  }
 
   vtkPoints* old_points = m_raw_oct_poly_data->GetPoints();
   vtkTypeUInt8Array* old_data_array = vtkTypeUInt8Array::SafeDownCast(
@@ -394,6 +386,7 @@ void Form::on_connected_master_checkbox_clicked(bool checked)
   m_ui->request_scan_button->setDisabled(!checked);
 
   this->m_ui->connected_master_checkbox->setChecked(checked);
+  this->m_ui->connected_master_checkbox_2->setChecked(checked);
 }
 
 

@@ -1,10 +1,11 @@
 /*  TODO:
  *
- *  -Bug by 50,50,100, 5.0, 5.0, x
+ *  -Maybe implement rendering the sample based on the offset as opposed to just
+ *   passing it along
  *
  *  -Change editing finished slots to value changed slots
  *
- *  -Don't allow scan requests if not connected to master
+ *
  *
  *
  *
