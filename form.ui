@@ -84,7 +84,7 @@
          <property name="title">
           <string>Input</string>
          </property>
-         <widget class="QWidget" name="">
+         <widget class="QWidget" name="layoutWidget">
           <property name="geometry">
            <rect>
             <x>0</x>
@@ -581,7 +581,7 @@
                   <number>2000</number>
                  </property>
                  <property name="value">
-                  <number>256</number>
+                  <number>1024</number>
                  </property>
                 </widget>
                </item>
@@ -606,10 +606,10 @@
                   </size>
                  </property>
                  <property name="maximum">
-                  <double>10.000000000000000</double>
+                  <double>2.760000000000000</double>
                  </property>
                  <property name="value">
-                  <double>10.000000000000000</double>
+                  <double>2.760000000000000</double>
                  </property>
                 </widget>
                </item>

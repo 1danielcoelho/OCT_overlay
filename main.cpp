@@ -1,14 +1,10 @@
 /*  TODO:
  *
- *  -Change file input to C style
- *
- *  -Have the depth range and steps be tied together
- *
  *  -Bug by 50,50,100, 5.0, 5.0, x
  *
+ *  -Change editing finished slots to value changed slots
  *
- *
- *
+ *  -Don't allow scan requests if not connected to master
  *
  *
  *

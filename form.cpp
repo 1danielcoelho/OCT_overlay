@@ -21,6 +21,12 @@ Form::Form(int argc, char** argv, QWidget *parent) :
   m_len_offset = this->m_ui->len_off_spinbox->value();
   m_wid_offset = this->m_ui->wid_off_spinbox->value();
 
+  //Turn off the request scan button until we get a connection to Master
+  m_ui->request_scan_button->setDisabled(true);
+
+  //Turn off the save button until we have some received data
+  m_ui->save_button->setDisabled(true);
+
   //Creates qnode and it's thread, connecting signals and slots
   m_qthread = new QThread;
   m_qnode = new QNode(argc, argv);
@@ -101,6 +107,15 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data,
     std::memcpy(&width_range, &(oct_data[76]), 4*sizeof(uint8_t));
   }
 
+  //Checks for the datetime string: If it exists, this is a thorlabs img
+  //file, and the frameheader needs to be 40. It should be 0 otherwise
+  uint32_t checker = 0;
+  std::memcpy(&checker, &(oct_data[44]), 4*sizeof(uint8_t));
+  if(checker == 0) //Still 0
+  {
+    frame_header = 0;
+  }
+
   float length_incrm = 1;
   float width_incrm = 1;
   float depth_incrm = 1;
@@ -115,7 +130,9 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data,
 
   //Creates an array for point coordinates, and one for the scalars
   VTK_NEW(vtkPoints, points);
+  points->Reset();
   VTK_NEW(vtkTypeUInt8Array, dataArray);
+  dataArray->Reset();
 
   points->SetNumberOfPoints(length * width * depth);
   dataArray->SetNumberOfValues(length * width * depth);
@@ -124,20 +141,19 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data,
   this->statusBar()->showMessage("Building raw point data... ");
   QApplication::processEvents();
 
+  int id = 0;
   for(int i = 0; i < length; i++)
   {
     for(int j = 0; j < width; j++)
     {
-      for(int k = 0; k < depth; k++)
+      for(int k = 0; k < depth; k++, id++)
       {
         //Thorlabs img files use 40 bytes of NULL between each B-scan
-        int val = oct_data[i*width*depth + j*depth +
-                           k + frame_header*i + file_header];
+        int val = oct_data[id + frame_header*i + file_header];
 
-        points->InsertNextPoint(i*length_incrm, j*width_incrm, k*depth_incrm);
-        dataArray->InsertNextValue(val);
-
-        //std::cout << "x: " << i*length_incrm << "\t\ty: " << j*width_incrm <<
+        points->SetPoint(id, i*length_incrm, j*width_incrm, k*depth_incrm);
+        dataArray->SetValue(id,val);
+        //std::cout << "id: " << id << "\t\tx: " << i*length_incrm << "\t\ty: " << j*width_incrm <<
         //   "\t\tz: " << k*depth_incrm << "\t\tval: " << val << std::endl;
       }
     }
@@ -154,6 +170,11 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data,
   //Add scalar data and point data
   m_raw_oct_poly_data->SetPoints(points);
   m_raw_oct_poly_data->GetPointData()->SetScalars(dataArray);
+
+//  std::cout << "Loaded with ls: " << length << ", ws: " << width <<
+//        ", ds: " << depth << ", lr: " << length_range << ", wr: " <<
+//        width_range << ", size: " << m_raw_oct_poly_data->GetNumberOfPoints() <<
+//        std::endl;
 
   //Update status bar
   this->statusBar()->showMessage("Building raw point data... done!");
@@ -198,10 +219,15 @@ void Form::renderPointPolyData()
   for(uint32_t i = 0; i < num_pts; i++)
   {
     value = old_data_array->GetValue(i);
-    if(value > 100)
+    if(value > VIS_THRESHOLD)
     {
       new_points->InsertNextPoint(old_points->GetPoint(i));
       new_data_array->InsertNextValue(value);
+
+//      std::cout << "x: " << (old_points->GetPoint(i))[0] <<
+//          "\t\ty: " << (old_points->GetPoint(i))[1] <<
+//          "\t\tz: " << (old_points->GetPoint(i))[2] <<
+//          "\t\tI: " << (int)value << std::endl;
     }
   }
 
@@ -209,9 +235,11 @@ void Form::renderPointPolyData()
   this->statusBar()->showMessage("Preparing PolyData for display... done!");
   QApplication::processEvents();
 
+  //Restores to original state, releases memory
+  m_vis_poly_data->Reset();
+
   m_vis_poly_data->SetPoints(new_points);
   m_vis_poly_data->GetPointData()->SetScalars(new_data_array);
-  //m_vis_poly_data->Print(std::cout);
 
   m_vert_filter->SetInput(m_vis_poly_data);
 
@@ -219,6 +247,9 @@ void Form::renderPointPolyData()
   m_poly_mapper->SetScalarVisibility(1);
 
   m_actor->SetMapper(m_poly_mapper);
+
+  //Reset the renderer
+  m_renderer->RemoveAllViewProps();
 
   m_renderer->AddActor(m_actor);
   m_renderer->ResetCamera();
@@ -271,6 +302,7 @@ void Form::renderPointPolyData()
   QApplication::processEvents();
 
   this->m_ui->qvtkWidget->update();
+  QApplication::processEvents();
 
   //Update status bar
   this->statusBar()->showMessage("Rendering... done!");
@@ -358,6 +390,9 @@ void Form::on_browse_button_clicked()
 
 void Form::on_connected_master_checkbox_clicked(bool checked)
 {
+  //Only enable this button if connected to master
+  m_ui->request_scan_button->setDisabled(!checked);
+
   this->m_ui->connected_master_checkbox->setChecked(checked);
 }
 
@@ -378,6 +413,9 @@ void Form::on_wid_steps_spinbox_editingFinished()
 void Form::on_dep_steps_spinbox_editingFinished()
 {
   m_dep_steps = this->m_ui->dep_steps_spinbox->value();
+
+  //The axial sensor has a fixed resolution, so we change m_dep_range to match
+  this->m_ui->dep_range_spinbox->setValue((float)m_dep_steps/1024.0*2.762);
 }
 
 void Form::on_len_range_spinbox_editingFinished()
@@ -393,6 +431,9 @@ void Form::on_wid_range_spinbox_editingFinished()
 void Form::on_dep_range_spinbox_editingFinished()
 {
   m_dep_range = this->m_ui->dep_range_spinbox->value();
+
+  //The axial sensor has a fixed resolution, so we change m_dep_steps to match
+  this->m_ui->dep_steps_spinbox->setValue(m_dep_range/2.762*1024);
 }
 
 void Form::on_len_off_spinbox_editingFinished()
@@ -506,6 +547,10 @@ void Form::on_save_button_clicked()
     memcpy(&header[24], &m_dep_steps, 4*sizeof(uint8_t));
     memcpy(&header[72], &m_len_range, 4*sizeof(uint8_t));
     memcpy(&header[76], &m_wid_range, 4*sizeof(uint8_t));
+
+//    std::cout << "Saved with ls: " << m_len_steps << ", ws: " << m_wid_steps <<
+//        ", ds: " << m_dep_steps << ", lr: " << m_len_range << ", wr: " <<
+//        m_wid_range << std::endl;
 
     //Writes header.size() elements of size 1, starting at &(data[0]) to output
     int bytes_written = fwrite(&(header[0]), 1, header.size(), output_file);

@@ -163,7 +163,7 @@ void QNode::process()
 		static ros::Rate loop_rate(1);
 		loop_rate.sleep();
 
-		ROS_INFO("Executing");
+		//ROS_INFO("Executing");
 
 		ros::spinOnce();
 		QCoreApplication::processEvents(); //Check for signals from main thread
@@ -191,12 +191,17 @@ void QNode::requestScan(int length_steps, int width_steps,
 {
 	ROS_INFO("Requested a scan");
 
+	m_data.clear();
 	m_data.resize(length_steps * width_steps * depth_steps);
 
 	for(int i = 0; i < m_data.size(); i++)
 	{
 		m_data[i] = i%256;
 	}
+
+  std::cout << "Requested with ls: " << length_steps << ", ws: " << width_steps <<
+        ", ds: " << depth_steps << ", lr: " << length_range << ", wr: " <<
+        width_range << ", size: " << m_data.size() << std::endl;
 
 //	oct_client::octClientServiceTCP octSrvMessage;
 

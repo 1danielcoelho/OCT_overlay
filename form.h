@@ -47,7 +47,7 @@
 #include "qnode.h"
 
 //Maximum number of points displayed on the QVTK widget
-#define MAX_RENDER_POINTS 2000000
+#define VIS_THRESHOLD 100
 #define VTK_NEW(type, instance); vtkSmartPointer<type> instance = \
                                  vtkSmartPointer<type>::New();
 
