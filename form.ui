@@ -66,7 +66,7 @@
      <item row="0" column="0">
       <widget class="QTabWidget" name="tabWidget">
        <property name="currentIndex">
-        <number>0</number>
+        <number>1</number>
        </property>
        <widget class="QWidget" name="OCT">
         <attribute name="title">
@@ -1084,13 +1084,13 @@ QGroupBox::title {
            <property name="minimumSize">
             <size>
              <width>250</width>
-             <height>75</height>
+             <height>50</height>
             </size>
            </property>
            <property name="maximumSize">
             <size>
              <width>250</width>
-             <height>75</height>
+             <height>50</height>
             </size>
            </property>
            <property name="styleSheet">
@@ -1118,19 +1118,6 @@ QGroupBox::title {
               </property>
               <property name="text">
                <string>Connected to Master</string>
-              </property>
-              <property name="checkable">
-               <bool>true</bool>
-              </property>
-             </widget>
-            </item>
-            <item row="1" column="0">
-             <widget class="QCheckBox" name="received_stereocam_data_checkbox">
-              <property name="enabled">
-               <bool>false</bool>
-              </property>
-              <property name="text">
-               <string>Received stereocamera data</string>
               </property>
               <property name="checkable">
                <bool>true</bool>

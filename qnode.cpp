@@ -36,6 +36,8 @@ void QNode::connectToMaster()
     if(m_shutdown) return;
   }
 
+  ROS_INFO("Connected to the Master node");
+
   //This needs to be called before a node is created to prevent ros from
   //permanently shutting us down after said node is explicitly deleted
   ros::start();
@@ -143,6 +145,32 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
 
   ROS_INFO("Image data fetched");
 
+  //Build PCL cloud out of the data
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr pts(
+        new pcl::PointCloud<pcl::PointXYZRGB>);
+
+  int idx,idy;
+
+  for (idx = 0; idx < depth_map.cols; idx++)
+  {
+    for (idy = 0; idy < depth_map.rows; idy++)
+    {
+      pcl::PointXYZRGB point;
+      point.x = depth_map.at<cv::Vec3f>(idy,idx)[0];
+      point.y = depth_map.at<cv::Vec3f>(idy,idx)[1];
+      point.z = depth_map.at<cv::Vec3f>(idy,idx)[2];
+      uint32_t rgb = (image_left.at<cv::Vec3b>(idy,idx)[0] << 16 |
+                      image_left.at<cv::Vec3b>(idy,idx)[1] << 8 |
+                      image_left.at<cv::Vec3b>(idy,idx)[2]);
+      point.rgb = *reinterpret_cast<float*>(&rgb);
+      pts->points.push_back(point);
+    }
+  }
+
+  //Write PCL cloud to disk
+  m_file_manager->writePCL(pts, STEREO_PCL_CACHE_PATH);
+
+  Q_EMIT receivedStereoData();
 }
 
 
@@ -151,6 +179,8 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
 
 void QNode::stopCurrentNode()
 {
+  ROS_INFO("Stopping current ROS node");
+
   if(ros::isStarted())
   {
     ros::shutdown();
@@ -199,7 +229,7 @@ void QNode::process()
 
 void QNode::requestScan(OCTinfo params)
 {
-	ROS_INFO("Requested a scan");
+	ROS_INFO("OCT scan requested");
 
 	std::vector<uint8_t> data;
 	data.resize(params.length_steps * params.width_steps * params.depth_steps);
@@ -234,7 +264,10 @@ void QNode::requestScan(OCTinfo params)
 //		if(m_clientTCPOCT.call(octSrvMessage))
 //		{
 //			//This should be a deep copy
-//			m_data = octSrvMessage.response.octImage;
+//			data = octSrvMessage.response.octImage;
+
+//			ROS_INFO("OCT scan completed");
+
 //		}
 //		else
 //		{
@@ -259,6 +292,8 @@ void QNode::requestScan(OCTinfo params)
 
 void QNode::requestSegmentation(OCTinfo params, std::vector<uint8_t> raw_data)
 {
+	ROS_INFO("OCT surface segmentation requested");
+
 	//Pack params and raw_data into a segmentationServerFromDataArray srv request
 //	OCT_segmentation::segmentationServiceFromDataArray segmentationMessage;
 //	segmentationMessage.request.length_steps = params.length_steps;
@@ -278,6 +313,9 @@ void QNode::requestSegmentation(OCTinfo params, std::vector<uint8_t> raw_data)
 //		{
 //			//Unpack surface into our member storage
 //			m_oct_pcl_surface = segmentationMessage.response.pclSurface;
+
+//			ROS_INFO("OCT surface segmentation completed");
+
 //		}
 //		else
 //		{
@@ -292,3 +330,4 @@ void QNode::requestSegmentation(OCTinfo params, std::vector<uint8_t> raw_data)
 	//Lets the UI know that it can already pickup it's PCL point cloud
 	Q_EMIT receivedOCTSurfData(params);
 }
+

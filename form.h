@@ -26,6 +26,7 @@
 #include <vtkPoints.h>
 #include <vtkPointData.h>
 #include <vtkTypeUInt8Array.h>
+#include <vtkUnsignedCharArray.h>
 //Filters
 #include <vtkVertexGlyphFilter.h>
 //Mappers
@@ -71,15 +72,27 @@ public:
 
   //Constructor
   explicit Form(int argc, char** argv, QWidget *parent = 0);
+
   //Destructor
   ~Form();
+
   //Loads data from a depth-fast, width-medium, length-slow vector octdata
   //Into raw_oct_poly_data, using frame and file headers for parsing
-  void loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo& params =
+  void loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params =
       default_oct_info, int file_header = 512, int frame_header = 40);
+
+  //Loads a PCL point cloud saved as a binary file at STEREO_PCL_CACHE_PATH
+  //and builds the m_pcl_stereo_poly_data for visualization. It's thread safe
+  //since both rendering this and performing registration with it are read only
+  void loadPCLStereoData();
+
+  //Renders the m_pcl_stereo_poly_data
+  void renderStereoData();
+
   //Renders a poly data containing points as individual vertices. Prunes
   //points based on their scalar values to keep up to MAX_RENDER_POINTS
   void renderRawOCTData();
+
   //Uses the boolean state variables to figure out which buttons and spinboxes
   //should be enabled and which should be disabled
   void updateUIStates();
@@ -101,6 +114,11 @@ private Q_SLOTS:
   void on_calc_oct_surf_button_clicked();
   void receivedRawOCTData(OCTinfo params);
   void receivedOCTSurfData(OCTinfo params);
+  void receivedStereoData();
+
+  void on_view_depth_image_button_clicked();
+
+  void on_view_left_image_button_clicked();
 
   Q_SIGNALS:
   void requestScan(OCTinfo);
@@ -119,6 +137,7 @@ private:
   bool m_waiting_response;
   bool m_has_oct_surf;
   bool m_has_oct_mass;
+  bool m_has_stereo_pcl;
 
   //Holds our current raw oct parameters (steps, ranges, offsets)
   OCTinfo m_current_params;
@@ -127,6 +146,7 @@ private:
   //Data structures
   vtkSmartPointer<vtkPolyData> m_raw_oct_poly_data;
   vtkSmartPointer<vtkPolyData> m_vis_poly_data;
+  vtkSmartPointer<vtkPolyData> m_pcl_stereo_poly_data;
   //Filters
   vtkSmartPointer<vtkVertexGlyphFilter> m_vert_filter;
   //Mappers

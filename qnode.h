@@ -93,6 +93,7 @@ Q_SIGNALS: //Same as 'signals'
 	void finished();
 	void receivedOCTRawData(OCTinfo params);
 	void receivedOCTSurfData(OCTinfo params);
+	void receivedStereoData();
 
 public Q_SLOTS:
 	void process();
@@ -105,7 +106,7 @@ private:
 	cv_bridge::CvImagePtr m_cv_image_ptr;
 	FileManager* m_file_manager;
 
-	//We don't use these
+	//We don't use command line arguments, but ros::init needs something anyway
 	int no_argc;
 	char** no_argv;
 

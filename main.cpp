@@ -1,6 +1,8 @@
 /*  TODO:
  *
+ *  -Fix depth_range not being set on Thorlabs img files
  *
+ *  -Convert the stereocamera pcl clouds into VTK stuff and render them
  *
  *
  * */
