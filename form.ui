@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>940</width>
-    <height>644</height>
+    <width>967</width>
+    <height>627</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -25,7 +25,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>940</width>
+     <width>967</width>
      <height>22</height>
     </rect>
    </property>
@@ -407,6 +407,11 @@ QGroupBox::title {
                     <height>20</height>
                    </size>
                   </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>10</pointsize>
+                   </font>
+                  </property>
                   <property name="minimum">
                    <number>1</number>
                   </property>
@@ -438,6 +443,14 @@ QGroupBox::title {
                     <height>20</height>
                    </size>
                   </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>10</pointsize>
+                   </font>
+                  </property>
+                  <property name="decimals">
+                   <number>3</number>
+                  </property>
                   <property name="maximum">
                    <double>10.000000000000000</double>
                   </property>
@@ -465,6 +478,14 @@ QGroupBox::title {
                     <width>60</width>
                     <height>20</height>
                    </size>
+                  </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>10</pointsize>
+                   </font>
+                  </property>
+                  <property name="decimals">
+                   <number>3</number>
                   </property>
                   <property name="minimum">
                    <double>-10.000000000000000</double>
@@ -523,6 +544,11 @@ QGroupBox::title {
                     <height>20</height>
                    </size>
                   </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>10</pointsize>
+                   </font>
+                  </property>
                   <property name="minimum">
                    <number>1</number>
                   </property>
@@ -554,6 +580,14 @@ QGroupBox::title {
                     <height>20</height>
                    </size>
                   </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>10</pointsize>
+                   </font>
+                  </property>
+                  <property name="decimals">
+                   <number>3</number>
+                  </property>
                   <property name="maximum">
                    <double>10.000000000000000</double>
                   </property>
@@ -581,6 +615,14 @@ QGroupBox::title {
                     <width>60</width>
                     <height>20</height>
                    </size>
+                  </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>10</pointsize>
+                   </font>
+                  </property>
+                  <property name="decimals">
+                   <number>3</number>
                   </property>
                   <property name="minimum">
                    <double>-10.000000000000000</double>
@@ -642,6 +684,11 @@ QGroupBox::title {
                     <height>20</height>
                    </size>
                   </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>10</pointsize>
+                   </font>
+                  </property>
                   <property name="minimum">
                    <number>1</number>
                   </property>
@@ -673,11 +720,22 @@ QGroupBox::title {
                     <height>20</height>
                    </size>
                   </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>10</pointsize>
+                   </font>
+                  </property>
+                  <property name="decimals">
+                   <number>3</number>
+                  </property>
                   <property name="maximum">
-                   <double>2.760000000000000</double>
+                   <double>2.762000000000000</double>
+                  </property>
+                  <property name="singleStep">
+                   <double>0.100000000000000</double>
                   </property>
                   <property name="value">
-                   <double>2.760000000000000</double>
+                   <double>2.762000000000000</double>
                   </property>
                  </widget>
                 </item>
@@ -700,19 +758,6 @@ QGroupBox::title {
                </layout>
               </item>
              </layout>
-            </item>
-            <item row="2" column="0">
-             <widget class="QCheckBox" name="received_data_checkbox">
-              <property name="enabled">
-               <bool>false</bool>
-              </property>
-              <property name="text">
-               <string>Received OCT data</string>
-              </property>
-              <property name="checkable">
-               <bool>true</bool>
-              </property>
-             </widget>
             </item>
            </layout>
           </widget>
@@ -779,10 +824,17 @@ QGroupBox::title {
                   <property name="text">
                    <string>Raw OCT</string>
                   </property>
+                  <property name="alignment">
+                   <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                  </property>
                  </widget>
                 </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_2">
                 <item>
-                 <spacer name="horizontalSpacer_3">
+                 <spacer name="horizontalSpacer_4">
                   <property name="orientation">
                    <enum>Qt::Horizontal</enum>
                   </property>
@@ -794,10 +846,6 @@ QGroupBox::title {
                   </property>
                  </spacer>
                 </item>
-               </layout>
-              </item>
-              <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_2">
                 <item>
                  <widget class="QPushButton" name="view_raw_oct_button">
                   <property name="sizePolicy">
@@ -823,19 +871,6 @@ QGroupBox::title {
                   </property>
                  </widget>
                 </item>
-                <item>
-                 <spacer name="horizontalSpacer_4">
-                  <property name="orientation">
-                   <enum>Qt::Horizontal</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>40</width>
-                    <height>14</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
                </layout>
               </item>
              </layout>
@@ -858,49 +893,27 @@ QGroupBox::title {
                   <property name="text">
                    <string>OCT surface segmentation</string>
                   </property>
+                  <property name="alignment">
+                   <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                  </property>
                  </widget>
-                </item>
-                <item>
-                 <spacer name="horizontalSpacer_5">
-                  <property name="orientation">
-                   <enum>Qt::Horizontal</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>68</width>
-                    <height>20</height>
-                   </size>
-                  </property>
-                 </spacer>
                 </item>
                </layout>
               </item>
               <item>
                <layout class="QHBoxLayout" name="horizontalLayout_4">
                 <item>
-                 <widget class="QPushButton" name="view_oct_surf_button">
-                  <property name="sizePolicy">
-                   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                   </sizepolicy>
+                 <spacer name="horizontalSpacer_6">
+                  <property name="orientation">
+                   <enum>Qt::Horizontal</enum>
                   </property>
-                  <property name="minimumSize">
+                  <property name="sizeHint" stdset="0">
                    <size>
-                    <width>70</width>
-                    <height>20</height>
+                    <width>40</width>
+                    <height>14</height>
                    </size>
                   </property>
-                  <property name="maximumSize">
-                   <size>
-                    <width>70</width>
-                    <height>20</height>
-                   </size>
-                  </property>
-                  <property name="text">
-                   <string>View</string>
-                  </property>
-                 </widget>
+                 </spacer>
                 </item>
                 <item>
                  <widget class="QPushButton" name="calc_oct_surf_button">
@@ -928,17 +941,29 @@ QGroupBox::title {
                  </widget>
                 </item>
                 <item>
-                 <spacer name="horizontalSpacer_6">
-                  <property name="orientation">
-                   <enum>Qt::Horizontal</enum>
+                 <widget class="QPushButton" name="view_oct_surf_button">
+                  <property name="sizePolicy">
+                   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                   </sizepolicy>
                   </property>
-                  <property name="sizeHint" stdset="0">
+                  <property name="minimumSize">
                    <size>
-                    <width>40</width>
+                    <width>70</width>
                     <height>20</height>
                    </size>
                   </property>
-                 </spacer>
+                  <property name="maximumSize">
+                   <size>
+                    <width>70</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string>View</string>
+                  </property>
+                 </widget>
                 </item>
                </layout>
               </item>
@@ -962,49 +987,27 @@ QGroupBox::title {
                   <property name="text">
                    <string>OCT mass segmentation</string>
                   </property>
+                  <property name="alignment">
+                   <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                  </property>
                  </widget>
-                </item>
-                <item>
-                 <spacer name="horizontalSpacer_7">
-                  <property name="orientation">
-                   <enum>Qt::Horizontal</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>40</width>
-                    <height>20</height>
-                   </size>
-                  </property>
-                 </spacer>
                 </item>
                </layout>
               </item>
               <item>
                <layout class="QHBoxLayout" name="horizontalLayout_7">
                 <item>
-                 <widget class="QPushButton" name="view_oct_mass_button">
-                  <property name="sizePolicy">
-                   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                   </sizepolicy>
+                 <spacer name="horizontalSpacer_8">
+                  <property name="orientation">
+                   <enum>Qt::Horizontal</enum>
                   </property>
-                  <property name="minimumSize">
+                  <property name="sizeHint" stdset="0">
                    <size>
-                    <width>70</width>
-                    <height>20</height>
+                    <width>40</width>
+                    <height>14</height>
                    </size>
                   </property>
-                  <property name="maximumSize">
-                   <size>
-                    <width>70</width>
-                    <height>20</height>
-                   </size>
-                  </property>
-                  <property name="text">
-                   <string>View</string>
-                  </property>
-                 </widget>
+                 </spacer>
                 </item>
                 <item>
                  <widget class="QPushButton" name="calc_oct_mass_button">
@@ -1032,17 +1035,29 @@ QGroupBox::title {
                  </widget>
                 </item>
                 <item>
-                 <spacer name="horizontalSpacer_8">
-                  <property name="orientation">
-                   <enum>Qt::Horizontal</enum>
+                 <widget class="QPushButton" name="view_oct_mass_button">
+                  <property name="sizePolicy">
+                   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                   </sizepolicy>
                   </property>
-                  <property name="sizeHint" stdset="0">
+                  <property name="minimumSize">
                    <size>
-                    <width>40</width>
+                    <width>70</width>
                     <height>20</height>
                    </size>
                   </property>
-                 </spacer>
+                  <property name="maximumSize">
+                   <size>
+                    <width>70</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string>View</string>
+                  </property>
+                 </widget>
                 </item>
                </layout>
               </item>

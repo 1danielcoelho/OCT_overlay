@@ -1,0 +1,141 @@
+Changes to OCT_segmentation node:
+
+
+======================================FILE: segmentationServiceFromDataArray.srv
+
+[0000]  # Steps
+        int32 length_steps		#short
+        int32 width_steps		#short
+        int32 depth_steps		#short
+
+        # Range
+        float32 length_range	#double
+        float32 width_range		#double
+        float32 depth_range		#double
+
+        # Offsets
+        float32 length_offset
+        float32 width_offset
+
+        # Raw OCT image data (depth (A-scan) -> fast; width (B-scan) -> medium; length -> slow)
+        uint8[] data		#short
+
+        ---
+        
+        # OCT surface PCL point cloud
+        sensor_msgs/PointCloud2 pclSurface
+
+================================================FILE: OCT_segmentation_qtros.hpp
+
+[0215]  ros::ServiceServer segmentationServerRegistration,
+        segmentationServerCorresp, segmentationServerAblMeasure;
+      
+        to
+      
+        ros::ServiceServer segmentationServerRegistration,
+        segmentationServerCorresp, segmentationServerAblMeasure, 
+        segmentationServerFromDataArray;
+
+
+
+
+
+
+
+
+
+
+================================================FILE: OCT_segmentation_qtros.cpp
+
+
+[0109]  this->segmentationServerFromDataArray = this->nh->advertiseService( 
+        "segmentation_service_from_data_array", 
+        &OCT_Segmentation_QtROS::segmentationServiceFromDataArrayCall,
+        this);
+      
+[1262]  
+
+/******************************************************************************
+                OCT_Segmentation_QtROS::segmentationServiceFromDataArrayCall()
+*/ /** \brief   Registered callback for advertised service
+*               'segmentation_service_from_data_array'. Extracts the top surface
+                of a point cloud of OCT data and loads it into a PCL object
+* \author       Daniel Coelho (1danielcoelho@gmail.com) adapted from Steffen
+                Pengel
+* \param[in]    segmentationService::Request&     srSrvReq  request parameter
+* \param[out]   segmentationService::Response&    srSrvRes  response parameter
+* \retval       bool                              true
+******************************************************************************/
+bool OCT_Segmentation_QtROS::segmentationServiceFromDataArrayCall(
+        OCT_segmentation::segmentationServiceFromDataArray::Request &srSrvReq,
+        OCT_segmentation::segmentationServiceFromDataArray::Response &srSrvRes )
+{
+    //Declare images
+    UCharImage3DType::Pointer itkImage = UCharImage3DType::New();
+    UShortImage3DType::Pointer itkSegmentationOutput = UShortImage3DType::New();
+    UShortImage3DType::Pointer itkSurfaceExtractionOutput = 
+                                                       UShortImage3DType::New();
+                                                       
+    pcl::PointCloud<pcl::PointXYZ>::Ptr pclSurface(
+            new pcl::PointCloud<pcl::PointXYZ> );
+    //---IN---------------------------------------------------------------------
+    
+    //Construct an OCT image message from our request, so we can enter the 
+    //pipeline
+    OCT_segmentation::OCTImage segmentationMessage;
+    
+    segmentationMessage.x_offset = reqSrvMsg.request.x_offset;
+    segmentationMessage.x_range = reqSrvMsg.request.x_range;
+    segmentationMessage.x_steps = reqSrvMsg.request.x_steps;
+    segmentationMessage.y_offset = reqSrvMsg.request.y_offset;
+    segmentationMessage.y_range = reqSrvMsg.request.y_range;
+    segmentationMessage.y_steps = reqSrvMsg.request.y_steps;
+    segmentationMessage.z_range = reqSrvMsg.request.z_range;
+    segmentationMessage.z_steps = reqSrvMsg.request.z_steps;
+    segmentationMessage.data = reqSrvMsg.request.data;
+    
+    //Use our OCT image message to construct an ITK image with the same content
+    itkImage = this->subOCTImageToITKImage(octImageMessageSegmentation);
+    
+    //Start counting time
+    ros::Time segmentationTimeBegin = ros::Time::now();
+    
+    //---PROCESSING-------------------------------------------------------------
+
+    //Segmentation 
+    this->segmentation3D( itkImage, itkSegmentationOutput );
+
+    //Surface Extraction
+    this->manualSurfaceExtraction( itkSegmentationOutput, 
+            itkSurfaceExtractionOutput, pclSurface, EMPTY );
+
+    //Stop counting time
+    ros::Time segmentationTimeEnd = ros::Time::now();
+    ros::Duration segmentationRuntime =
+            segmentationTimeEnd - segmentationTimeBegin;
+    std::cout << "Segmentation Runtime: " << segmentationRuntime << "s\n";
+
+     //---OUT-------------------------------------------------------------------
+
+    //Create pcl message with textured oct clouditkSegmentationOutput
+    sensor_msgs::PointCloud2 pclSurfaceMsg;
+    
+    pcl::toROSMsg( *pclSurface, pclSurfaceMsg );
+    pclSurfaceMsg.header.frame_id = "pcl_surface_msg";
+
+    //Push results as response to service
+    srSrvRes.pclSurface = pclSurfaceMsg;
+
+    return true;
+}
+
+
+
+
+
+
+
+
+
+
+

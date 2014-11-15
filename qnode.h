@@ -27,6 +27,7 @@
 #include <message_filters/sync_policies/approximate_time.h>
 #include <cv_bridge/cv_bridge.h>
 //#include <oct_client/octClientServiceTCP.h>
+//#include <OCT_segmentation/segmentationServiceFromDataArray.h
 
 //Boost
 #include <boost/filesystem.hpp>
@@ -35,6 +36,8 @@
 #include <cv.h>
 #include <opencv2/opencv.hpp>
 
+#include "octinfo.h"
+#include "filemanager.h"
 
 //Create a synchronization policy used to match messages based on their
 //approximate timestamp. Permits a single callback for multiple,
@@ -49,6 +52,10 @@ namespace enc = sensor_msgs::image_encodings;
 
 
 
+//Tells Qt about our new type. When we register it later, we can use it in
+//signals and slots
+Q_DECLARE_METATYPE(OCTinfo)
+Q_DECLARE_METATYPE(std::vector<uint8_t>)
 
 
 
@@ -80,27 +87,23 @@ public:
 										 const sensor_msgs::ImageConstPtr &msg_disp,
 										 const sensor_msgs::ImageConstPtr &msg_depth);
 	void stopCurrentNode();
-	std::vector<uint8_t>& getDataReference();
 
 Q_SIGNALS: //Same as 'signals'
 	void rosMasterChanged(bool);
 	void finished();
-	void receivedData();
+	void receivedOCTRawData(OCTinfo params);
+	void receivedOCTSurfData(OCTinfo params);
 
 public Q_SLOTS:
-	//Just calls the constructor. Used by the UI application to signal that
-	//we should shut down for good
 	void process();
-	void requestScan(int length_steps, int width_steps,
-									 int depth_steps, float length_range,
-									 float width_range, float depth_range,
-									 float length_offset, float width_offset);
+	void requestScan(OCTinfo params);
+	void requestSegmentation(OCTinfo params, std::vector<uint8_t> raw_data);
 
 private:
 	ros::NodeHandle* m_nh;
-	ros::ServiceClient m_clientTCPOCT;
+	ros::ServiceClient m_oct_tcp_client, m_segmentation_client;
 	cv_bridge::CvImagePtr m_cv_image_ptr;
-	std::vector<uint8_t> m_data;
+	FileManager* m_file_manager;
 
 	//We don't use these
 	int no_argc;

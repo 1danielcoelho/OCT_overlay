@@ -45,11 +45,19 @@
 
 //Project files
 #include "qnode.h"
+#include "filemanager.h"
+#include "octinfo.h"
 
 //Maximum number of points displayed on the QVTK widget
 #define VIS_THRESHOLD 100
 #define VTK_NEW(type, instance); vtkSmartPointer<type> instance = \
                                  vtkSmartPointer<type>::New();
+
+
+
+
+
+
 
 namespace Ui {
   class Form;
@@ -67,13 +75,14 @@ public:
   ~Form();
   //Loads data from a depth-fast, width-medium, length-slow vector octdata
   //Into raw_oct_poly_data, using frame and file headers for parsing
-  void loadRawOCTData(std::vector<uint8_t>& oct_data, int file_header = 512,
-      int frame_header = 40, int length = 0, int width = 0, int depth = 0,
-      float length_range = 0, float width_range = 0);
-
+  void loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo& params =
+      default_oct_info, int file_header = 512, int frame_header = 40);
   //Renders a poly data containing points as individual vertices. Prunes
   //points based on their scalar values to keep up to MAX_RENDER_POINTS
-  void renderPointPolyData();
+  void renderRawOCTData();
+  //Uses the boolean state variables to figure out which buttons and spinboxes
+  //should be enabled and which should be disabled
+  void updateUIStates();
 
 private Q_SLOTS:
   void on_browse_button_clicked();
@@ -87,30 +96,32 @@ private Q_SLOTS:
   void on_len_off_spinbox_editingFinished();
   void on_wid_off_spinbox_editingFinished();
   void on_request_scan_button_clicked();
-
-  void on_received_data_checkbox_clicked();
-
   void on_save_button_clicked();
+  void on_view_raw_oct_button_clicked();  
+  void on_calc_oct_surf_button_clicked();
+  void receivedRawOCTData(OCTinfo params);
+  void receivedOCTSurfData(OCTinfo params);
 
   Q_SIGNALS:
-  void requestScan(int length_steps, int width_steps,
-                   int depth_steps, float length_range,
-                   float width_range, float depth_range,
-                   float length_offset, float width_offset);
+  void requestScan(OCTinfo);
+  void requestSegmentation(OCTinfo, std::vector<uint8_t> raw_data);
 
 private:
   Ui::Form *m_ui;
   QNode* m_qnode;
   QThread* m_qthread;
+  FileManager* m_file_manager;
 
-  int m_len_steps;
-  int m_wid_steps;
-  int m_dep_steps;
-  float m_len_range;
-  float m_wid_range;
-  float m_dep_range;
-  float m_len_offset;
-  float m_wid_offset;
+  //State booleans
+  bool m_connected_to_master;
+  bool m_has_ros_raw_oct;
+  bool m_has_raw_oct;
+  bool m_waiting_response;
+  bool m_has_oct_surf;
+  bool m_has_oct_mass;
+
+  //Holds our current raw oct parameters (steps, ranges, offsets)
+  OCTinfo m_current_params;
 
   //VTK objects
   //Data structures

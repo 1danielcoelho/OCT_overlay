@@ -58,11 +58,15 @@ SET(SOURCES
     main.cpp
     form.cpp
     qnode.cpp
+    filemanager.cpp
+    octinfo.cpp
     )
 
 SET(HEADERS
     form.h
     qnode.h
+    filemanager.h
+    octinfo.h
     )
 
 SET(FORMS

@@ -2,9 +2,11 @@
 
 
 
+
 QNode::QNode(int argc, char** argv ) : no_argc(argc), no_argv(argv)
 {
 	m_shutdown = false;
+	m_file_manager = new FileManager;
 }
 
 
@@ -15,8 +17,6 @@ QNode::~QNode()
 {
 	stopCurrentNode();
 	m_shutdown = true;
-
-	m_data.clear();
 
 	//Tells the GUI that we're finished deconstructing everything
 	Q_EMIT finished();
@@ -57,8 +57,13 @@ void QNode::connectToMaster()
 void QNode::setupSubscriptions()
 {
   //Setup a service client for the TCP OCT service from oct_client
-  //m_clientTCPOCT = m_nh->
+  //m_oct_tcp_client = m_nh->
   //    serviceClient<oct_client::octClientServiceTCP>("oct_client_service_TCP");
+
+  //Subscribes to OCT_segmentation's segmentation service
+//  m_segmentation_client = m_nh->serviceClient
+//      <OCT_segmentation::segmentationServiceFromDataArray>
+//      ("segmentation_service_from_data_array");
 
   //Fetches the image topic names from the ROS param server, or uses the
   //default values (last arguments in the param calls)
@@ -192,23 +197,23 @@ void QNode::process()
 
 
 
-void QNode::requestScan(int length_steps, int width_steps,
-		int depth_steps, float length_range, float width_range,
-		float depth_range,float length_offset,float width_offset)
+void QNode::requestScan(OCTinfo params)
 {
 	ROS_INFO("Requested a scan");
 
-	m_data.clear();
-	m_data.resize(length_steps * width_steps * depth_steps);
+	std::vector<uint8_t> data;
+	data.resize(params.length_steps * params.width_steps * params.depth_steps);
 
-	for(int i = 0; i < m_data.size(); i++)
+	for(int i = 0; i < data.size(); i++)
 	{
-		m_data[i] = i%256;
+		data[i] = i%256;
 	}
 
-  std::cout << "Requested with ls: " << length_steps << ", ws: " << width_steps <<
-        ", ds: " << depth_steps << ", lr: " << length_range << ", wr: " <<
-        width_range << ", size: " << m_data.size() << std::endl;
+
+  std::cout << "Requested with ls: " << params.length_steps << ", ws: " <<
+      params.width_steps << ", ds: " << params.depth_steps << ", lr: " <<
+      params.length_range << ", wr: " << params.width_range << ", size: " <<
+      data.size() << std::endl;
 
 //	oct_client::octClientServiceTCP octSrvMessage;
 
@@ -241,17 +246,49 @@ void QNode::requestScan(int length_steps, int width_steps,
 //		ROS_WARN("Service does not exist!");
 //	}
 
+	//Writes our data vector to a file to save some RAM. Form will read this
+	m_file_manager->writeVector(data, OCT_RAW_CACHE_PATH);
+	data.clear();
 
-	Q_EMIT receivedData();
+	//Emit this only after writeVector returned, so the file is closed
+	Q_EMIT receivedOCTRawData(params);
 }
 
 
 
 
-
-std::vector<uint8_t>& QNode::getDataReference()
+void QNode::requestSegmentation(OCTinfo params, std::vector<uint8_t> raw_data)
 {
-	return m_data;
+	//Pack params and raw_data into a segmentationServerFromDataArray srv request
+//	OCT_segmentation::segmentationServiceFromDataArray segmentationMessage;
+//	segmentationMessage.request.length_steps = params.length_steps;
+//	segmentationMessage.request.width_steps = params.width_steps;
+//	segmentationMessage.request.depth_steps = params.depth_steps;
+//	segmentationMessage.request.length_range = params.length_range;
+//	segmentationMessage.request.width_range = params.width_range;
+//	segmentationMessage.request.depth_range = params.depth_range;
+//	segmentationMessage.request.length_offset = params.length_offset;
+//	segmentationMessage.request.width_offset = params.width_offset;
+//	segmentationMessage.request.data = raw_data;
+
+	//Call service
+//	if(m_oct_tcp_client.exists())
+//	{
+//		if(m_oct_tcp_client.call(segmentationMessage))
+//		{
+//			//Unpack surface into our member storage
+//			m_oct_pcl_surface = segmentationMessage.response.pclSurface;
+//		}
+//		else
+//		{
+//			ROS_WARN("Call to segmentation service failed!");
+//		}
+//	}
+//	else
+//	{
+//		ROS_WARN("Segmentation service does not exist!");
+//	}
+
+	//Lets the UI know that it can already pickup it's PCL point cloud
+	Q_EMIT receivedOCTSurfData(params);
 }
-
-
