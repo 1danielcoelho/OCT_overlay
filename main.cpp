@@ -4,6 +4,11 @@
  *
  *  -Convert the stereocamera pcl clouds into VTK stuff and render them
  *
+ *  -Actually use/delete m_vis_poly_data
+ *
+ *  -Flip and mirror the CV matrices, BGR, because somebody thought it was a
+ *   great idea to do everything backwards
+ *
  *
  * */
 

@@ -22,8 +22,10 @@
 #define OCT_RAW_CACHE_PATH CACHE_PATH "oct_raw.cache"
 #define OCT_POLY_CACHE_PATH CACHE_PATH "oct_poly.cache"
 #define OCT_MASS_CACHE_PATH CACHE_PATH "oct_mass.cache"
-#define STEREO_PCL_CACHE_PATH CACHE_PATH "stereo_pcl.cache"
-#define STEREO_POLY_CACHE_PATH CACHE_PATH "stereo_poly.cache"
+#define STEREO_LEFT_CACHE_PATH CACHE_PATH "stereo_left.cache"
+#define STEREO_RIGHT_CACHE_PATH CACHE_PATH "stereo_right.cache"
+#define STEREO_DISP_CACHE_PATH CACHE_PATH "stereo_disp.cache"
+#define STEREO_DEPTH_CACHE_PATH CACHE_PATH "stereo_depth.cache"
 
 
 class FileManager
@@ -34,7 +36,10 @@ class FileManager
   //Byte vectors
   void writeVector(std::vector<uint8_t>& input, const char* filepath,
       bool append = false);
+  void writeVector(std::vector<uint32_t>& input, const char* filepath,
+      bool append = false);
   void readVector(const char* filepath, std::vector<uint8_t>& output);
+  void readVector(const char* filepath, std::vector<uint32_t>& output);
 
   //VTK
   void writePolyData(vtkSmartPointer<vtkPolyData> input, const char* filepath,

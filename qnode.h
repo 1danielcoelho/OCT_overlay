@@ -88,6 +88,9 @@ public:
 										 const sensor_msgs::ImageConstPtr &msg_depth);
 	void stopCurrentNode();
 
+
+	void testImages();
+
 Q_SIGNALS: //Same as 'signals'
 	void rosMasterChanged(bool);
 	void finished();

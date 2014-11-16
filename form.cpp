@@ -73,14 +73,20 @@ Form::Form(int argc, char** argv, QWidget *parent) :
   //Data structures
   m_raw_oct_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_vis_poly_data = vtkSmartPointer<vtkPolyData>::New();
-  m_pcl_stereo_poly_data = vtkSmartPointer<vtkPolyData>::New();
+  m_stereo_depth_poly_data = vtkSmartPointer<vtkPolyData>::New();
+  m_stereo_left_image = vtkSmartPointer<vtkImageData>::New();
+  m_stereo_right_image = vtkSmartPointer<vtkImageData>::New();
+  m_stereo_disp_image = vtkSmartPointer<vtkImageData>::New();
   //Filters
   m_vert_filter = vtkSmartPointer<vtkVertexGlyphFilter>::New();
+  m_image_resize_filter = vtkSmartPointer<vtkImageReslice>::New();
   //Mappers
   m_poly_mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+  m_image_mapper = vtkSmartPointer<vtkImageMapper>::New();
   //Actors
   m_actor = vtkSmartPointer<vtkActor>::New();
   m_axes_actor = vtkSmartPointer<vtkAxesActor>::New();
+  m_image_actor = vtkSmartPointer<vtkActor2D>::New();
   //Others
   m_renderer = vtkSmartPointer<vtkRenderer>::New();
 
@@ -233,158 +239,6 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params/*=0*/,
 
 
 
-void Form::loadPCLStereoData()
-{
-  pcl::PointCloud<pcl::PointXYZRGB>::Ptr pts(
-        new pcl::PointCloud<pcl::PointXYZRGB>);
-
-  //Update status bar
-  this->statusBar()->showMessage("Reading stereocam PCL... ");
-  QApplication::processEvents();
-
-  //Reads the file into our pts point cloud
-  m_file_manager->readPCL(STEREO_PCL_CACHE_PATH, pts);
-
-  VTK_NEW(vtkPoints, points);
-  points->Reset();
-  VTK_NEW(vtkUnsignedCharArray, data_array);
-  data_array->Reset();
-
-  int num_pts = pts->size();
-
-  //Pre-allocate the space for our data
-  points->SetNumberOfPoints(num_pts);
-  data_array->SetNumberOfComponents(3);
-  data_array->SetNumberOfTuples(num_pts);
-  data_array->SetName("Colors");
-
-  pcl::PointXYZRGB* cloud_point;
-  unsigned char color[3] = {0, 0, 0};
-
-  //Update status bar
-  this->statusBar()->showMessage("Building depth map poly data... ");
-  QApplication::processEvents();
-
-  //Iterate over our pts
-  for(int i = 0; i < num_pts; i++)
-  {
-    cloud_point = &(pts->at(i));
-
-    points->SetPoint(i, cloud_point->x, cloud_point->y, cloud_point->z);
-
-    color[0] = cloud_point->r;
-    color[1] = cloud_point->g;
-    color[2] = cloud_point->b;
-    data_array->SetTupleValue(i, color);
-  }
-
-  m_pcl_stereo_poly_data->Reset();
-  m_pcl_stereo_poly_data->SetPoints(points);
-  m_pcl_stereo_poly_data->GetPointData()->SetScalars(data_array);
-
-  //Set our state
-  m_has_stereo_pcl = true;
-  updateUIStates();
-
-  //Update status bar
-  this->statusBar()->showMessage("Building depth map poly data... done!");
-  QApplication::processEvents();
-}
-
-
-
-
-void Form::renderStereoData()
-{
-  int num_pts = m_pcl_stereo_poly_data->GetPointData()->GetNumberOfTuples();
-
-  if(num_pts == 0)
-  {
-    qDebug() << "m_pcl_stereo_poly_data is empty!";
-    return;
-  }
-
-  //Update status bar
-  this->statusBar()->showMessage("Preparing PolyData for display... ");
-  QApplication::processEvents();
-
-  m_vis_poly_data->Reset();
-
-  m_vis_poly_data->SetPoints(m_pcl_stereo_poly_data->GetPoints());
-  m_vis_poly_data->GetPointData()->SetScalars(
-      m_pcl_stereo_poly_data->GetPointData()->GetScalars());
-
-  m_vert_filter->SetInput(m_vis_poly_data);
-
-  m_poly_mapper->SetInputConnection(m_vert_filter->GetOutputPort());
-  //m_poly_mapper->SetScalarVisibility(1);
-
-  m_actor->SetMapper(m_poly_mapper);
-
-  //Reset the renderer
-  m_renderer->RemoveAllViewProps();
-
-  m_renderer->AddActor(m_actor);
-  m_renderer->ResetCamera();
-
-  //Fancies up our axes_actor
-  m_axes_actor->SetNormalizedShaftLength(1.0, 1.0, 1.0);
-  m_axes_actor->SetShaftTypeToCylinder();
-  m_axes_actor->SetCylinderRadius(0.02);
-  m_axes_actor->SetXAxisLabelText("length        ");
-  m_axes_actor->SetYAxisLabelText("width (B-Scan)");
-  m_axes_actor->SetZAxisLabelText("depth (A-Scan)");
-  m_axes_actor->GetXAxisCaptionActor2D()->GetTextActor()->
-      SetTextScaleModeToNone();
-  m_axes_actor->GetYAxisCaptionActor2D()->GetTextActor()->
-      SetTextScaleModeToNone();
-  m_axes_actor->GetZAxisCaptionActor2D()->GetTextActor()->
-      SetTextScaleModeToNone();
-  m_axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetFontSize(15);
-  m_axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetFontSize(15);
-  m_axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetFontSize(15);
-  m_axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->BoldOff();
-  m_axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->BoldOff();
-  m_axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->BoldOff();
-  m_axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetItalic(0);
-  m_axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetItalic(0);
-  m_axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetItalic(0);
-  m_axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetShadow(0);
-  m_axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetShadow(0);
-  m_axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetShadow(0);
-  m_axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetColor(1.0, 0.0, 0.0);
-  m_axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetColor(0.0, 1.0, 0.0);
-  m_axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetColor(0.0, 0.0, 1.0);
-
-  m_renderer->AddActor(m_axes_actor);
-
-  //Update status bar
-  this->statusBar()->showMessage("Rendering... ");
-  QApplication::processEvents();
-
-  this->m_ui->qvtkWidget->update();
-  QApplication::processEvents();
-
-  //Update status bar
-  this->statusBar()->showMessage("Rendering... done!");
-  QApplication::processEvents();
-}
-
-
-
-
 void Form::renderRawOCTData()
 {
   //Get the number of points
@@ -499,6 +353,266 @@ void Form::renderRawOCTData()
   //Update status bar
   this->statusBar()->showMessage("Rendering... done!");
   QApplication::processEvents();
+}
+
+
+
+
+void Form::loadPCLStereoDepthMap()
+{
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr pts(
+        new pcl::PointCloud<pcl::PointXYZRGB>);
+
+  //Update status bar
+  this->statusBar()->showMessage("Reading stereocam PCL... ");
+  QApplication::processEvents();
+
+  //Reads the file into our pts point cloud
+  m_file_manager->readPCL(STEREO_DEPTH_CACHE_PATH, pts);
+
+  VTK_NEW(vtkPoints, points);
+  points->Reset();
+  VTK_NEW(vtkUnsignedCharArray, data_array);
+  data_array->Reset();
+
+  int num_pts = pts->size();
+
+  //Pre-allocate the space for our data
+  points->SetNumberOfPoints(num_pts);
+  data_array->SetNumberOfComponents(3);
+  data_array->SetNumberOfTuples(num_pts);
+  data_array->SetName("Colors");
+
+  pcl::PointXYZRGB* cloud_point;
+  unsigned char color[3] = {0, 0, 0};
+
+  //Update status bar
+  this->statusBar()->showMessage("Building depth map poly data... ");
+  QApplication::processEvents();
+
+  //Iterate over our pts
+  for(int i = 0; i < num_pts; i++)
+  {
+    cloud_point = &(pts->at(i));
+
+    points->SetPoint(i, cloud_point->x, cloud_point->y, cloud_point->z);
+
+    color[0] = cloud_point->r;
+    color[1] = cloud_point->g;
+    color[2] = cloud_point->b;
+    data_array->SetTupleValue(i, color);
+  }
+
+  m_stereo_depth_poly_data->Reset();
+  m_stereo_depth_poly_data->SetPoints(points);
+  m_stereo_depth_poly_data->GetPointData()->SetScalars(data_array);
+
+  //Set our state
+  m_has_stereo_pcl = true;
+  updateUIStates();
+
+  //Update status bar
+  this->statusBar()->showMessage("Building depth map poly data... done!");
+  QApplication::processEvents();
+}
+
+
+
+
+void Form::renderPCLStereoDepthMap()
+{
+  int num_pts = m_stereo_depth_poly_data->GetPointData()->GetNumberOfTuples();
+
+  if(num_pts == 0)
+  {
+    qDebug() << "m_stereo_depth_poly_data is empty!";
+    return;
+  }
+
+  //Update status bar
+  this->statusBar()->showMessage("Preparing PolyData for display... ");
+  QApplication::processEvents();
+
+  m_vis_poly_data->Reset();
+
+  m_vis_poly_data->SetPoints(m_stereo_depth_poly_data->GetPoints());
+  m_vis_poly_data->GetPointData()->SetScalars(
+      m_stereo_depth_poly_data->GetPointData()->GetScalars());
+
+  m_vert_filter->SetInput(m_vis_poly_data);
+
+  m_poly_mapper->SetInputConnection(m_vert_filter->GetOutputPort());
+  //m_poly_mapper->SetScalarVisibility(1);
+
+  m_actor->SetMapper(m_poly_mapper);
+
+  //Reset the renderer
+  m_renderer->RemoveAllViewProps();
+
+  m_renderer->AddActor(m_actor);
+  m_renderer->ResetCamera();
+
+  //Fancies up our axes_actor
+  m_axes_actor->SetNormalizedShaftLength(1.0, 1.0, 1.0);
+  m_axes_actor->SetShaftTypeToCylinder();
+  m_axes_actor->SetCylinderRadius(0.02);
+  m_axes_actor->SetXAxisLabelText("length        ");
+  m_axes_actor->SetYAxisLabelText("width (B-Scan)");
+  m_axes_actor->SetZAxisLabelText("depth (A-Scan)");
+  m_axes_actor->GetXAxisCaptionActor2D()->GetTextActor()->
+      SetTextScaleModeToNone();
+  m_axes_actor->GetYAxisCaptionActor2D()->GetTextActor()->
+      SetTextScaleModeToNone();
+  m_axes_actor->GetZAxisCaptionActor2D()->GetTextActor()->
+      SetTextScaleModeToNone();
+  m_axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->
+      SetFontSize(15);
+  m_axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->
+      SetFontSize(15);
+  m_axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->
+      SetFontSize(15);
+  m_axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->BoldOff();
+  m_axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->BoldOff();
+  m_axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->BoldOff();
+  m_axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->
+      SetItalic(0);
+  m_axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->
+      SetItalic(0);
+  m_axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->
+      SetItalic(0);
+  m_axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->
+      SetShadow(0);
+  m_axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->
+      SetShadow(0);
+  m_axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->
+      SetShadow(0);
+  m_axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->
+      SetColor(1.0, 0.0, 0.0);
+  m_axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->
+      SetColor(0.0, 1.0, 0.0);
+  m_axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->
+      SetColor(0.0, 0.0, 1.0);
+
+  m_renderer->AddActor(m_axes_actor);
+
+  //Update status bar
+  this->statusBar()->showMessage("Rendering... ");
+  QApplication::processEvents();
+
+  this->m_ui->qvtkWidget->update();
+  QApplication::processEvents();
+
+  //Update status bar
+  this->statusBar()->showMessage("Rendering... done!");
+  QApplication::processEvents();
+}
+
+
+
+
+void Form::load2DStereoImage(const char* file_path)
+{
+  //Create a vector to hold the data
+  std::vector<uint32_t> data;
+
+  //Read the entire file
+  m_file_manager->readVector(file_path, data);
+
+  //Parse the first 8 bytes to determine dimensions
+  uint32_t rows, cols;
+  memcpy(&rows,  &data[0],  4*sizeof(uint8_t));
+  memcpy(&cols,  &data[1],  4*sizeof(uint8_t));
+
+  vtkImageData* work_pointer;
+
+  //Create and setup a vtkImageData
+  if(file_path == STEREO_LEFT_CACHE_PATH)
+  {
+    work_pointer = m_stereo_left_image;
+  }
+  else if(file_path == STEREO_RIGHT_CACHE_PATH)
+  {
+    work_pointer = m_stereo_right_image;
+  }
+  else if(file_path == STEREO_DISP_CACHE_PATH)
+  {
+    work_pointer = m_stereo_disp_image;
+  }
+  else
+  {
+    qDebug() << "Invalid 2D stereo image path";
+    return;
+  }
+
+  work_pointer->SetDimensions(rows, cols, 1);
+  work_pointer->SetNumberOfScalarComponents(3);
+  work_pointer->SetScalarTypeToUnsignedChar();
+  work_pointer->AllocateScalars();
+
+  uint32_t val;
+  for(int x = 0; x < rows; x++)
+  {
+    for(int y = 0; y < cols; y++)
+    {
+      unsigned char* pixel = static_cast<unsigned char*>
+                             (work_pointer->GetScalarPointer(x, y, 0));
+
+      //The two first uint32_t are the header
+      val = data[y + x*cols + 2];
+      memcpy(&pixel[0],  &val,  3*sizeof(uint8_t));
+    }
+  }
+
+  work_pointer->Modified();
+}
+
+
+
+
+
+
+void Form::render2DStereoImage(vtkSmartPointer<vtkImageData> image_data)
+{
+  int* window_sizes = this->m_ui->qvtkWidget->GetRenderWindow()->GetSize();
+  double window_width, window_height;
+  window_width = window_sizes[0];
+  window_height = window_sizes[1];
+
+  double window_aspect_ratio = window_width/window_height;
+
+  int* image_sizes = image_data->GetExtent();
+  double image_width, image_height;
+  image_width = image_sizes[1];
+  image_height = image_sizes[3];
+
+  double image_aspect_ratio = image_width/image_height;
+
+  double scaling = 1;
+  if(window_aspect_ratio >= image_aspect_ratio)
+  {
+    scaling = image_height/window_height;
+    m_image_actor->SetPosition((window_width - image_width/scaling)/2, 0);
+  }
+  else
+  {
+    scaling = image_width/window_width;
+    m_image_actor->SetPosition(0, (window_height-image_height/scaling)/2);
+  }
+
+  m_image_resize_filter->SetInputConnection(image_data->GetProducerPort());
+  m_image_resize_filter->SetOutputSpacing(scaling, scaling, 1.0);
+
+  m_image_mapper->SetInputConnection(m_image_resize_filter->GetOutputPort());
+  m_image_mapper->SetColorWindow(255.0);
+  m_image_mapper->SetColorLevel(127.5);
+
+  m_image_actor->SetMapper(m_image_mapper);
+
+  m_renderer->RemoveAllViewProps();
+  m_renderer->AddActor2D(m_image_actor);
+  m_renderer->ResetCamera();
+
+  this->m_ui->qvtkWidget->update();
 }
 
 
@@ -752,9 +866,9 @@ void Form::on_view_depth_image_button_clicked()
   m_waiting_response = true;
   updateUIStates();
 
-  loadPCLStereoData();
+  loadPCLStereoDepthMap();
 
-  renderStereoData();
+  renderPCLStereoDepthMap();
 
   m_waiting_response = false;
   updateUIStates();
@@ -762,5 +876,7 @@ void Form::on_view_depth_image_button_clicked()
 
 void Form::on_view_left_image_button_clicked()
 {
+  load2DStereoImage(STEREO_LEFT_CACHE_PATH);
 
+  render2DStereoImage(m_stereo_left_image);
 }

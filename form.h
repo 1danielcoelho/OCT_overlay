@@ -22,6 +22,7 @@
 
 //VTK
 //Data structures
+#include <vtkImageData.h>
 #include <vtkPolyData.h>
 #include <vtkPoints.h>
 #include <vtkPointData.h>
@@ -29,12 +30,15 @@
 #include <vtkUnsignedCharArray.h>
 //Filters
 #include <vtkVertexGlyphFilter.h>
+#include <vtkImageReslice.h>
 //Mappers
 #include <vtkPolyDataMapper.h>
+#include <vtkImageMapper.h>
 //Actors
 #include <vtkAxesActor.h>
 #include <vtkCaptionActor2D.h>
 #include <vtkTextActor.h>
+#include <vtkActor2D.h>
 //Others
 #include <vtkRenderer.h>
 #include <vtkRenderWindow.h>
@@ -81,17 +85,25 @@ public:
   void loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params =
       default_oct_info, int file_header = 512, int frame_header = 40);
 
-  //Loads a PCL point cloud saved as a binary file at STEREO_PCL_CACHE_PATH
-  //and builds the m_pcl_stereo_poly_data for visualization. It's thread safe
-  //since both rendering this and performing registration with it are read only
-  void loadPCLStereoData();
-
-  //Renders the m_pcl_stereo_poly_data
-  void renderStereoData();
-
   //Renders a poly data containing points as individual vertices. Prunes
   //points based on their scalar values to keep up to MAX_RENDER_POINTS
   void renderRawOCTData();
+
+  //Loads a PCL point cloud saved as a binary file at STEREO_PCL_CACHE_PATH
+  //and builds the m_stereo_depth_poly_data for visualization. It's thread safe
+  //since both rendering this and performing registration with it are read only
+  void loadPCLStereoDepthMap();
+
+  //Renders the m_stereo_depth_poly_data
+  void renderPCLStereoDepthMap();
+
+  //Loads either the left, right or displacement map images produced by the
+  //stereocamera into their respective vtkImageData objects
+  void load2DStereoImage(const char* file_path);
+
+  //Renders either the left, right or displacement map vtkImageData objects
+  //created by load2DStereoImage
+  void render2DStereoImage(vtkSmartPointer<vtkImageData> image_data);
 
   //Uses the boolean state variables to figure out which buttons and spinboxes
   //should be enabled and which should be disabled
@@ -146,14 +158,20 @@ private:
   //Data structures
   vtkSmartPointer<vtkPolyData> m_raw_oct_poly_data;
   vtkSmartPointer<vtkPolyData> m_vis_poly_data;
-  vtkSmartPointer<vtkPolyData> m_pcl_stereo_poly_data;
+  vtkSmartPointer<vtkPolyData> m_stereo_depth_poly_data;
+  vtkSmartPointer<vtkImageData> m_stereo_left_image;
+  vtkSmartPointer<vtkImageData> m_stereo_right_image;
+  vtkSmartPointer<vtkImageData> m_stereo_disp_image;
   //Filters
   vtkSmartPointer<vtkVertexGlyphFilter> m_vert_filter;
+  vtkSmartPointer<vtkImageReslice> m_image_resize_filter;
   //Mappers
   vtkSmartPointer<vtkPolyDataMapper> m_poly_mapper;
+  vtkSmartPointer<vtkImageMapper> m_image_mapper;
   //Actors
   vtkSmartPointer<vtkActor> m_actor;
   vtkSmartPointer<vtkAxesActor> m_axes_actor;
+  vtkSmartPointer<vtkActor2D> m_image_actor;
   //Others
   vtkSmartPointer<vtkRenderer> m_renderer;
 

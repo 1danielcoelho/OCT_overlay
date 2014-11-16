@@ -145,15 +145,15 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
 
   ROS_INFO("Image data fetched");
 
-  //Build PCL cloud out of the data
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr pts(
         new pcl::PointCloud<pcl::PointXYZRGB>);
 
-  int idx,idy;
-
-  for (idx = 0; idx < depth_map.cols; idx++)
+  //Build a PCL cloud out of the depth map
+  uint32_t rows = depth_map.rows;
+  uint32_t cols = depth_map.cols;
+  for (uint32_t idx = 0; idx < cols; idx++)
   {
-    for (idy = 0; idy < depth_map.rows; idy++)
+    for (uint32_t idy = 0; idy < rows; idy++)
     {
       pcl::PointXYZRGB point;
       point.x = depth_map.at<cv::Vec3f>(idy,idx)[0];
@@ -168,7 +168,89 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
   }
 
   //Write PCL cloud to disk
-  m_file_manager->writePCL(pts, STEREO_PCL_CACHE_PATH);
+  m_file_manager->writePCL(pts, STEREO_DEPTH_CACHE_PATH);
+
+  ROS_INFO("Depth map PCL cloud written");
+
+  //Build uin32_t arrays
+  std::vector<uint32_t> left, right, disp, header;
+
+  //Populate header with information about the left image dimensions
+  rows = image_left.rows;
+  cols = image_left.cols;
+  header.clear();
+  header.resize(8);
+  memcpy(&header[0],  &rows,  4*sizeof(uint8_t));
+  memcpy(&header[4],  &cols,  4*sizeof(uint8_t));
+
+  //Populate the left vector with the raw data from the left image
+  left.reserve(rows*cols);
+  for(uint32_t i = 0; i < rows; i++)
+  {
+    for(uint32_t j = 0; j < cols; j++)
+    {
+      left.push_back(image_left.at<cv::Vec3b>(i,j)[0] << 16 |
+                     image_left.at<cv::Vec3b>(i,j)[1] << 8 |
+                     image_left.at<cv::Vec3b>(i,j)[2]);
+    }
+  }
+
+  //Write the header and append the vector to the same file
+  m_file_manager->writeVector(header, STEREO_LEFT_CACHE_PATH, false);
+  m_file_manager->writeVector(left, STEREO_LEFT_CACHE_PATH, true);
+
+  ROS_INFO("Left image vector written");
+
+  //Populate header with information about the right image dimensions
+  rows = image_right.rows;
+  cols = image_left.cols;
+  header.clear();
+  header.resize(8);
+  memcpy(&header[0],  &rows,  4*sizeof(uint8_t));
+  memcpy(&header[4],  &cols,  4*sizeof(uint8_t));
+
+  //Populate the right vector with the raw data from the right image
+  right.reserve(rows*cols);
+  for(uint32_t i = 0; i < rows; i++)
+  {
+    for(uint32_t j = 0; j < cols; j++)
+    {
+      //Assembles a BGR 32bit int
+      right.push_back(image_right.at<cv::Vec3b>(i,j)[0] << 16 |
+                      image_right.at<cv::Vec3b>(i,j)[1] << 8 |
+                      image_right.at<cv::Vec3b>(i,j)[2]);
+    }
+  }
+
+  //Write the header and append the vector to the same file
+  m_file_manager->writeVector(header, STEREO_RIGHT_CACHE_PATH, false);
+  m_file_manager->writeVector(right, STEREO_RIGHT_CACHE_PATH, true);
+
+  ROS_INFO("Right image vector written");
+
+  //Populate header with information about the displacement image dimensions
+  rows = disp_map.rows;
+  cols = disp_map.cols;
+  header.clear();
+  header.resize(8);
+  memcpy(&header[0],  &rows,  4*sizeof(uint8_t));
+  memcpy(&header[4],  &cols,  4*sizeof(uint8_t));
+
+  //Populate displacement vector with the raw data from the disp map
+  disp.reserve(rows*cols);
+  for(uint32_t i = 0; i < rows; i++)
+  {
+    for(uint32_t j = 0; j < cols; j++)
+    {
+      disp.push_back(disp_map.at<float>(i,j));
+    }
+  }
+
+  //Write the header and append the vector to the same file
+  m_file_manager->writeVector(header, STEREO_DISP_CACHE_PATH, false);
+  m_file_manager->writeVector(disp, STEREO_DISP_CACHE_PATH, true);
+
+  ROS_INFO("Displacement map vector written");
 
   Q_EMIT receivedStereoData();
 }
@@ -199,6 +281,8 @@ void QNode::process()
 {
 	//We can't use ros::Rate before Master is running
 	connectToMaster();
+
+	testImages();
 
 	while (!m_shutdown)
 	{
@@ -329,5 +413,65 @@ void QNode::requestSegmentation(OCTinfo params, std::vector<uint8_t> raw_data)
 
 	//Lets the UI know that it can already pickup it's PCL point cloud
 	Q_EMIT receivedOCTSurfData(params);
+}
+
+
+
+
+
+void QNode::testImages()
+{
+  //Build uin32_t arrays
+  std::vector<uint32_t> left, disp, header;
+
+  //Populate header with information about the left image dimensions
+  uint32_t rows = 256;
+  uint32_t cols = 200;
+  header.clear();
+  header.resize(2);
+  memcpy(&header[0],  &rows,  4*sizeof(uint8_t));
+  memcpy(&header[1],  &cols,  4*sizeof(uint8_t));
+
+  //Populate the left vector with the raw data from the left image
+  left.reserve(rows*cols);
+  for(uint32_t i = 0; i < rows; i++)
+  {
+    for(uint32_t j = 0; j < cols; j++)
+    {
+      left.push_back( (0 & 0xff) << 16 | (i & 0xff) << 8 | (j & 0xff) << 0);
+    }
+  }
+
+  //Write the header and append the vector to the same file
+  m_file_manager->writeVector(header, STEREO_LEFT_CACHE_PATH, false);
+  m_file_manager->writeVector(left, STEREO_LEFT_CACHE_PATH, true);
+
+  ROS_INFO("Left image vector written");
+
+  //Populate header with information about the displacement image dimensions
+  rows = 512;
+  cols = 512;
+  header.clear();
+  header.resize(2);
+  memcpy(&header[0],  &rows,  4*sizeof(uint8_t));
+  memcpy(&header[1],  &cols,  4*sizeof(uint8_t));
+
+  //Populate displacement vector with the raw data from the disp map
+  disp.reserve(rows*cols);
+  for(uint32_t i = 0; i < rows; i++)
+  {
+    for(uint32_t j = 0; j < cols; j++)
+    {
+      disp.push_back(i*j*10);
+    }
+  }
+
+  //Write the header and append the vector to the same file
+  m_file_manager->writeVector(header, STEREO_DISP_CACHE_PATH, false);
+  m_file_manager->writeVector(disp, STEREO_DISP_CACHE_PATH, true);
+
+  ROS_INFO("Displacement map vector written");
+
+  Q_EMIT receivedStereoData();
 }
 
