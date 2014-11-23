@@ -1,6 +1,7 @@
 #ifndef FILEMANAGER_H
 #define FILEMANAGER_H
 
+#include <stdio.h>
 #include <iostream>
 #include <stdint.h>
 #include <stdio.h>
@@ -20,18 +21,21 @@
 #define CACHE_PATH "/home/daniel/Dropbox/Comum/Forschungsarbeit/ROS/Packages/OCT_overlay/"
 
 #define OCT_RAW_CACHE_PATH CACHE_PATH "oct_raw.cache"
-#define OCT_POLY_CACHE_PATH CACHE_PATH "oct_poly.cache"
+#define OCT_SURF_CACHE_PATH CACHE_PATH "oct_surf.cache"
 #define OCT_MASS_CACHE_PATH CACHE_PATH "oct_mass.cache"
 #define STEREO_LEFT_CACHE_PATH CACHE_PATH "stereo_left.cache"
 #define STEREO_RIGHT_CACHE_PATH CACHE_PATH "stereo_right.cache"
 #define STEREO_DISP_CACHE_PATH CACHE_PATH "stereo_disp.cache"
 #define STEREO_DEPTH_CACHE_PATH CACHE_PATH "stereo_depth.cache"
+#define VIS_TRANS_CACHE_PATH CACHE_PATH "vis_trans.cache"
 
 
 class FileManager
 {
   public:
   FileManager();
+  //Deletes all of our cache files
+  void clearAllFiles();
 
   //Byte vectors
   void writeVector(std::vector<uint8_t>& input, const char* filepath,

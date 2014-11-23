@@ -1,6 +1,10 @@
 #include "qnode.h"
 
-
+//============================================================================//
+//                                                                            //
+//  PUBLIC METHODS                                                            //
+//                                                                            //
+//============================================================================//
 
 
 QNode::QNode(int argc, char** argv ) : no_argc(argc), no_argv(argv)
@@ -9,9 +13,7 @@ QNode::QNode(int argc, char** argv ) : no_argc(argc), no_argv(argv)
 	m_file_manager = new FileManager;
 }
 
-
-
-
+//------------------------------------------------------------------------------
 
 QNode::~QNode()
 {
@@ -22,9 +24,7 @@ QNode::~QNode()
 	Q_EMIT finished();
 }
 
-
-
-
+//------------------------------------------------------------------------------
 
 void QNode::connectToMaster()
 {
@@ -52,9 +52,7 @@ void QNode::connectToMaster()
   this->setupSubscriptions();
 }
 
-
-
-
+//------------------------------------------------------------------------------
 
 void QNode::setupSubscriptions()
 {
@@ -66,6 +64,10 @@ void QNode::setupSubscriptions()
 //  m_segmentation_client = m_nh->serviceClient
 //      <OCT_segmentation::segmentationServiceFromDataArray>
 //      ("segmentation_service_from_data_array");
+
+  //Subscribes to OCT_registration's registration service
+//  m_registration_client = m_nh->serviceClient
+//      <OCT_registration::registrationService>("registration_service");
 
   //Fetches the image topic names from the ROS param server, or uses the
   //default values (last arguments in the param calls)
@@ -105,9 +107,7 @@ void QNode::setupSubscriptions()
   message_filters::Synchronizer<myPolicyType>(myPolicyType(4),*m_left_image_sub,
       *m_right_image_sub, *m_disp_image_sub, *m_depth_image_sub));
 
-  //Register which callback will receive the sync'd messages.
-  //registerCallback expects a functor (not func pointer) so we use
-  //boost::bind
+  //Register which callback will receive the sync'd messages
   m_synchronizer->registerCallback(boost::bind(
       &QNode::imageCallback, this, _1, _2, _3, _4));
 
@@ -115,9 +115,7 @@ void QNode::setupSubscriptions()
 
 }
 
-
-
-
+//------------------------------------------------------------------------------
 
 void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
                           const sensor_msgs::ImageConstPtr &msg_right,
@@ -255,9 +253,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
   Q_EMIT receivedStereoData();
 }
 
-
-
-
+//------------------------------------------------------------------------------
 
 void QNode::stopCurrentNode()
 {
@@ -273,16 +269,15 @@ void QNode::stopCurrentNode()
   }
 }
 
-
-
-
+//============================================================================//
+//                                                                            //
+//  PUBLIC Q_SLOTS                                                           //
+//                                                                            //
+//============================================================================//
 
 void QNode::process()
-{
-	//We can't use ros::Rate before Master is running
+{	
 	connectToMaster();
-
-	testImages();
 
 	while (!m_shutdown)
 	{
@@ -307,9 +302,7 @@ void QNode::process()
 	}
 }
 
-
-
-
+//------------------------------------------------------------------------------
 
 void QNode::requestScan(OCTinfo params)
 {
@@ -343,9 +336,9 @@ void QNode::requestScan(OCTinfo params)
 //	octSrvMessage.request.y_offset = depth_offset;
 
 	//Waits for a response
-//	if(m_clientTCPOCT.exists())
+//	if(m_oct_tcp_client.exists())
 //	{
-//		if(m_clientTCPOCT.call(octSrvMessage))
+//		if(m_oct_tcp_client.call(octSrvMessage))
 //		{
 //			//This should be a deep copy
 //			data = octSrvMessage.response.octImage;
@@ -371,12 +364,14 @@ void QNode::requestScan(OCTinfo params)
 	Q_EMIT receivedOCTRawData(params);
 }
 
+//------------------------------------------------------------------------------
 
-
-
-void QNode::requestSegmentation(OCTinfo params, std::vector<uint8_t> raw_data)
+void QNode::requestSegmentation(OCTinfo params)
 {
 	ROS_INFO("OCT surface segmentation requested");
+
+//  std::vector<uint8_t> data;
+//  m_file_manager->readVector(OCT_RAW_CACHE_PATH, data);
 
 	//Pack params and raw_data into a segmentationServerFromDataArray srv request
 //	OCT_segmentation::segmentationServiceFromDataArray segmentationMessage;
@@ -388,18 +383,27 @@ void QNode::requestSegmentation(OCTinfo params, std::vector<uint8_t> raw_data)
 //	segmentationMessage.request.depth_range = params.depth_range;
 //	segmentationMessage.request.length_offset = params.length_offset;
 //	segmentationMessage.request.width_offset = params.width_offset;
-//	segmentationMessage.request.data = raw_data;
+//	segmentationMessage.request.data = data;
 
 	//Call service
-//	if(m_oct_tcp_client.exists())
+//	if(m_segmentation_client.exists())
 //	{
-//		if(m_oct_tcp_client.call(segmentationMessage))
+//		if(m_segmentation_client.call(segmentationMessage))
 //		{
-//			//Unpack surface into our member storage
-//			m_oct_pcl_surface = segmentationMessage.response.pclSurface;
+//			pcl::PointCloud<pcl::PointXYZ>::Ptr pts(
+//																					new pcl::PointCloud<pcl::PointXYZ>);
+
+//			const sensor_msgs::PointCloud2 pclMessage =
+//																			segmentationMessage.response.pclSurface;
+
+//			pcl::fromROSMsg(pclMessage, *pts);
+
+//			m_file_manager->writePCL(pts, OCT_SURF_CACHE_PATH);
 
 //			ROS_INFO("OCT surface segmentation completed");
 
+				//Lets the UI know that it can already pickup its PCL point cloud
+				Q_EMIT receivedOCTSurfData(params);
 //		}
 //		else
 //		{
@@ -410,68 +414,58 @@ void QNode::requestSegmentation(OCTinfo params, std::vector<uint8_t> raw_data)
 //	{
 //		ROS_WARN("Segmentation service does not exist!");
 //	}
-
-	//Lets the UI know that it can already pickup it's PCL point cloud
-	Q_EMIT receivedOCTSurfData(params);
 }
 
+//------------------------------------------------------------------------------
 
-
-
-
-void QNode::testImages()
+void QNode::requestRegistration()
 {
-  //Build uin32_t arrays
-  std::vector<uint32_t> left, disp, header;
+  ROS_INFO("OCT surface to depth map registration requested");
 
-  //Populate header with information about the left image dimensions
-  uint32_t rows = 256;
-  uint32_t cols = 200;
-  header.clear();
-  header.resize(2);
-  memcpy(&header[0],  &rows,  4*sizeof(uint8_t));
-  memcpy(&header[1],  &cols,  4*sizeof(uint8_t));
+  //Read Depth map as PCL and build a sensor_msgs::Image with it
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr depth_map_pcl(
+      new pcl::PointCloud<pcl::PointXYZRGB>);
+  m_file_manager->readPCL(STEREO_DEPTH_CACHE_PATH, depth_map_pcl);
+  sensor_msgs::Image depth_map_msg;
+  pcl::toROSMsg(*depth_map_pcl, depth_map_msg);
 
-  //Populate the left vector with the raw data from the left image
-  left.reserve(rows*cols);
-  for(uint32_t i = 0; i < rows; i++)
-  {
-    for(uint32_t j = 0; j < cols; j++)
-    {
-      left.push_back( (0 & 0xff) << 16 | (i & 0xff) << 8 | (j & 0xff) << 0);
-    }
-  }
+  //Read OCT surface PCL and create a PointCloud2 with it
+  pcl::PointCloud<pcl::PointXYZ>::Ptr oct_surface(
+      new pcl::PointCloud<pcl::PointXYZ>);
+  m_file_manager->readPCL(OCT_SURF_CACHE_PATH, oct_surface);
+  sensor_msgs::PointCloud2 oct_surface_msg;
+  pcl::toROSMsg(*oct_surface, oct_surface_msg);
 
-  //Write the header and append the vector to the same file
-  m_file_manager->writeVector(header, STEREO_LEFT_CACHE_PATH, false);
-  m_file_manager->writeVector(left, STEREO_LEFT_CACHE_PATH, true);
+  //Create a service request message
+//  OCT_registration::registrationService registrationMessage;
+//  registrationMessage.request.registrationMatrixSavePath = VIS_TRANS_CACHE_PATH;
+//  registrationMessage.request.pclOctSurface = oct_surface_msg;
+//  registrationMessage.request.cvDepthMap = depth_map_msg;
 
-  ROS_INFO("Left image vector written");
+  //Call the service passing the transform path
+//  if(m_registration_client.exists())
+//  {
+//    if(m_registration_client.call(segmentationMessage))
+//    {
+//      if(registrationMessage.response.success)
+//      {
+//        ROS_INFO("OCT surface to depth map registration completed");
 
-  //Populate header with information about the displacement image dimensions
-  rows = 512;
-  cols = 512;
-  header.clear();
-  header.resize(2);
-  memcpy(&header[0],  &rows,  4*sizeof(uint8_t));
-  memcpy(&header[1],  &cols,  4*sizeof(uint8_t));
-
-  //Populate displacement vector with the raw data from the disp map
-  disp.reserve(rows*cols);
-  for(uint32_t i = 0; i < rows; i++)
-  {
-    for(uint32_t j = 0; j < cols; j++)
-    {
-      disp.push_back(i*j*10);
-    }
-  }
-
-  //Write the header and append the vector to the same file
-  m_file_manager->writeVector(header, STEREO_DISP_CACHE_PATH, false);
-  m_file_manager->writeVector(disp, STEREO_DISP_CACHE_PATH, true);
-
-  ROS_INFO("Displacement map vector written");
-
-  Q_EMIT receivedStereoData();
+//        //Lets the UI know that it can already pickup its transform
+//        Q_EMIT receivedRegistration();
+//      }
+//      else
+//      {
+//        ROS_WARN("Registration algorithm failed!");
+//      }
+//    }
+//    else
+//    {
+//      ROS_WARN("Call to registration service failed!");
+//    }
+//  }
+//  else
+//  {
+//    ROS_WARN("Registration service does not exist!");
+//  }
 }
-

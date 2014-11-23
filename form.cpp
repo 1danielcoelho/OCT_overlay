@@ -1,7 +1,11 @@
 #include "form.h"
 #include "ui_form.h"
 
-
+//============================================================================//
+//                                                                            //
+//  PUBLIC METHODS                                                            //
+//                                                                            //
+//============================================================================//
 
 Form::Form(int argc, char** argv, QWidget *parent) :
   QMainWindow(parent),
@@ -10,6 +14,7 @@ Form::Form(int argc, char** argv, QWidget *parent) :
   m_ui->setupUi(this);
 
   //Initialize the oct parameters
+  m_vis_threshold = this->m_ui->viewing_threshold_spinbox->value();
   m_current_params.length_steps  = this->m_ui->len_steps_spinbox->value();
   m_current_params.width_steps   = this->m_ui->wid_steps_spinbox->value();
   m_current_params.depth_steps   = this->m_ui->dep_steps_spinbox->value();
@@ -26,7 +31,8 @@ Form::Form(int argc, char** argv, QWidget *parent) :
   m_waiting_response = false;
   m_has_oct_surf = false;
   m_has_oct_mass = false;
-  m_has_stereo_pcl = false;
+  m_has_stereo_data = false;
+  m_has_transform = false;
   updateUIStates();
 
   //Creates qnode and it's thread, connecting signals and slots
@@ -39,26 +45,38 @@ Form::Form(int argc, char** argv, QWidget *parent) :
   qRegisterMetaType<std::vector<uint8_t> >();
 
   //Connect signals and slots
-  connect(m_qnode, SIGNAL(rosMasterChanged(bool)), this,
-          SLOT(on_connected_master_checkbox_clicked(bool)));
+  connect(m_qnode,  SIGNAL(rosMasterChanged(bool)),
+          this,     SLOT(on_connected_master_checkbox_clicked(bool)));
 
-  connect(this,SIGNAL(requestScan(OCTinfo)),m_qnode, SLOT(requestScan(OCTinfo)),
+  connect(this,     SIGNAL(requestScan(OCTinfo)),
+          m_qnode,  SLOT(requestScan(OCTinfo)),
           Qt::QueuedConnection); //Runs slot on receiving thread
 
-  connect(this,SIGNAL(requestSegmentation(OCTinfo,std::vector<uint8_t>)),
-          m_qnode, SLOT(requestSegmentation(OCTinfo,std::vector<uint8_t>)),
-          Qt::QueuedConnection); //Sadly you need to pass-by-value to run in a
-                                 //different thread
+  connect(this,     SIGNAL(requestSegmentation(OCTinfo)),
+          m_qnode,  SLOT(requestSegmentation(OCTinfo)),
+          Qt::QueuedConnection);
 
-  connect(m_qnode, SIGNAL(receivedOCTRawData(OCTinfo)), this,
-          SLOT(receivedRawOCTData(OCTinfo)), Qt::QueuedConnection);
+  connect(this,     SIGNAL(requestRegistration()),
+          m_qnode,  SLOT(requestRegistration()),
+          Qt::QueuedConnection);
 
-  connect(m_qnode, SIGNAL(receivedOCTSurfData(OCTinfo)), this,
-          SLOT(receivedOCTSurfData(OCTinfo)), Qt::QueuedConnection);
+  connect(m_qnode,  SIGNAL(receivedOCTRawData(OCTinfo)),
+          this,     SLOT(receivedRawOCTData(OCTinfo)),
+          Qt::QueuedConnection);
 
-  connect(m_qnode, SIGNAL(receivedStereoData()), this,
-          SLOT(receivedStereoData()), Qt::QueuedConnection);
+  connect(m_qnode,  SIGNAL(receivedOCTSurfData(OCTinfo)),
+          this,     SLOT(receivedOCTSurfData(OCTinfo)),
+          Qt::QueuedConnection);
 
+  connect(m_qnode, SIGNAL(receivedStereoData()),
+          this,    SLOT(receivedStereoData()),
+          Qt::QueuedConnection);
+
+  connect(m_qnode, SIGNAL(receivedRegistration()),
+          this,    SLOT(receivedRegistration()),
+          Qt::QueuedConnection);
+
+  //Wire up qnode and it's thread. Don't touch this unless absolutely necessary
   connect(m_qthread, SIGNAL(started()), m_qnode, SLOT(process()));
   connect(m_qnode, SIGNAL(finished()), m_qthread, SLOT(quit()));
   connect(m_qnode, SIGNAL(finished()), m_qthread, SLOT(deleteLater()));
@@ -72,19 +90,18 @@ Form::Form(int argc, char** argv, QWidget *parent) :
   //Instantiate vtk objects
   //Data structures
   m_raw_oct_poly_data = vtkSmartPointer<vtkPolyData>::New();
-  m_vis_poly_data = vtkSmartPointer<vtkPolyData>::New();
-  m_stereo_depth_poly_data = vtkSmartPointer<vtkPolyData>::New();
-  m_stereo_left_image = vtkSmartPointer<vtkImageData>::New();
-  m_stereo_right_image = vtkSmartPointer<vtkImageData>::New();
-  m_stereo_disp_image = vtkSmartPointer<vtkImageData>::New();
+  m_oct_stereo_trans = vtkSmartPointer<vtkTransform>::New();
   //Filters
   m_vert_filter = vtkSmartPointer<vtkVertexGlyphFilter>::New();
   m_image_resize_filter = vtkSmartPointer<vtkImageReslice>::New();
+  m_trans_filter = vtkSmartPointer<vtkTransformFilter>::New();
   //Mappers
   m_poly_mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+  m_second_poly_mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
   m_image_mapper = vtkSmartPointer<vtkImageMapper>::New();
   //Actors
   m_actor = vtkSmartPointer<vtkActor>::New();
+  m_second_actor = vtkSmartPointer<vtkActor>::New();
   m_axes_actor = vtkSmartPointer<vtkAxesActor>::New();
   m_image_actor = vtkSmartPointer<vtkActor2D>::New();
   //Others
@@ -98,9 +115,7 @@ Form::Form(int argc, char** argv, QWidget *parent) :
   this->m_ui->qvtkWidget->GetRenderWindow()->AddRenderer(m_renderer);
 }
 
-
-
-
+//------------------------------------------------------------------------------
 
 Form::~Form()
 {
@@ -110,11 +125,12 @@ Form::~Form()
   //Waits until the m_qnode's destructor has finished before killing the thread
   m_qthread->wait();
   delete m_qthread;
+
+  //Delete all of our .cache files
+  m_file_manager->clearAllFiles();
 }
 
-
-
-
+//------------------------------------------------------------------------------
 
 void Form::loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params/*=0*/,
       int file_header /*= 512*/, int frame_header /*= 40*/)
@@ -122,27 +138,39 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params/*=0*/,
   //If we get in here it means we're opening a Thorlabs img file
   if(file_header == 512 && params == default_oct_info)
   {
-    //Extract the data dimensions from the header
-    std::memcpy(&params.length_steps,  &(oct_data[16]),  4*sizeof(uint8_t));
-    std::memcpy(&params.width_steps,   &(oct_data[20]),  4*sizeof(uint8_t));
-    std::memcpy(&params.depth_steps,   &(oct_data[24]),  4*sizeof(uint8_t));
-    std::memcpy(&params.length_range,  &(oct_data[72]),  4*sizeof(uint8_t));
-    std::memcpy(&params.width_range,   &(oct_data[76]),  4*sizeof(uint8_t));
-    std::memcpy(&params.depth_range,   &(oct_data[116]), 4*sizeof(uint8_t));
-    std::memcpy(&params.length_offset, &(oct_data[120]), 4*sizeof(uint8_t));
-    std::memcpy(&params.width_offset,  &(oct_data[124]), 4*sizeof(uint8_t));
+    //Extract the data dimensions from the header to our m_current_params
+    std::memcpy(&m_current_params.length_steps,  &(oct_data[16]),
+                                                 4*sizeof(uint8_t));
+    std::memcpy(&m_current_params.width_steps,   &(oct_data[20]),
+                                                 4*sizeof(uint8_t));
+    std::memcpy(&m_current_params.depth_steps,   &(oct_data[24]),
+                                                 4*sizeof(uint8_t));
+    std::memcpy(&m_current_params.length_range,  &(oct_data[72]),
+                                                 4*sizeof(uint8_t));
+    std::memcpy(&m_current_params.width_range,   &(oct_data[76]),
+                                                 4*sizeof(uint8_t));
+    std::memcpy(&m_current_params.depth_range,   &(oct_data[116]),
+                                                 4*sizeof(uint8_t));
+    std::memcpy(&m_current_params.length_offset, &(oct_data[120]),
+                                                 4*sizeof(uint8_t));
+    std::memcpy(&m_current_params.width_offset,  &(oct_data[124]),
+                                                 4*sizeof(uint8_t));
+    //Reset our controls to show the actual params of the received data
+    on_reset_params_button_clicked();
   }
   //If not, then we take the params out of the OCTinfo struct that was passed
   else if(file_header == 0 && !(params == default_oct_info))
   {
-    params.length_steps = params.length_steps;
-    params.width_steps  = params.width_steps;
-    params.depth_steps  = params.depth_steps;
-    params.length_range = params.length_range;
-    params.width_range  = params.width_range;
-    params.depth_range  = params.depth_range;
-    params.length_offset= params.length_offset;
-    params.width_offset = params.width_offset;
+    m_current_params.length_steps = params.length_steps;
+    m_current_params.width_steps  = params.width_steps;
+    m_current_params.depth_steps  = params.depth_steps;
+    m_current_params.length_range = params.length_range;
+    m_current_params.width_range  = params.width_range;
+    m_current_params.depth_range  = params.depth_range;
+    m_current_params.length_offset= params.length_offset;
+    m_current_params.width_offset = params.width_offset;
+    //Reset our controls to show the actual params of the received data
+    on_reset_params_button_clicked();
   }
   else
   {
@@ -165,14 +193,14 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params/*=0*/,
   float depth_incrm = 2.762/1024.0; //Fixed axial resolution. If we have no
                                     //depth range, this is our best bet
 
-  if(params.length_range != 0)
-    length_incrm = params.length_range/params.length_steps;
+  if(m_current_params.length_range != 0)
+    length_incrm = m_current_params.length_range/m_current_params.length_steps;
 
-  if(params.width_range != 0)
-    width_incrm = params.width_range/params.width_steps;
+  if(m_current_params.width_range != 0)
+    width_incrm = m_current_params.width_range/m_current_params.width_steps;
 
-  if(params.depth_range != 0)
-    depth_incrm = params.depth_range/params.depth_steps;
+  if(m_current_params.depth_range != 0)
+    depth_incrm = m_current_params.depth_range/m_current_params.depth_steps;
 
   //Creates an array for point coordinates, and one for the scalars
   VTK_NEW(vtkPoints, points);
@@ -180,30 +208,30 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params/*=0*/,
   VTK_NEW(vtkTypeUInt8Array, dataArray);
   dataArray->Reset();
 
-  points->SetNumberOfPoints(   params.length_steps *
-                               params.width_steps *
-                               params.depth_steps);
+  points->SetNumberOfPoints(   m_current_params.length_steps *
+                               m_current_params.width_steps *
+                               m_current_params.depth_steps);
 
-  dataArray->SetNumberOfValues(params.length_steps *
-                               params.width_steps *
-                               params.depth_steps);
+  dataArray->SetNumberOfValues(m_current_params.length_steps *
+                               m_current_params.width_steps *
+                               m_current_params.depth_steps);
 
   //Update status bar
   this->statusBar()->showMessage("Building raw point data... ");
   QApplication::processEvents();
 
   int id = 0;
-  for(int i = 0; i < params.length_steps; i++)
+  for(int i = 0; i < m_current_params.length_steps; i++)
   {
-    for(int j = 0; j < params.width_steps; j++)
+    for(int j = 0; j < m_current_params.width_steps; j++)
     {
-      for(int k = 0; k < params.depth_steps; k++, id++)
+      for(int k = 0; k < m_current_params.depth_steps; k++, id++)
       {
         //Thorlabs img files use 40 bytes of NULL between each B-scan
         int val = oct_data[id + frame_header*i + file_header];
 
-        points->SetPoint(id, i*length_incrm + params.length_offset,
-                             j*width_incrm + params.width_offset,
+        points->SetPoint(id, i*length_incrm + m_current_params.length_offset,
+                             j*width_incrm + m_current_params.width_offset,
                              k*depth_incrm);
         dataArray->SetValue(id,val);
         //std::cout << "id: " << id << "\t\tx: " << i*length_incrm << "\t\ty: "
@@ -215,7 +243,7 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params/*=0*/,
     //Update status bar
     this->statusBar()->showMessage("Building raw point data... " +
         QString::number(i) + " of " +
-        QString::number(params.length_steps));
+        QString::number(m_current_params.length_steps));
 
     QApplication::processEvents();
   }
@@ -236,8 +264,7 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params/*=0*/,
   QApplication::processEvents();
 }
 
-
-
+//------------------------------------------------------------------------------
 
 void Form::renderRawOCTData()
 {
@@ -256,6 +283,7 @@ void Form::renderRawOCTData()
 
   VTK_NEW(vtkPoints, new_points);
   VTK_NEW(vtkTypeUInt8Array, new_data_array);
+  VTK_NEW(vtkPolyData, vis_poly_data);
   uint8_t value;
 
   //Update status bar
@@ -265,7 +293,7 @@ void Form::renderRawOCTData()
   for(uint32_t i = 0; i < num_pts; i++)
   {
     value = old_data_array->GetValue(i);
-    if(value > VIS_THRESHOLD)
+    if(value > m_vis_threshold)
     {
       new_points->InsertNextPoint(old_points->GetPoint(i));
       new_data_array->InsertNextValue(value);
@@ -282,12 +310,12 @@ void Form::renderRawOCTData()
   QApplication::processEvents();
 
   //Restores to original state, releases memory
-  m_vis_poly_data->Reset();
+  vis_poly_data->Reset();
 
-  m_vis_poly_data->SetPoints(new_points);
-  m_vis_poly_data->GetPointData()->SetScalars(new_data_array);
+  vis_poly_data->SetPoints(new_points);
+  vis_poly_data->GetPointData()->SetScalars(new_data_array);
 
-  m_vert_filter->SetInput(m_vis_poly_data);
+  m_vert_filter->SetInput(vis_poly_data);
 
   m_poly_mapper->SetInputConnection(m_vert_filter->GetOutputPort());
   m_poly_mapper->SetScalarVisibility(1);
@@ -355,91 +383,119 @@ void Form::renderRawOCTData()
   QApplication::processEvents();
 }
 
+//------------------------------------------------------------------------------
 
-
-
-void Form::loadPCLStereoDepthMap()
+void Form::loadPCLtoPolyData(const char* file_path,
+    vtkSmartPointer<vtkPolyData> cloud_poly_data)
 {
-  pcl::PointCloud<pcl::PointXYZRGB>::Ptr pts(
-        new pcl::PointCloud<pcl::PointXYZRGB>);
-
-  //Update status bar
-  this->statusBar()->showMessage("Reading stereocam PCL... ");
-  QApplication::processEvents();
-
-  //Reads the file into our pts point cloud
-  m_file_manager->readPCL(STEREO_DEPTH_CACHE_PATH, pts);
-
-  VTK_NEW(vtkPoints, points);
-  points->Reset();
-  VTK_NEW(vtkUnsignedCharArray, data_array);
-  data_array->Reset();
-
-  int num_pts = pts->size();
-
-  //Pre-allocate the space for our data
-  points->SetNumberOfPoints(num_pts);
-  data_array->SetNumberOfComponents(3);
-  data_array->SetNumberOfTuples(num_pts);
-  data_array->SetName("Colors");
-
-  pcl::PointXYZRGB* cloud_point;
-  unsigned char color[3] = {0, 0, 0};
-
-  //Update status bar
-  this->statusBar()->showMessage("Building depth map poly data... ");
-  QApplication::processEvents();
-
-  //Iterate over our pts
-  for(int i = 0; i < num_pts; i++)
+  //Points have no color component
+  if(file_path == OCT_SURF_CACHE_PATH)
   {
-    cloud_point = &(pts->at(i));
+    //Update status bar
+    this->statusBar()->showMessage("Reading OCT surface PCL cache... ");
+    QApplication::processEvents();
 
-    points->SetPoint(i, cloud_point->x, cloud_point->y, cloud_point->z);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr pts(
+          new pcl::PointCloud<pcl::PointXYZ>);
 
-    color[0] = cloud_point->r;
-    color[1] = cloud_point->g;
-    color[2] = cloud_point->b;
-    data_array->SetTupleValue(i, color);
+    //Reads the file into our pts point cloud
+    m_file_manager->readPCL(file_path, pts);
+
+    int num_pts = pts->size();
+
+    VTK_NEW(vtkPoints, points);
+    points->Reset();
+    points->SetNumberOfPoints(num_pts);
+
+    pcl::PointXYZ* cloud_point;
+
+    //Update status bar
+    this->statusBar()->showMessage("Building OCT surface vtkPolyData... ");
+    QApplication::processEvents();
+
+    for(int i = 0; i < num_pts; i++)
+    {
+      cloud_point = &(pts->at(i));
+      points->SetPoint(i, cloud_point->x, cloud_point->y, cloud_point->z);
+    }
+
+    cloud_poly_data->Reset();
+    cloud_poly_data->SetPoints(points);
   }
 
-  m_stereo_depth_poly_data->Reset();
-  m_stereo_depth_poly_data->SetPoints(points);
-  m_stereo_depth_poly_data->GetPointData()->SetScalars(data_array);
+  //Points have color component
+  else if (file_path == STEREO_DEPTH_CACHE_PATH)
+  {
+    //Update status bar
+    this->statusBar()->showMessage("Reading depth map PCL cache... ");
+    QApplication::processEvents();
 
-  //Set our state
-  m_has_stereo_pcl = true;
-  updateUIStates();
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr pts(
+          new pcl::PointCloud<pcl::PointXYZRGB>);
 
-  //Update status bar
-  this->statusBar()->showMessage("Building depth map poly data... done!");
-  QApplication::processEvents();
+    //Reads the file into our pts point cloud
+    m_file_manager->readPCL(file_path, pts);
+    int num_pts = pts->size();
+
+    VTK_NEW(vtkPoints, points);
+    points->Reset();
+    points->SetNumberOfPoints(num_pts);
+
+    VTK_NEW(vtkUnsignedCharArray, data_array);
+    data_array->Reset();
+    data_array->SetNumberOfComponents(3);
+    data_array->SetNumberOfTuples(num_pts);
+    data_array->SetName("Colors");
+
+    pcl::PointXYZRGB* cloud_point;
+    unsigned char color[3] = {0, 0, 0};
+
+    //Update status bar
+    this->statusBar()->showMessage("Building depth map vtkPolyData... ");
+    QApplication::processEvents();
+
+    //Iterate over our pts
+    for(int i = 0; i < num_pts; i++)
+    {
+      cloud_point = &(pts->at(i));
+
+      points->SetPoint(i, cloud_point->x, cloud_point->y, cloud_point->z);
+
+      color[0] = cloud_point->r;
+      color[1] = cloud_point->g;
+      color[2] = cloud_point->b;
+      data_array->SetTupleValue(i, color);
+    }
+
+    cloud_poly_data->Reset();
+    cloud_poly_data->SetPoints(points);
+    cloud_poly_data->GetPointData()->SetScalars(data_array);
+  }
+  else
+  {
+    qDebug() << "Invalid file path for loadPCLtoPolyData";
+    return;
+  }
 }
 
+//------------------------------------------------------------------------------
 
-
-
-void Form::renderPCLStereoDepthMap()
+void Form::renderPolyDataSurface(vtkSmartPointer<vtkPolyData> cloud_poly_data)
 {
-  int num_pts = m_stereo_depth_poly_data->GetPointData()->GetNumberOfTuples();
+  int num_pts = cloud_poly_data->GetPointData()->GetNumberOfTuples();
 
   if(num_pts == 0)
   {
-    qDebug() << "m_stereo_depth_poly_data is empty!";
+    qDebug() << "cloud_poly_data is empty!";
     return;
   }
 
   //Update status bar
-  this->statusBar()->showMessage("Preparing PolyData for display... ");
+  this->statusBar()->showMessage(
+      "Preparing depth map vtkPolyData for display... ");
   QApplication::processEvents();
 
-  m_vis_poly_data->Reset();
-
-  m_vis_poly_data->SetPoints(m_stereo_depth_poly_data->GetPoints());
-  m_vis_poly_data->GetPointData()->SetScalars(
-      m_stereo_depth_poly_data->GetPointData()->GetScalars());
-
-  m_vert_filter->SetInput(m_vis_poly_data);
+  m_vert_filter->SetInput(cloud_poly_data);
 
   m_poly_mapper->SetInputConnection(m_vert_filter->GetOutputPort());
   //m_poly_mapper->SetScalarVisibility(1);
@@ -495,22 +551,14 @@ void Form::renderPCLStereoDepthMap()
 
   m_renderer->AddActor(m_axes_actor);
 
-  //Update status bar
-  this->statusBar()->showMessage("Rendering... ");
-  QApplication::processEvents();
-
   this->m_ui->qvtkWidget->update();
-  QApplication::processEvents();
-
-  //Update status bar
-  this->statusBar()->showMessage("Rendering... done!");
   QApplication::processEvents();
 }
 
+//------------------------------------------------------------------------------
 
-
-
-void Form::load2DStereoImage(const char* file_path)
+void Form::load2DStereoImage(const char* file_path,
+      vtkSmartPointer<vtkImageData> image_data)
 {
   //Create a vector to hold the data
   std::vector<uint32_t> data;
@@ -523,53 +571,29 @@ void Form::load2DStereoImage(const char* file_path)
   memcpy(&rows,  &data[0],  4*sizeof(uint8_t));
   memcpy(&cols,  &data[1],  4*sizeof(uint8_t));
 
-  vtkImageData* work_pointer;
-
-  //Create and setup a vtkImageData
-  if(file_path == STEREO_LEFT_CACHE_PATH)
-  {
-    work_pointer = m_stereo_left_image;
-  }
-  else if(file_path == STEREO_RIGHT_CACHE_PATH)
-  {
-    work_pointer = m_stereo_right_image;
-  }
-  else if(file_path == STEREO_DISP_CACHE_PATH)
-  {
-    work_pointer = m_stereo_disp_image;
-  }
-  else
-  {
-    qDebug() << "Invalid 2D stereo image path";
-    return;
-  }
-
-  work_pointer->SetDimensions(rows, cols, 1);
-  work_pointer->SetNumberOfScalarComponents(3);
-  work_pointer->SetScalarTypeToUnsignedChar();
-  work_pointer->AllocateScalars();
+  image_data->SetDimensions(cols, rows, 1);
+  image_data->SetNumberOfScalarComponents(3);
+  image_data->SetScalarTypeToUnsignedChar();
+  image_data->AllocateScalars();
 
   uint32_t val;
-  for(int x = 0; x < rows; x++)
+  for(uint32_t y = 0; y < rows; y++)
   {
-    for(int y = 0; y < cols; y++)
+    for(uint32_t x = 0; x < cols; x++)
     {
       unsigned char* pixel = static_cast<unsigned char*>
-                             (work_pointer->GetScalarPointer(x, y, 0));
+                             (image_data->GetScalarPointer(x, y, 0));
 
       //The two first uint32_t are the header
-      val = data[y + x*cols + 2];
+      val = data[x + y*cols + 2];
       memcpy(&pixel[0],  &val,  3*sizeof(uint8_t));
     }
   }
 
-  work_pointer->Modified();
+  image_data->Modified();
 }
 
-
-
-
-
+//------------------------------------------------------------------------------
 
 void Form::render2DStereoImage(vtkSmartPointer<vtkImageData> image_data)
 {
@@ -615,9 +639,65 @@ void Form::render2DStereoImage(vtkSmartPointer<vtkImageData> image_data)
   this->m_ui->qvtkWidget->update();
 }
 
+//------------------------------------------------------------------------------
 
+void Form::renderOverlay(vtkSmartPointer<vtkPolyData> oct_surface,
+    vtkSmartPointer<vtkPolyData> depth_map)
+{
+  int num_pts_oct = oct_surface->GetPointData()->GetNumberOfTuples();
+  int num_pts_stereo = depth_map->GetPointData()->GetNumberOfTuples();
 
+  if(num_pts_oct == 0 || num_pts_stereo)
+  {
+    qDebug() << "Either oct_surface or depth_map are empty!";
+    return;
+  }
 
+  //Update status bar
+  this->statusBar()->showMessage(
+        "Preparing vtkPolyData objects for overlay display... ");
+  QApplication::processEvents();
+
+  //OCT
+  {
+    m_trans_filter->SetInput(oct_surface);
+    m_trans_filter->SetTransform(m_oct_stereo_trans);
+
+    m_vert_filter->RemoveAllInputs();
+    m_vert_filter->SetInputConnection(m_trans_filter->GetOutputPort());
+
+    m_poly_mapper->SetInputConnection(m_vert_filter->GetOutputPort());
+
+    m_actor->SetMapper(m_poly_mapper);
+    m_actor->GetProperty()->SetColor(0, 0, 1); //blue
+
+    //Produce the oct output
+    m_poly_mapper->Update();
+  }
+
+  //Stereocamera depthmap
+  {
+    m_vert_filter->RemoveAllInputs();
+    m_vert_filter->SetInput(depth_map);
+
+    m_second_poly_mapper->SetInputConnection(m_vert_filter->GetOutputPort());
+
+    m_second_actor->SetMapper(m_second_poly_mapper);
+    m_second_actor->GetProperty()->SetColor(1, 0, 0); //red
+
+    m_second_poly_mapper->Update();
+  }
+
+  m_renderer->RemoveAllViewProps();
+  m_renderer->AddActor(m_actor);
+  m_renderer->AddActor(m_second_actor);
+  m_renderer->ResetCamera();
+
+  this->m_ui->qvtkWidget->update();
+  QApplication::processEvents();
+}
+
+//------------------------------------------------------------------------------
 
 void Form::updateUIStates()
 {
@@ -625,10 +705,11 @@ void Form::updateUIStates()
   m_ui->connected_master_checkbox->setChecked(m_connected_to_master);
   m_ui->connected_master_checkbox_2->setChecked(m_connected_to_master);
 
-  m_ui->browse_button->setEnabled(!m_waiting_response & !m_waiting_response);
+  m_ui->browse_button->setEnabled(!m_waiting_response && !m_waiting_response);
 
   m_ui->request_scan_button->setEnabled(!m_waiting_response);
-  m_ui->save_button->setEnabled(m_has_ros_raw_oct & !m_waiting_response);
+  m_ui->save_button->setEnabled(m_has_ros_raw_oct && !m_waiting_response);
+  m_ui->reset_params_button->setEnabled(!m_waiting_response);
 
   m_ui->len_steps_spinbox->setEnabled(!m_waiting_response);
   m_ui->len_range_spinbox->setEnabled(!m_waiting_response);
@@ -639,23 +720,42 @@ void Form::updateUIStates()
   m_ui->dep_steps_spinbox->setEnabled(!m_waiting_response);
   m_ui->dep_range_spinbox->setEnabled(!m_waiting_response);
 
-  m_ui->view_raw_oct_button->setEnabled(m_has_raw_oct & !m_waiting_response);
-  m_ui->view_oct_surf_button->setEnabled(m_has_oct_surf & !m_waiting_response);
-  m_ui->view_oct_mass_button->setEnabled(m_has_oct_surf & !m_waiting_response);
+  m_ui->viewing_threshold_spinbox->setEnabled(!m_waiting_response);
 
-  m_ui->calc_oct_surf_button->setEnabled(m_has_raw_oct & !m_waiting_response);
-  m_ui->calc_oct_mass_button->setEnabled(m_has_raw_oct & !m_waiting_response);
+  m_ui->view_raw_oct_button->setEnabled(m_has_raw_oct && !m_waiting_response);
+  m_ui->view_oct_surf_button->setEnabled(m_has_oct_surf && !m_waiting_response);
+  m_ui->view_oct_mass_button->setEnabled(m_has_oct_surf && !m_waiting_response);
+
+  m_ui->calc_oct_surf_button->setEnabled(m_has_raw_oct && !m_waiting_response);
+  m_ui->calc_oct_mass_button->setEnabled(m_has_raw_oct && !m_waiting_response);
 
   //Stereocamera page
-  m_ui->view_depth_image_button->setEnabled(m_has_stereo_pcl &
+  m_ui->view_left_image_button->setEnabled(m_has_stereo_data &&
+      !m_waiting_response);
+  m_ui->view_right_image_button->setEnabled(m_has_stereo_data &&
+      !m_waiting_response);
+  m_ui->view_disp_image_button->setEnabled(m_has_stereo_data &&
+      !m_waiting_response);
+  m_ui->view_depth_image_button->setEnabled(m_has_stereo_data &&
       !m_waiting_response);
 
+  //Visualization page
+  m_ui->calc_transform_button->setEnabled(m_has_oct_surf && m_has_stereo_data &&
+      !m_waiting_response);
+  m_ui->print_transform_button->setEnabled(m_has_transform &&
+      !m_waiting_response);
+  m_ui->view_simple_overlay_button->setEnabled(m_has_transform && m_has_oct_surf
+      && m_has_stereo_data && !m_waiting_response);
+  m_ui->view_complete_overlay_button->setEnabled(m_has_transform &&
+      m_has_oct_surf && m_has_stereo_data && m_has_oct_mass &&
+      !m_waiting_response);
 }
 
-
-
-
-
+//============================================================================//
+//                                                                            //
+//  PRIVATE Q_SLOTS                                                           //
+//                                                                            //
+//============================================================================//
 
 void Form::on_browse_button_clicked()
 {
@@ -702,65 +802,49 @@ void Form::on_browse_button_clicked()
   }
 }
 
+//------------------------------------------------------------------------------
+
 void Form::on_connected_master_checkbox_clicked(bool checked)
 {
   m_connected_to_master = checked;
   updateUIStates();
 }
 
-void Form::on_len_steps_spinbox_editingFinished()
-{
-  m_current_params.length_steps = this->m_ui->len_steps_spinbox->value();
-}
-
-void Form::on_wid_steps_spinbox_editingFinished()
-{
-  m_current_params.width_steps = this->m_ui->wid_steps_spinbox->value();
-}
+//------------------------------------------------------------------------------
 
 void Form::on_dep_steps_spinbox_editingFinished()
 {
-  m_current_params.depth_steps = this->m_ui->dep_steps_spinbox->value();
-
   //The axial sensor has a fixed resolution, so we change m_dep_range to match
   this->m_ui->dep_range_spinbox->setValue(
-      (float)m_current_params.depth_steps/1024.0*2.762);
+      (float)this->m_ui->dep_steps_spinbox->value()/1024.0*2.762);
 }
 
-void Form::on_len_range_spinbox_editingFinished()
-{
-  m_current_params.length_range = this->m_ui->len_range_spinbox->value();
-}
-
-void Form::on_wid_range_spinbox_editingFinished()
-{
-  m_current_params.width_range = this->m_ui->wid_range_spinbox->value();
-}
+//------------------------------------------------------------------------------
 
 void Form::on_dep_range_spinbox_editingFinished()
 {
-  m_current_params.depth_range = this->m_ui->dep_range_spinbox->value();
-
   //The axial sensor has a fixed resolution, so we change m_dep_steps to match
   this->m_ui->dep_steps_spinbox->setValue((int) (
-      m_current_params.depth_range/2.762*1024 + 0.5));
+      this->m_ui->dep_range_spinbox->value()/2.762*1024 + 0.5));
 }
 
-void Form::on_len_off_spinbox_editingFinished()
-{
-  m_current_params.length_offset = this->m_ui->len_off_spinbox->value();
-}
-
-void Form::on_wid_off_spinbox_editingFinished()
-{
-  m_current_params.width_offset = this->m_ui->wid_off_spinbox->value();
-}
+//------------------------------------------------------------------------------
 
 void Form::on_request_scan_button_clicked()
 {
   //Disables controls until we get a response
   m_waiting_response = true;
   updateUIStates();
+
+  //Gets the updated values
+  m_current_params.length_steps = this->m_ui->len_steps_spinbox->value();
+  m_current_params.width_steps = this->m_ui->wid_steps_spinbox->value();
+  m_current_params.depth_steps = this->m_ui->dep_steps_spinbox->value();
+  m_current_params.length_range = this->m_ui->len_range_spinbox->value();
+  m_current_params.width_range = this->m_ui->wid_range_spinbox->value();
+  m_current_params.depth_range = this->m_ui->dep_range_spinbox->value();
+  m_current_params.length_offset = this->m_ui->len_off_spinbox->value();
+  m_current_params.width_offset = this->m_ui->wid_off_spinbox->value();
 
   //Pack the desired OCT params into a struct
   Q_EMIT requestScan(m_current_params);
@@ -769,6 +853,8 @@ void Form::on_request_scan_button_clicked()
   this->m_ui->status_bar->showMessage("Waiting for OCT scanner response... ");
   QApplication::processEvents();
 }
+
+//------------------------------------------------------------------------------
 
 void Form::on_save_button_clicked()
 {
@@ -814,21 +900,236 @@ void Form::on_save_button_clicked()
   }
 }
 
+//------------------------------------------------------------------------------
+
+void Form::on_viewing_threshold_spinbox_editingFinished()
+{
+  m_vis_threshold = m_ui->viewing_threshold_spinbox->value();
+}
+
+//------------------------------------------------------------------------------
+
 void Form::on_view_raw_oct_button_clicked()
 {
     renderRawOCTData();
 }
 
+//------------------------------------------------------------------------------
+
 void Form::on_calc_oct_surf_button_clicked()
 {
+  //Disables controls until we get a response
+  m_waiting_response = true;
+  updateUIStates();
 
+  Q_EMIT requestSegmentation(m_current_params);
+
+  //Update status bar
+  this->m_ui->status_bar->showMessage("Waiting for OCT surface response... ");
+  QApplication::processEvents();
 }
+
+//------------------------------------------------------------------------------
+
+void Form::on_view_left_image_button_clicked()
+{  
+  this->m_ui->status_bar->showMessage("Rendering left image... done!");
+  QApplication::processEvents();
+
+  m_waiting_response = true;
+  updateUIStates();
+
+  VTK_NEW(vtkImageData, left_image);
+
+  load2DStereoImage(STEREO_LEFT_CACHE_PATH, left_image);
+
+  render2DStereoImage(left_image);
+
+  this->m_ui->status_bar->showMessage("Rendering left image... done!");
+  QApplication::processEvents();
+
+  m_waiting_response = false;
+  updateUIStates();
+}
+
+//------------------------------------------------------------------------------
+
+void Form::on_view_right_image_button_clicked()
+{
+  this->m_ui->status_bar->showMessage("Rendering right image... done!");
+  QApplication::processEvents();
+
+  m_waiting_response = true;
+  updateUIStates();
+
+  VTK_NEW(vtkImageData, right_image);
+
+  load2DStereoImage(STEREO_RIGHT_CACHE_PATH, right_image);
+
+  render2DStereoImage(right_image);
+
+  this->m_ui->status_bar->showMessage("Rendering right image... done!");
+  QApplication::processEvents();
+
+  m_waiting_response = false;
+  updateUIStates();
+}
+
+//------------------------------------------------------------------------------
+
+void Form::on_view_disp_image_button_clicked()
+{
+  this->m_ui->status_bar->showMessage("Rendering displacement image... done!");
+  QApplication::processEvents();
+
+  m_waiting_response = true;
+  updateUIStates();
+
+  VTK_NEW(vtkImageData, disp_image);
+
+  load2DStereoImage(STEREO_DISP_CACHE_PATH, disp_image);
+
+  render2DStereoImage(disp_image);
+
+  this->m_ui->status_bar->showMessage("Rendering displacement image... done!");
+  QApplication::processEvents();
+
+  m_waiting_response = false;
+  updateUIStates();
+}
+
+//------------------------------------------------------------------------------
+
+void Form::on_view_depth_image_button_clicked()
+{
+  this->m_ui->status_bar->showMessage("Rendering depth map... done!");
+  QApplication::processEvents();
+
+  m_waiting_response = true;
+  updateUIStates();
+
+  VTK_NEW(vtkPolyData, depth_image);
+
+  loadPCLtoPolyData(STEREO_DEPTH_CACHE_PATH, depth_image);
+
+  renderPolyDataSurface(depth_image);
+
+  this->m_ui->status_bar->showMessage("Rendering depth map... done!");
+  QApplication::processEvents();
+
+  m_waiting_response = false;
+  updateUIStates();
+}
+
+//------------------------------------------------------------------------------
+
+void Form::on_reset_params_button_clicked()
+{
+  this->m_ui->len_steps_spinbox->setValue(m_current_params.length_steps);
+  this->m_ui->wid_steps_spinbox->setValue(m_current_params.width_steps);
+  this->m_ui->dep_steps_spinbox->setValue(m_current_params.depth_steps);
+  this->m_ui->len_range_spinbox->setValue(m_current_params.length_range);
+  this->m_ui->wid_range_spinbox->setValue(m_current_params.width_range);
+  this->m_ui->dep_range_spinbox->setValue(m_current_params.depth_range);
+  this->m_ui->len_off_spinbox->setValue(m_current_params.length_offset);
+  this->m_ui->wid_off_spinbox->setValue(m_current_params.width_offset);
+}
+
+//------------------------------------------------------------------------------
+
+void Form::on_calc_transform_button_clicked()
+{
+  //Disables controls until we get a response
+  m_waiting_response = true;
+  updateUIStates();
+
+  Q_EMIT requestRegistration();
+
+  //Update status bar
+  this->m_ui->status_bar->showMessage("Waiting for OCT registration "
+      "transform... ");
+  QApplication::processEvents();
+}
+
+//------------------------------------------------------------------------------
+
+void Form::on_print_transform_button_clicked()
+{
+  //Update status bar
+  this->m_ui->status_bar->showMessage("Printing transform to console... ");
+  QApplication::processEvents();
+
+  for(int row = 0; row < 4; row++)
+  {
+    std::cout << "\t";
+    for(int col = 0; col < 4; col++)
+    {
+      std::cout << m_oct_stereo_trans->GetMatrix()->GetElement(row, col)<< "\t";
+    }
+    std::cout << "\n";
+  }
+}
+
+//------------------------------------------------------------------------------
+
+void Form::on_view_oct_surf_button_clicked()
+{
+  //Update status bar
+  this->m_ui->status_bar->showMessage("Rendering OCT surface... ");
+  QApplication::processEvents();
+
+  m_waiting_response = true;
+  updateUIStates();
+
+  VTK_NEW(vtkPolyData, surf_oct_poly_data);
+
+  loadPCLtoPolyData(OCT_SURF_CACHE_PATH, surf_oct_poly_data);
+  renderPolyDataSurface(surf_oct_poly_data);
+
+  //Update status bar
+  this->m_ui->status_bar->showMessage("Rendering OCT surface... done!");
+  QApplication::processEvents();
+
+  m_waiting_response = false;
+  updateUIStates();
+}
+
+//------------------------------------------------------------------------------
+
+void Form::on_view_simple_overlay_button_clicked()
+{
+  //Update status bar
+  this->m_ui->status_bar->showMessage("Rendering simple surface overlay... ");
+  QApplication::processEvents();
+
+  m_waiting_response = true;
+  updateUIStates();
+
+  //Read the oct surface and depth maps
+  VTK_NEW(vtkPolyData, oct_surface);
+  VTK_NEW(vtkPolyData, depth_map);
+  loadPCLtoPolyData(OCT_SURF_CACHE_PATH, oct_surface);
+  loadPCLtoPolyData(STEREO_DEPTH_CACHE_PATH, depth_map);
+
+  //Render both simultaneously
+  renderOverlay(oct_surface, depth_map);
+
+  //Update status bar
+  this->m_ui->status_bar->showMessage("Rendering simple surface overlay... "
+      "done!");
+  QApplication::processEvents();
+
+  m_waiting_response = false;
+  updateUIStates();
+}
+
+//------------------------------------------------------------------------------
 
 void Form::receivedRawOCTData(OCTinfo params)
 {
   //Update status bar
-  this->m_ui->status_bar->showMessage("Waiting for OCT scanner response... \
-      done!");
+  this->m_ui->status_bar->showMessage("Waiting for OCT scanner response... "
+      "done!");
   QApplication::processEvents();
 
   //Loads m_qnode's data vector into m_raw_oct_poly_data
@@ -837,46 +1138,67 @@ void Form::receivedRawOCTData(OCTinfo params)
 
   loadRawOCTData(raw_data, params, 0, 0);
 
-  m_has_ros_raw_oct = true;
-  updateUIStates();
-
   //Immediately render it
   renderRawOCTData();
 
   //Re-enables controls for a potential new scan
+  m_has_ros_raw_oct = true;
   m_waiting_response = false;
   updateUIStates();
 }
+
+//------------------------------------------------------------------------------
 
 void Form::receivedOCTSurfData(OCTinfo params)
 {
-  //Fetch m_oct_pcl_surface from qnode
+  //Update status bar
+  this->m_ui->status_bar->showMessage("Waiting for OCT surface response... "
+      "done!");
+  QApplication::processEvents();
 
-  //Render it somehow
-}
+  VTK_NEW(vtkPolyData, surf_oct_poly_data);
 
-void Form::receivedStereoData()
-{
-  m_has_stereo_pcl = true;
-  updateUIStates();
-}
+  loadPCLtoPolyData(OCT_SURF_CACHE_PATH, surf_oct_poly_data);
+  renderPolyDataSurface(surf_oct_poly_data);
 
-void Form::on_view_depth_image_button_clicked()
-{
-  m_waiting_response = true;
-  updateUIStates();
-
-  loadPCLStereoDepthMap();
-
-  renderPCLStereoDepthMap();
-
+  //Re-enables controls for a potential new scan
+  m_has_oct_surf = true;
   m_waiting_response = false;
   updateUIStates();
 }
 
-void Form::on_view_left_image_button_clicked()
-{
-  load2DStereoImage(STEREO_LEFT_CACHE_PATH);
+//------------------------------------------------------------------------------
 
-  render2DStereoImage(m_stereo_left_image);
+void Form::receivedStereoData()
+{
+  m_has_stereo_data = true;
+  updateUIStates();
 }
+
+//------------------------------------------------------------------------------
+
+void Form::receivedRegistration()
+{
+  //Read and parse the YAML 4x4 transform
+  cv::Mat cv_matrix;
+  m_oct_stereo_trans->Identity();
+  double elements[16];
+
+  cv::FileStorage file_stream(VIS_TRANS_CACHE_PATH, cv::FileStorage::READ );
+  if(file_stream.isOpened())
+  {
+    file_stream["octRegistrationMatrix"] >> cv_matrix;
+    for( unsigned int row = 0; row < 4; row++ )
+    {
+      for( unsigned int col = 0; col< 4; col++ )
+      {
+        elements[row*4 + col] = cv_matrix.at<float>(row,col);
+      }
+    }
+  }
+  m_oct_stereo_trans->SetMatrix(elements);
+
+  m_has_transform = true;
+  updateUIStates();
+}
+

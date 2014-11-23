@@ -28,9 +28,11 @@
 #include <vtkPointData.h>
 #include <vtkTypeUInt8Array.h>
 #include <vtkUnsignedCharArray.h>
+#include <vtkTransform.h>
 //Filters
 #include <vtkVertexGlyphFilter.h>
 #include <vtkImageReslice.h>
+#include <vtkTransformFilter.h>
 //Mappers
 #include <vtkPolyDataMapper.h>
 #include <vtkImageMapper.h>
@@ -54,7 +56,6 @@
 #include "octinfo.h"
 
 //Maximum number of points displayed on the QVTK widget
-#define VIS_THRESHOLD 100
 #define VTK_NEW(type, instance); vtkSmartPointer<type> instance = \
                                  vtkSmartPointer<type>::New();
 
@@ -86,24 +87,28 @@ public:
       default_oct_info, int file_header = 512, int frame_header = 40);
 
   //Renders a poly data containing points as individual vertices. Prunes
-  //points based on their scalar values to keep up to MAX_RENDER_POINTS
+  //points based on their scalar values, according to m_vis_threshold
   void renderRawOCTData();
 
-  //Loads a PCL point cloud saved as a binary file at STEREO_PCL_CACHE_PATH
-  //and builds the m_stereo_depth_poly_data for visualization. It's thread safe
-  //since both rendering this and performing registration with it are read only
-  void loadPCLStereoDepthMap();
+  //Loads a PCL point cloud saved as a binary file at file_path and builds a
+  //poly_data for visualization
+  void loadPCLtoPolyData(const char* file_path, vtkSmartPointer<vtkPolyData> depth_image);
 
   //Renders the m_stereo_depth_poly_data
-  void renderPCLStereoDepthMap();
+  void renderPolyDataSurface(vtkSmartPointer<vtkPolyData> depth_image);
 
   //Loads either the left, right or displacement map images produced by the
-  //stereocamera into their respective vtkImageData objects
-  void load2DStereoImage(const char* file_path);
+  //stereocamera into a vtkImageData object
+  void load2DStereoImage(const char* file_path,
+      vtkSmartPointer<vtkImageData> image_data);
 
   //Renders either the left, right or displacement map vtkImageData objects
   //created by load2DStereoImage
   void render2DStereoImage(vtkSmartPointer<vtkImageData> image_data);
+
+  //Renders the oct_surface and depth_map simultaneously
+  void renderOverlay(vtkSmartPointer<vtkPolyData> oct_surface,
+      vtkSmartPointer<vtkPolyData> depth_map);
 
   //Uses the boolean state variables to figure out which buttons and spinboxes
   //should be enabled and which should be disabled
@@ -112,35 +117,40 @@ public:
 private Q_SLOTS:
   void on_browse_button_clicked();
   void on_connected_master_checkbox_clicked(bool checked);
-  void on_len_steps_spinbox_editingFinished();
-  void on_wid_steps_spinbox_editingFinished();
   void on_dep_steps_spinbox_editingFinished();
-  void on_len_range_spinbox_editingFinished();
-  void on_wid_range_spinbox_editingFinished();
   void on_dep_range_spinbox_editingFinished();
-  void on_len_off_spinbox_editingFinished();
-  void on_wid_off_spinbox_editingFinished();
   void on_request_scan_button_clicked();
-  void on_save_button_clicked();
+  void on_save_button_clicked();  
+  void on_viewing_threshold_spinbox_editingFinished();
   void on_view_raw_oct_button_clicked();  
   void on_calc_oct_surf_button_clicked();
+  void on_view_left_image_button_clicked();
+  void on_view_right_image_button_clicked();
+  void on_view_disp_image_button_clicked();
+  void on_view_depth_image_button_clicked();
+  void on_reset_params_button_clicked();
+  void on_calc_transform_button_clicked();
+  void on_print_transform_button_clicked();
+  void on_view_oct_surf_button_clicked();
+  void on_view_simple_overlay_button_clicked();
   void receivedRawOCTData(OCTinfo params);
   void receivedOCTSurfData(OCTinfo params);
   void receivedStereoData();
-
-  void on_view_depth_image_button_clicked();
-
-  void on_view_left_image_button_clicked();
+  void receivedRegistration();
 
   Q_SIGNALS:
   void requestScan(OCTinfo);
-  void requestSegmentation(OCTinfo, std::vector<uint8_t> raw_data);
+  void requestSegmentation(OCTinfo);
+  void requestRegistration();
 
 private:
   Ui::Form *m_ui;
   QNode* m_qnode;
   QThread* m_qthread;
   FileManager* m_file_manager;
+
+  //Controls minimum displayed intensity value when viewing raw OCT
+  uint8_t m_vis_threshold;
 
   //State booleans
   bool m_connected_to_master;
@@ -149,7 +159,8 @@ private:
   bool m_waiting_response;
   bool m_has_oct_surf;
   bool m_has_oct_mass;
-  bool m_has_stereo_pcl;
+  bool m_has_stereo_data;
+  bool m_has_transform;
 
   //Holds our current raw oct parameters (steps, ranges, offsets)
   OCTinfo m_current_params;
@@ -157,19 +168,18 @@ private:
   //VTK objects
   //Data structures
   vtkSmartPointer<vtkPolyData> m_raw_oct_poly_data;
-  vtkSmartPointer<vtkPolyData> m_vis_poly_data;
-  vtkSmartPointer<vtkPolyData> m_stereo_depth_poly_data;
-  vtkSmartPointer<vtkImageData> m_stereo_left_image;
-  vtkSmartPointer<vtkImageData> m_stereo_right_image;
-  vtkSmartPointer<vtkImageData> m_stereo_disp_image;
+  vtkSmartPointer<vtkTransform> m_oct_stereo_trans;
   //Filters
   vtkSmartPointer<vtkVertexGlyphFilter> m_vert_filter;
   vtkSmartPointer<vtkImageReslice> m_image_resize_filter;
+  vtkSmartPointer<vtkTransformFilter> m_trans_filter;
   //Mappers
   vtkSmartPointer<vtkPolyDataMapper> m_poly_mapper;
+  vtkSmartPointer<vtkPolyDataMapper> m_second_poly_mapper;
   vtkSmartPointer<vtkImageMapper> m_image_mapper;
   //Actors
   vtkSmartPointer<vtkActor> m_actor;
+  vtkSmartPointer<vtkActor> m_second_actor;
   vtkSmartPointer<vtkAxesActor> m_axes_actor;
   vtkSmartPointer<vtkActor2D> m_image_actor;
   //Others

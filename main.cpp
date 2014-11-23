@@ -1,14 +1,8 @@
 /*  TODO:
  *
- *  -Fix depth_range not being set on Thorlabs img files
+ *  -Test BGR and column/row major alignment with an actual image
  *
- *  -Convert the stereocamera pcl clouds into VTK stuff and render them
- *
- *  -Actually use/delete m_vis_poly_data
- *
- *  -Flip and mirror the CV matrices, BGR, because somebody thought it was a
- *   great idea to do everything backwards
- *
+ *  -Setup launch files to startup oct_client_tcp, OCT_seg, and friends
  *
  * */
 

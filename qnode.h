@@ -75,21 +75,22 @@ public:
 
 	QNode(int argc, char** argv );
 	virtual ~QNode();
-	//Checks to see if a master node exists. If it does, it creates a handle for
-	//this node and returns true
+
+	//Waits for a ROS master node. Creates a new node whenever it shows up
 	void connectToMaster();
-	//This reimplements the QThread's run() function. This run() will get called
-	//after the call to QThread::start() in the constructor. Returning from
-	//this run() method will end the execution of this thread
+
+	//Creates subscriptions to topics and services
 	void setupSubscriptions();
+
+	//Callback to the stereocamera topic subscription. Packs the four incoming
+	//images into the apropriate formats and saves to the correct files
 	void imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
 										 const sensor_msgs::ImageConstPtr &msg_right,
 										 const sensor_msgs::ImageConstPtr &msg_disp,
 										 const sensor_msgs::ImageConstPtr &msg_depth);
+
+	//Kills subscriptions and the current node
 	void stopCurrentNode();
-
-
-	void testImages();
 
 Q_SIGNALS: //Same as 'signals'
 	void rosMasterChanged(bool);
@@ -97,15 +98,18 @@ Q_SIGNALS: //Same as 'signals'
 	void receivedOCTRawData(OCTinfo params);
 	void receivedOCTSurfData(OCTinfo params);
 	void receivedStereoData();
+	void receivedRegistration();
 
 public Q_SLOTS:
 	void process();
 	void requestScan(OCTinfo params);
-	void requestSegmentation(OCTinfo params, std::vector<uint8_t> raw_data);
+	void requestSegmentation(OCTinfo params);
+	void requestRegistration();
 
 private:
 	ros::NodeHandle* m_nh;
-	ros::ServiceClient m_oct_tcp_client, m_segmentation_client;
+	ros::ServiceClient m_oct_tcp_client, m_segmentation_client,
+										 m_registration_client;
 	cv_bridge::CvImagePtr m_cv_image_ptr;
 	FileManager* m_file_manager;
 
@@ -113,6 +117,7 @@ private:
 	int no_argc;
 	char** no_argv;
 
+	//Turns true when its time to shutdown
 	bool m_shutdown;
 
 	boost::shared_ptr<message_filters::Subscriber<sensor_msgs::Image> >
