@@ -30,7 +30,6 @@ void QNode::connectToMaster()
 {
   ros::init(no_argc,no_argv,"OCT_overlay");
 
-  //Wait for a master, or break out of we need to shutdown with no Master
   while(!ros::master::check())
   {
     if(m_shutdown) return;
@@ -45,29 +44,24 @@ void QNode::connectToMaster()
 	//Signal the UI that Master has connected
 	Q_EMIT rosMasterChanged(true);
 
-  //Create a new handle
-  m_nh = new ros::NodeHandle;
+	m_nh = new ros::NodeHandle;
 
-  //Setup subscriptions
-  this->setupSubscriptions();
+	this->setupSubscriptions();
 }
 
 //------------------------------------------------------------------------------
 
 void QNode::setupSubscriptions()
 {
-  //Setup a service client for the TCP OCT service from oct_client
-  //m_oct_tcp_client = m_nh->
-  //    serviceClient<oct_client::octClientServiceTCP>("oct_client_service_TCP");
+  m_oct_tcp_client = m_nh->
+      serviceClient<oct_client::octClientServiceTCP>("oct_client_service_TCP");
 
-  //Subscribes to OCT_segmentation's segmentation service
-//  m_segmentation_client = m_nh->serviceClient
-//      <OCT_segmentation::segmentationServiceFromDataArray>
-//      ("segmentation_service_from_data_array");
+  m_segmentation_client = m_nh->serviceClient
+      <OCT_segmentation::segmentationServiceFromDataArray>
+      ("segmentation_service_from_data_array");
 
-  //Subscribes to OCT_registration's registration service
-//  m_registration_client = m_nh->serviceClient
-//      <OCT_registration::registrationService>("registration_service");
+  m_registration_client = m_nh->serviceClient
+      <OCT_registration::registrationService>("registration_service");
 
   //Fetches the image topic names from the ROS param server, or uses the
   //default values (last arguments in the param calls)
@@ -124,7 +118,6 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
 {
   ROS_INFO("imageCallback called");
 
-  //Creates CV matrices for all incoming images
   cv::Mat image_left, image_right, disp_map, depth_map;
 
   //cv_bridges convert between ROS image messages and opencv images.
@@ -170,7 +163,6 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
 
   ROS_INFO("Depth map PCL cloud written");
 
-  //Build uin32_t arrays
   std::vector<uint32_t> left, right, disp, header;
 
   //Populate header with information about the left image dimensions
@@ -271,7 +263,7 @@ void QNode::stopCurrentNode()
 
 //============================================================================//
 //                                                                            //
-//  PUBLIC Q_SLOTS                                                           //
+//  PUBLIC Q_SLOTS                                                            //
 //                                                                            //
 //============================================================================//
 
@@ -287,9 +279,10 @@ void QNode::process()
 		//ROS_INFO("Executing");
 
 		ros::spinOnce();
-		QCoreApplication::processEvents(); //Check for signals from main thread
 
-		//If Master has shut down, kill node and wait for a new master
+		//Check for signals from main thread
+		QCoreApplication::processEvents();
+
 		if(!ros::master::check())
 		{
 			stopCurrentNode();
@@ -311,50 +304,50 @@ void QNode::requestScan(OCTinfo params)
 	std::vector<uint8_t> data;
 	data.resize(params.length_steps * params.width_steps * params.depth_steps);
 
-	for(int i = 0; i < data.size(); i++)
-	{
-		data[i] = i%256;
-	}
+//	for(int i = 0; i < data.size(); i++)
+//	{
+//		data[i] = i%256;
+//	}
 
 
-  std::cout << "Requested with ls: " << params.length_steps << ", ws: " <<
-      params.width_steps << ", ds: " << params.depth_steps << ", lr: " <<
-      params.length_range << ", wr: " << params.width_range << ", size: " <<
-      data.size() << std::endl;
+//  std::cout << "Requested with ls: " << params.length_steps << ", ws: " <<
+//      params.width_steps << ", ds: " << params.depth_steps << ", lr: " <<
+//      params.length_range << ", wr: " << params.width_range << ", size: " <<
+//      data.size() << std::endl;
 
-//	oct_client::octClientServiceTCP octSrvMessage;
+	oct_client::octClientServiceTCP octSrvMessage;
 
-//	octSrvMessage.request.x_steps = length_steps;
-//	octSrvMessage.request.y_steps = width_steps;
-//	octSrvMessage.request.z_steps = depth_steps;
+	octSrvMessage.request.x_steps = length_steps;
+	octSrvMessage.request.y_steps = width_steps;
+	octSrvMessage.request.z_steps = depth_steps;
 
-//	octSrvMessage.request.x_range = length_range;
-//	octSrvMessage.request.y_range = width_range;
-//	octSrvMessage.request.z_range = depth_range;
+	octSrvMessage.request.x_range = length_range;
+	octSrvMessage.request.y_range = width_range;
+	octSrvMessage.request.z_range = depth_range;
 
-//	octSrvMessage.request.x_offset = length_offset;
-//	octSrvMessage.request.y_offset = depth_offset;
+	octSrvMessage.request.x_offset = length_offset;
+	octSrvMessage.request.y_offset = depth_offset;
 
 	//Waits for a response
-//	if(m_oct_tcp_client.exists())
-//	{
-//		if(m_oct_tcp_client.call(octSrvMessage))
-//		{
-//			//This should be a deep copy
-//			data = octSrvMessage.response.octImage;
+	if(m_oct_tcp_client.exists())
+	{
+		if(m_oct_tcp_client.call(octSrvMessage))
+		{
+			//This should be a deep copy
+			data = octSrvMessage.response.octImage;
 
-//			ROS_INFO("OCT scan completed");
+			ROS_INFO("OCT scan completed");
 
-//		}
-//		else
-//		{
-//			ROS_WARN("Call to service failed!");
-//		}
-//	}
-//	else
-//	{
-//		ROS_WARN("Service does not exist!");
-//	}
+		}
+		else
+		{
+			ROS_WARN("Call to service failed!");
+		}
+	}
+	else
+	{
+		ROS_WARN("Service does not exist!");
+	}
 
 	//Writes our data vector to a file to save some RAM. Form will read this
 	m_file_manager->writeVector(data, OCT_RAW_CACHE_PATH);
@@ -370,50 +363,49 @@ void QNode::requestSegmentation(OCTinfo params)
 {
 	ROS_INFO("OCT surface segmentation requested");
 
-//  std::vector<uint8_t> data;
-//  m_file_manager->readVector(OCT_RAW_CACHE_PATH, data);
+  std::vector<uint8_t> data;
+  m_file_manager->readVector(OCT_RAW_CACHE_PATH, data);
 
-	//Pack params and raw_data into a segmentationServerFromDataArray srv request
-//	OCT_segmentation::segmentationServiceFromDataArray segmentationMessage;
-//	segmentationMessage.request.length_steps = params.length_steps;
-//	segmentationMessage.request.width_steps = params.width_steps;
-//	segmentationMessage.request.depth_steps = params.depth_steps;
-//	segmentationMessage.request.length_range = params.length_range;
-//	segmentationMessage.request.width_range = params.width_range;
-//	segmentationMessage.request.depth_range = params.depth_range;
-//	segmentationMessage.request.length_offset = params.length_offset;
-//	segmentationMessage.request.width_offset = params.width_offset;
-//	segmentationMessage.request.data = data;
+  //Pack params and raw_data into a segmentationServerFromDataArray srv request
+  OCT_segmentation::segmentationServiceFromDataArray segmentationMessage;
+  segmentationMessage.request.length_steps = params.length_steps;
+  segmentationMessage.request.width_steps = params.width_steps;
+  segmentationMessage.request.depth_steps = params.depth_steps;
+  segmentationMessage.request.length_range = params.length_range;
+  segmentationMessage.request.width_range = params.width_range;
+  segmentationMessage.request.depth_range = params.depth_range;
+  segmentationMessage.request.length_offset = params.length_offset;
+  segmentationMessage.request.width_offset = params.width_offset;
+  segmentationMessage.request.data = data;
 
-	//Call service
-//	if(m_segmentation_client.exists())
-//	{
-//		if(m_segmentation_client.call(segmentationMessage))
-//		{
-//			pcl::PointCloud<pcl::PointXYZ>::Ptr pts(
-//																					new pcl::PointCloud<pcl::PointXYZ>);
+  if(m_segmentation_client.exists())
+  {
+    if(m_segmentation_client.call(segmentationMessage))
+    {
+      pcl::PointCloud<pcl::PointXYZ>::Ptr pts(
+            new pcl::PointCloud<pcl::PointXYZ>);
 
-//			const sensor_msgs::PointCloud2 pclMessage =
-//																			segmentationMessage.response.pclSurface;
+      const sensor_msgs::PointCloud2 pclMessage =
+          segmentationMessage.response.pclSurface;
 
-//			pcl::fromROSMsg(pclMessage, *pts);
+      pcl::fromROSMsg(pclMessage, *pts);
 
-//			m_file_manager->writePCL(pts, OCT_SURF_CACHE_PATH);
+      m_file_manager->writePCL(pts, OCT_SURF_CACHE_PATH);
 
-//			ROS_INFO("OCT surface segmentation completed");
+      ROS_INFO("OCT surface segmentation completed");
 
-				//Lets the UI know that it can already pickup its PCL point cloud
-				Q_EMIT receivedOCTSurfData(params);
-//		}
-//		else
-//		{
-//			ROS_WARN("Call to segmentation service failed!");
-//		}
-//	}
-//	else
-//	{
-//		ROS_WARN("Segmentation service does not exist!");
-//	}
+      //Lets the UI know that it can already pickup its PCL point cloud
+      Q_EMIT receivedOCTSurfData(params);
+    }
+    else
+    {
+      ROS_WARN("Call to segmentation service failed!");
+    }
+  }
+  else
+  {
+    ROS_WARN("Segmentation service does not exist!");
+  }
 }
 
 //------------------------------------------------------------------------------
@@ -437,35 +429,35 @@ void QNode::requestRegistration()
   pcl::toROSMsg(*oct_surface, oct_surface_msg);
 
   //Create a service request message
-//  OCT_registration::registrationService registrationMessage;
-//  registrationMessage.request.registrationMatrixSavePath = VIS_TRANS_CACHE_PATH;
-//  registrationMessage.request.pclOctSurface = oct_surface_msg;
-//  registrationMessage.request.cvDepthMap = depth_map_msg;
+  OCT_registration::registrationService registrationMessage;
+  registrationMessage.request.registrationMatrixSavePath = VIS_TRANS_CACHE_PATH;
+  registrationMessage.request.pclOctSurface = oct_surface_msg;
+  registrationMessage.request.cvDepthMap = depth_map_msg;
 
   //Call the service passing the transform path
-//  if(m_registration_client.exists())
-//  {
-//    if(m_registration_client.call(segmentationMessage))
-//    {
-//      if(registrationMessage.response.success)
-//      {
-//        ROS_INFO("OCT surface to depth map registration completed");
+  if(m_registration_client.exists())
+  {
+    if(m_registration_client.call(segmentationMessage))
+    {
+      if(registrationMessage.response.success)
+      {
+        ROS_INFO("OCT surface to depth map registration completed");
 
-//        //Lets the UI know that it can already pickup its transform
-//        Q_EMIT receivedRegistration();
-//      }
-//      else
-//      {
-//        ROS_WARN("Registration algorithm failed!");
-//      }
-//    }
-//    else
-//    {
-//      ROS_WARN("Call to registration service failed!");
-//    }
-//  }
-//  else
-//  {
-//    ROS_WARN("Registration service does not exist!");
-//  }
+        //Lets the UI know that it can already pickup its transform
+        Q_EMIT receivedRegistration();
+      }
+      else
+      {
+        ROS_WARN("Registration algorithm failed!");
+      }
+    }
+    else
+    {
+      ROS_WARN("Call to registration service failed!");
+    }
+  }
+  else
+  {
+    ROS_WARN("Registration service does not exist!");
+  }
 }

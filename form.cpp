@@ -740,6 +740,9 @@ void Form::updateUIStates()
       !m_waiting_response);
 
   //Visualization page
+  m_ui->oct_surf_loaded_checkbox->setChecked(m_has_oct_surf);
+  m_ui->oct_mass_loaded_checkbox->setChecked(m_has_oct_mass);
+  m_ui->stereocamera_surf_loaded_checkbox->setChecked(m_has_stereo_data);
   m_ui->calc_transform_button->setEnabled(m_has_oct_surf && m_has_stereo_data &&
       !m_waiting_response);
   m_ui->print_transform_button->setEnabled(m_has_transform &&
