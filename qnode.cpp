@@ -328,13 +328,11 @@ void QNode::requestScan(OCTinfo params)
     octSrvMessage.request.x_offset = params.length_offset;
     octSrvMessage.request.y_offset = params.width_offset;
 
-	//Waits for a response
 	if(m_oct_tcp_client.exists())
 	{
 		if(m_oct_tcp_client.call(octSrvMessage))
-		{
-			//This should be a deep copy
-			data = octSrvMessage.response.octImage;
+        {
+            data = octSrvMessage.response.octImage.data;
 
 			ROS_INFO("OCT scan completed");
 
