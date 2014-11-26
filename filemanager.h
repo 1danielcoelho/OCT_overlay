@@ -18,7 +18,7 @@
 #include <pcl/point_types.h>
 
 
-#define CACHE_PATH "/home/daniel/Dropbox/Comum/Forschungsarbeit/ROS/Packages/OCT_overlay/"
+#define CACHE_PATH "/opt/imesLS_ROS/OCT_overlay/"
 
 #define OCT_RAW_CACHE_PATH CACHE_PATH "oct_raw.cache"
 #define OCT_SURF_CACHE_PATH CACHE_PATH "oct_surf.cache"

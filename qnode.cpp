@@ -310,10 +310,10 @@ void QNode::requestScan(OCTinfo params)
 //	}
 
 
-//  std::cout << "Requested with ls: " << params.length_steps << ", ws: " <<
-//      params.width_steps << ", ds: " << params.depth_steps << ", lr: " <<
-//      params.length_range << ", wr: " << params.width_range << ", size: " <<
-//      data.size() << std::endl;
+    std::cout << "Requested with ls: " << params.length_steps << ", ws: " <<
+      params.width_steps << ", ds: " << params.depth_steps << ", lr: " <<
+      params.length_range << ", wr: " << params.width_range << ", size: " <<
+      data.size() << std::endl;
 
 	oct_client::octClientServiceTCP octSrvMessage;
 

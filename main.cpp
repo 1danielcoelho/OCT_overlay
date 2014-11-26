@@ -70,6 +70,15 @@
   * */
 
 
+/*
+*   Needed to install libvtk5.8-qt4 for the lib files of the QVTK widget
+*
+*   Needed to add the correct export tags on OCT_seg and reg's manifest files
+*
+*
+*
+*/
+
 #include <QtGui>
 #include <QApplication>
 

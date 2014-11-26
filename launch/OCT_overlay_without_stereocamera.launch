@@ -1,12 +1,12 @@
 <?xml version="1.0"?>
 <launch>
     <node pkg="oct_client" type="oct_client" name="oct_client" output="screen">
-        <param name="serverIP" type="string" value="192.168.10.2"/>
+        <param name="serverIP" type="string" value="130.75.144.209"/>
     </node>
 	
-	<node pkg="OCT_registration" type="OCT_registration_node" 
+	<!--node pkg="OCT_registration" type="OCT_registration_node" 
 	    name="OCT_registration" output="screen">
-	</node>
+	</node-->
 	
 	<node pkg="OCT_segmentation" type="OCT_segmentation_node" 
 	    name="OCT_segmentation" output="screen">
