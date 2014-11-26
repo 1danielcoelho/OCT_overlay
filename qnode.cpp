@@ -317,16 +317,16 @@ void QNode::requestScan(OCTinfo params)
 
 	oct_client::octClientServiceTCP octSrvMessage;
 
-	octSrvMessage.request.x_steps = length_steps;
-	octSrvMessage.request.y_steps = width_steps;
-	octSrvMessage.request.z_steps = depth_steps;
+    octSrvMessage.request.x_steps = params.length_steps;
+    octSrvMessage.request.y_steps = params.width_steps;
+    octSrvMessage.request.z_steps = params.depth_steps;
 
-	octSrvMessage.request.x_range = length_range;
-	octSrvMessage.request.y_range = width_range;
-	octSrvMessage.request.z_range = depth_range;
+    octSrvMessage.request.x_range = params.length_range;
+    octSrvMessage.request.y_range = params.width_range;
+    octSrvMessage.request.z_range = params.depth_range;
 
-	octSrvMessage.request.x_offset = length_offset;
-	octSrvMessage.request.y_offset = depth_offset;
+    octSrvMessage.request.x_offset = params.length_offset;
+    octSrvMessage.request.y_offset = params.width_offset;
 
 	//Waits for a response
 	if(m_oct_tcp_client.exists())
@@ -437,7 +437,7 @@ void QNode::requestRegistration()
   //Call the service passing the transform path
   if(m_registration_client.exists())
   {
-    if(m_registration_client.call(segmentationMessage))
+    if(m_registration_client.call(registrationMessage))
     {
       if(registrationMessage.response.success)
       {

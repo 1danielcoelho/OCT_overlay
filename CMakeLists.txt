@@ -28,8 +28,10 @@ rosbuild_add_boost_directories()
 #Qt-ros
 #find_package(Qt4 COMPONENTS QtOpenGL QtCore QtGui REQUIRED)
 #include(${QT_USE_FILE})
-rosbuild_include(qt_build qt-ros)
-rosbuild_prepare_qt4(QtCore QtGui)
+#rosbuild_include(qt_build qt-ros)
+#rosbuild_prepare_qt4(QtCore QtGui)
+find_package(Qt4 COMPONENTS QtCore QtGui QtOpenGL QtSvg REQUIRED)
+include(${QT_USE_FILE})
 add_definitions(${QT_DEFINITIONS})
 
 #OpenCV
@@ -38,7 +40,7 @@ include_directories(${OpenCV_INCLUDE_DIRS})
 
 #VTK - Comment the first line: It's for a particular work-around at my home
 #computer -Daniel
-set(VTK_DIR "/usr/local/lib/vtk-5.8" CACHE PATH directory FORCE)
+#set(VTK_DIR "/usr/local/lib/vtk-5.8" CACHE PATH directory FORCE)
 find_package(VTK REQUIRED)
 include(${VTK_USE_FILE})
 set(VTK_LIBRARIES vtkRendering vtkGraphics vtkHybrid QVTK)

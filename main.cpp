@@ -4,9 +4,6 @@
  *
  * */
 
-Change OCT_overlay to work with the other ROS packages (uncomment things, remove
-tests, etc)
-
  /* NEXT EXPERIMENT:
   *
   * -Get this file (Hello!)

@@ -26,8 +26,9 @@
 #include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include <cv_bridge/cv_bridge.h>
-//#include <oct_client/octClientServiceTCP.h>
-//#include <OCT_segmentation/segmentationServiceFromDataArray.h
+#include <oct_client/octClientServiceTCP.h>
+#include <OCT_segmentation/segmentationServiceFromDataArray.h>
+#include <OCT_registration/registrationService.h>
 
 //Boost
 #include <boost/filesystem.hpp>
