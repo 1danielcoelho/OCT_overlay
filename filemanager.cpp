@@ -22,11 +22,11 @@ void FileManager::writeVector(std::vector<uint8_t>& input, const char *filepath,
   std::FILE* output_file;
   if(append)
   {
-    output_file = std::fopen(filepath, "ab"); //write, binary
+    output_file = std::fopen(filepath, "ab"); //append, binary
   }
   else
   {
-    output_file = std::fopen(filepath, "wb"); //append, binary
+    output_file = std::fopen(filepath, "wb"); //write, binary
   }
 
   if(output_file == NULL)

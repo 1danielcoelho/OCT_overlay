@@ -299,21 +299,7 @@ void QNode::process()
 
 void QNode::requestScan(OCTinfo params)
 {
-	ROS_INFO("OCT scan requested");
-
-	std::vector<uint8_t> data;
-	data.resize(params.length_steps * params.width_steps * params.depth_steps);
-
-//	for(int i = 0; i < data.size(); i++)
-//	{
-//		data[i] = i%256;
-//	}
-
-
-    std::cout << "Requested with ls: " << params.length_steps << ", ws: " <<
-      params.width_steps << ", ds: " << params.depth_steps << ", lr: " <<
-      params.length_range << ", wr: " << params.width_range << ", size: " <<
-      data.size() << std::endl;
+    ROS_INFO("OCT scan requested");
 
 	oct_client::octClientServiceTCP octSrvMessage;
 
@@ -332,9 +318,10 @@ void QNode::requestScan(OCTinfo params)
 	{
 		if(m_oct_tcp_client.call(octSrvMessage))
         {
-            data = octSrvMessage.response.octImage.data;
+            m_file_manager->writeVector(octSrvMessage.response.octImage.data,
+                                        OCT_RAW_CACHE_PATH);
 
-			ROS_INFO("OCT scan completed");
+            ROS_INFO("OCT scan completed");
 
 		}
 		else
@@ -345,11 +332,7 @@ void QNode::requestScan(OCTinfo params)
 	else
 	{
 		ROS_WARN("Service does not exist!");
-	}
-
-	//Writes our data vector to a file to save some RAM. Form will read this
-	m_file_manager->writeVector(data, OCT_RAW_CACHE_PATH);
-	data.clear();
+    }
 
 	//Emit this only after writeVector returned, so the file is closed
 	Q_EMIT receivedOCTRawData(params);

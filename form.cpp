@@ -187,6 +187,74 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params/*=0*/,
     frame_header = 0;
   }
 
+  std::vector<double> rol;
+  std::vector<uint8_t> filtered_data;
+  filtered_data.resize(oct_data.size());
+
+  int depth = m_current_params.depth_steps;
+  int width = m_current_params.width_steps;
+  int length = m_current_params.length_steps;
+  int index = 0;
+
+  QString indicator;
+
+  //3x3x3 median filter
+  for(int i = 1; i < length-1; i++)
+  {
+      for(int j = 1; j < width -1; j++)
+      {
+          for(int k = 1; k < depth -1; k++, index++)
+          {
+              //Center point
+              rol.push_back(oct_data[index]);
+
+              //Points in the same B-scan
+              rol.push_back(oct_data[index+1]);
+              rol.push_back(oct_data[index-1]);
+              rol.push_back(oct_data[index+depth]);
+              rol.push_back(oct_data[index+depth+1]);
+              rol.push_back(oct_data[index+depth-1]);
+              rol.push_back(oct_data[index-depth]);
+              rol.push_back(oct_data[index-depth+1]);
+              rol.push_back(oct_data[index-depth-1]);
+
+              //Points in the next B-scan
+              rol.push_back(oct_data[index+depth*width]);
+              rol.push_back(oct_data[index+depth*width+1]);
+              rol.push_back(oct_data[index+depth*width-1]);
+              rol.push_back(oct_data[index+depth*width+depth]);
+              rol.push_back(oct_data[index+depth*width+depth+1]);
+              rol.push_back(oct_data[index+depth*width+depth-1]);
+              rol.push_back(oct_data[index+depth*width-depth]);
+              rol.push_back(oct_data[index+depth*width-depth+1]);
+              rol.push_back(oct_data[index+depth*width-depth-1]);
+
+              //Points in the previous B-scan
+              rol.push_back(oct_data[index-depth*width]);
+              rol.push_back(oct_data[index-depth*width+1]);
+              rol.push_back(oct_data[index-depth*width-1]);
+              rol.push_back(oct_data[index-depth*width+depth]);
+              rol.push_back(oct_data[index-depth*width+depth+1]);
+              rol.push_back(oct_data[index-depth*width+depth-1]);
+              rol.push_back(oct_data[index-depth*width-depth]);
+              rol.push_back(oct_data[index-depth*width-depth+1]);
+              rol.push_back(oct_data[index-depth*width-depth-1]);
+
+              //Sorts the values in the rol
+              std::sort(rol.begin(), rol.end());
+
+              //Inserts the filtered value in the new scalars array
+              filtered_data[index] = rol[ rol.size()/2 ];
+
+              //Clears the vector for the next point
+              rol.clear();
+          }
+      }
+      //Update status bar
+      this->statusBar()->showMessage(QString("Applying median filter... B-scan ") + indicator.number(i) + QString(" of ") + indicator.number(length-1));
+      //QApplication::processEvents();
+  }
+
   //Determines the distance between consecutive points in each direction
   float length_incrm = 1;
   float width_incrm = 1;
@@ -202,7 +270,6 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params/*=0*/,
   if(m_current_params.depth_range != 0)
     depth_incrm = m_current_params.depth_range/m_current_params.depth_steps;
 
-  //Creates an array for point coordinates, and one for the scalars
   VTK_NEW(vtkPoints, points);
   points->Reset();
   VTK_NEW(vtkTypeUInt8Array, dataArray);
@@ -216,7 +283,6 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params/*=0*/,
                                m_current_params.width_steps *
                                m_current_params.depth_steps);
 
-  //Update status bar
   this->statusBar()->showMessage("Building raw point data... ");
   QApplication::processEvents();
 
@@ -228,15 +294,15 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params/*=0*/,
       for(int k = 0; k < m_current_params.depth_steps; k++, id++)
       {
         //Thorlabs img files use 40 bytes of NULL between each B-scan
-        int val = oct_data[id + frame_header*i + file_header];
+        int val = filtered_data[id + frame_header*i + file_header];
 
         points->SetPoint(id, i*length_incrm + m_current_params.length_offset,
                              j*width_incrm + m_current_params.width_offset,
                              k*depth_incrm);
         dataArray->SetValue(id,val);
-        //std::cout << "id: " << id << "\t\tx: " << i*length_incrm << "\t\ty: "
-        //<< j*width_incrm << "\t\tz: " << k*depth_incrm << "\t\tval: " <<
-        //val << std::endl;
+//        std::cout << "id: " << id << "\t\tx: " << i*length_incrm << "\t\ty: "
+//        << j*width_incrm << "\t\tz: " << k*depth_incrm << "\t\tval: " <<
+//        val << std::endl;
       }
     }
 
@@ -248,18 +314,13 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params/*=0*/,
     QApplication::processEvents();
   }
 
-  //Abandon all previous data
   m_raw_oct_poly_data->Reset();
-
-  //Add scalar data and point data
   m_raw_oct_poly_data->SetPoints(points);
   m_raw_oct_poly_data->GetPointData()->SetScalars(dataArray);
 
-  //Set our state
   m_has_raw_oct = true;
   updateUIStates();
 
-  //Update status bar
   this->statusBar()->showMessage("Building raw point data... done!");
   QApplication::processEvents();
 }
@@ -268,7 +329,6 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params/*=0*/,
 
 void Form::renderRawOCTData()
 {
-  //Get the number of points
   uint32_t num_pts = m_raw_oct_poly_data->GetPointData()->GetNumberOfTuples();
 
   if(num_pts == 0)
@@ -293,15 +353,14 @@ void Form::renderRawOCTData()
   for(uint32_t i = 0; i < num_pts; i++)
   {
     value = old_data_array->GetValue(i);
-    if(value > m_vis_threshold)
+//    std::cout << "x: " << (old_points->GetPoint(i))[0] <<
+//          "\t\ty: " << (old_points->GetPoint(i))[1] <<
+//          "\t\tz: " << (old_points->GetPoint(i))[2] <<
+//          "\t\tI: " << (unsigned int)value << std::endl;
+    if(value < m_vis_threshold)
     {
       new_points->InsertNextPoint(old_points->GetPoint(i));
       new_data_array->InsertNextValue(value);
-
-//      std::cout << "x: " << (old_points->GetPoint(i))[0] <<
-//          "\t\ty: " << (old_points->GetPoint(i))[1] <<
-//          "\t\tz: " << (old_points->GetPoint(i))[2] <<
-//          "\t\tI: " << (int)value << std::endl;
     }
   }
 
