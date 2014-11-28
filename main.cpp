@@ -15,23 +15,7 @@
 
 /* NEXT EXPERIMENT:
 * 
-* -Test the roslaunch without stereomatching. Check if nodes and topics are
-*  ok with rosnode and rostopic
-*   -roslaunch OCT_overlay OCT_overlay_without_stereocamera.launch
-*
-* -Turn on the windows PC
-*
-* -Turn on the OCT
-*
-* -Setup the OCT pedestal for a sensible image using the Thorlabs software
-*
-* -Turn on the OCT server on the windows PC
-*
-* -Test a simple OCT request using the OCT_overlay window
-*
-* -Save to file and open it again to make sure it works
-
-* -Request another OCT image and make sure the surface segmentation is ok
+* 
 *
 * */
 
