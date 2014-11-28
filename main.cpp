@@ -1,11 +1,10 @@
 /*  TODO:
 * 
 * -6 neighbor median filter
+*   -Do it in form, filter, then write over the cache
 *
 * -remove 255 top 
 *
-*
-
 * -Implement surface reconstruction for OCT segmentation output and stereocam
 *  depth map
 *    -Delaunay2D, Shepard's method
