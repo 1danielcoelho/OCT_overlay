@@ -357,7 +357,7 @@ void Form::renderRawOCTData()
 //          "\t\ty: " << (old_points->GetPoint(i))[1] <<
 //          "\t\tz: " << (old_points->GetPoint(i))[2] <<
 //          "\t\tI: " << (unsigned int)value << std::endl;
-    if(value < m_vis_threshold)
+    if(value > m_vis_threshold)
     {
       new_points->InsertNextPoint(old_points->GetPoint(i));
       new_data_array->InsertNextValue(value);
