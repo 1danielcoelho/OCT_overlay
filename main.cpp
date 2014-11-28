@@ -1,4 +1,11 @@
 /*  TODO:
+* 
+* -6 neighbor median filter
+*
+* -remove 255 top 
+*
+*
+
 * -Implement surface reconstruction for OCT segmentation output and stereocam
 *  depth map
 *    -Delaunay2D, Shepard's method
