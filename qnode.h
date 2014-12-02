@@ -1,6 +1,8 @@
 #ifndef OCT_stereocamera_overlay_QNODE_HPP_
 #define OCT_stereocamera_overlay_QNODE_HPP_
 
+#define AT_HOME
+
 //C, C++
 #include <iostream>
 #include <math.h>
@@ -26,10 +28,12 @@
 #include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include <cv_bridge/cv_bridge.h>
+
+#ifndef AT_HOME
 #include <oct_client/octClientServiceTCP.h>
 #include <OCT_segmentation/segmentationServiceFromDataArray.h>
 #include <OCT_registration/registrationService.h>
-
+#endif
 
 //Boost
 #include <boost/filesystem.hpp>

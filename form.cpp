@@ -83,7 +83,7 @@ Form::Form(int argc, char** argv, QWidget *parent) :
   connect(m_qthread, SIGNAL(finished()), m_qthread, SLOT(deleteLater()));
   m_qthread->start();
 
-  //Update status bar
+
   this->m_ui->status_bar->showMessage("Ready");
   QApplication::processEvents();
 
@@ -138,7 +138,6 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params/*=0*/,
   //If we get in here it means we're opening a Thorlabs img file
   if(file_header == 512 && params == default_oct_info)
   {
-    //Extract the data dimensions from the header to our m_current_params
     std::memcpy(&m_current_params.length_steps,  &(oct_data[16]),
                                                  4*sizeof(uint8_t));
     std::memcpy(&m_current_params.width_steps,   &(oct_data[20]),
@@ -169,6 +168,7 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params/*=0*/,
     m_current_params.depth_range  = params.depth_range;
     m_current_params.length_offset= params.length_offset;
     m_current_params.width_offset = params.width_offset;
+
     //Reset our controls to show the actual params of the received data
     on_reset_params_button_clicked();
   }
@@ -187,73 +187,18 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params/*=0*/,
     frame_header = 0;
   }
 
-  std::vector<double> rol;
-  std::vector<uint8_t> filtered_data;
-  filtered_data.resize(oct_data.size());
+  std::cout << "Loading raw oct data. File header: " << file_header << ", " <<
+      "frame header: " << frame_header << std::endl;
 
-  int depth = m_current_params.depth_steps;
-  int width = m_current_params.width_steps;
-  int length = m_current_params.length_steps;
-  int index = 0;
+  discardTop(oct_data, 0.1, file_header, frame_header);
+  medianFilter(oct_data, file_header, frame_header);
 
-  QString indicator;
+  //The segmentation algorithm shouldn't need this, but we do it anyway for
+  //better visual results when looking at the raw data
+  normalize(oct_data, file_header, frame_header);
 
-  //3x3x3 median filter
-  for(int i = 1; i < length-1; i++)
-  {
-      for(int j = 1; j < width -1; j++)
-      {
-          for(int k = 1; k < depth -1; k++, index++)
-          {
-              //Center point
-              rol.push_back(oct_data[index]);
-
-              //Points in the same B-scan
-              rol.push_back(oct_data[index+1]);
-              rol.push_back(oct_data[index-1]);
-              rol.push_back(oct_data[index+depth]);
-              rol.push_back(oct_data[index+depth+1]);
-              rol.push_back(oct_data[index+depth-1]);
-              rol.push_back(oct_data[index-depth]);
-              rol.push_back(oct_data[index-depth+1]);
-              rol.push_back(oct_data[index-depth-1]);
-
-              //Points in the next B-scan
-              rol.push_back(oct_data[index+depth*width]);
-              rol.push_back(oct_data[index+depth*width+1]);
-              rol.push_back(oct_data[index+depth*width-1]);
-              rol.push_back(oct_data[index+depth*width+depth]);
-              rol.push_back(oct_data[index+depth*width+depth+1]);
-              rol.push_back(oct_data[index+depth*width+depth-1]);
-              rol.push_back(oct_data[index+depth*width-depth]);
-              rol.push_back(oct_data[index+depth*width-depth+1]);
-              rol.push_back(oct_data[index+depth*width-depth-1]);
-
-              //Points in the previous B-scan
-              rol.push_back(oct_data[index-depth*width]);
-              rol.push_back(oct_data[index-depth*width+1]);
-              rol.push_back(oct_data[index-depth*width-1]);
-              rol.push_back(oct_data[index-depth*width+depth]);
-              rol.push_back(oct_data[index-depth*width+depth+1]);
-              rol.push_back(oct_data[index-depth*width+depth-1]);
-              rol.push_back(oct_data[index-depth*width-depth]);
-              rol.push_back(oct_data[index-depth*width-depth+1]);
-              rol.push_back(oct_data[index-depth*width-depth-1]);
-
-              //Sorts the values in the rol
-              std::sort(rol.begin(), rol.end());
-
-              //Inserts the filtered value in the new scalars array
-              filtered_data[index] = rol[ rol.size()/2 ];
-
-              //Clears the vector for the next point
-              rol.clear();
-          }
-      }
-      //Update status bar
-      this->statusBar()->showMessage(QString("Applying median filter... B-scan ") + indicator.number(i) + QString(" of ") + indicator.number(length-1));
-      //QApplication::processEvents();
-  }
+  //Update our cache with the new, filtered vector
+  m_file_manager->writeVector(oct_data, OCT_RAW_CACHE_PATH);
 
   //Determines the distance between consecutive points in each direction
   float length_incrm = 1;
@@ -271,14 +216,10 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params/*=0*/,
     depth_incrm = m_current_params.depth_range/m_current_params.depth_steps;
 
   VTK_NEW(vtkPoints, points);
-  points->Reset();
   VTK_NEW(vtkTypeUInt8Array, dataArray);
-  dataArray->Reset();
-
   points->SetNumberOfPoints(   m_current_params.length_steps *
                                m_current_params.width_steps *
                                m_current_params.depth_steps);
-
   dataArray->SetNumberOfValues(m_current_params.length_steps *
                                m_current_params.width_steps *
                                m_current_params.depth_steps);
@@ -293,8 +234,7 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params/*=0*/,
     {
       for(int k = 0; k < m_current_params.depth_steps; k++, id++)
       {
-        //Thorlabs img files use 40 bytes of NULL between each B-scan
-        int val = filtered_data[id + frame_header*i + file_header];
+        int val = oct_data[id + frame_header*i + file_header];
 
         points->SetPoint(id, i*length_incrm + m_current_params.length_offset,
                              j*width_incrm + m_current_params.width_offset,
@@ -306,7 +246,7 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params/*=0*/,
       }
     }
 
-    //Update status bar
+
     this->statusBar()->showMessage("Building raw point data... " +
         QString::number(i) + " of " +
         QString::number(m_current_params.length_steps));
@@ -346,7 +286,7 @@ void Form::renderRawOCTData()
   VTK_NEW(vtkPolyData, vis_poly_data);
   uint8_t value;
 
-  //Update status bar
+
   this->statusBar()->showMessage("Preparing PolyData for display... ");
   QApplication::processEvents();
 
@@ -364,7 +304,7 @@ void Form::renderRawOCTData()
     }
   }
 
-  //Update status bar
+
   this->statusBar()->showMessage("Preparing PolyData for display... done!");
   QApplication::processEvents();
 
@@ -430,14 +370,14 @@ void Form::renderRawOCTData()
 
   m_renderer->AddActor(m_axes_actor);
 
-  //Update status bar
+
   this->statusBar()->showMessage("Rendering... ");
   QApplication::processEvents();
 
   this->m_ui->qvtkWidget->update();
   QApplication::processEvents();
 
-  //Update status bar
+
   this->statusBar()->showMessage("Rendering... done!");
   QApplication::processEvents();
 }
@@ -450,7 +390,7 @@ void Form::loadPCLtoPolyData(const char* file_path,
   //Points have no color component
   if(file_path == OCT_SURF_CACHE_PATH)
   {
-    //Update status bar
+
     this->statusBar()->showMessage("Reading OCT surface PCL cache... ");
     QApplication::processEvents();
 
@@ -468,7 +408,7 @@ void Form::loadPCLtoPolyData(const char* file_path,
 
     pcl::PointXYZ* cloud_point;
 
-    //Update status bar
+
     this->statusBar()->showMessage("Building OCT surface vtkPolyData... ");
     QApplication::processEvents();
 
@@ -485,7 +425,7 @@ void Form::loadPCLtoPolyData(const char* file_path,
   //Points have color component
   else if (file_path == STEREO_DEPTH_CACHE_PATH)
   {
-    //Update status bar
+
     this->statusBar()->showMessage("Reading depth map PCL cache... ");
     QApplication::processEvents();
 
@@ -509,7 +449,7 @@ void Form::loadPCLtoPolyData(const char* file_path,
     pcl::PointXYZRGB* cloud_point;
     unsigned char color[3] = {0, 0, 0};
 
-    //Update status bar
+
     this->statusBar()->showMessage("Building depth map vtkPolyData... ");
     QApplication::processEvents();
 
@@ -549,7 +489,7 @@ void Form::renderPolyDataSurface(vtkSmartPointer<vtkPolyData> cloud_poly_data)
     return;
   }
 
-  //Update status bar
+
   this->statusBar()->showMessage(
       "Preparing depth map vtkPolyData for display... ");
   QApplication::processEvents();
@@ -712,7 +652,7 @@ void Form::renderOverlay(vtkSmartPointer<vtkPolyData> oct_surface,
     return;
   }
 
-  //Update status bar
+
   this->statusBar()->showMessage(
         "Preparing vtkPolyData objects for overlay display... ");
   QApplication::processEvents();
@@ -813,6 +753,155 @@ void Form::updateUIStates()
       !m_waiting_response);
 }
 
+//------------------------------------------------------------------------------
+
+void Form::medianFilter(std::vector<uint8_t>& input, int file_header,
+    int frame_header)
+{
+  std::vector<double> rol;
+  std::vector<uint8_t> filtered_data;
+  filtered_data.resize(input.size());
+
+  int depth = m_current_params.depth_steps;
+  int width = m_current_params.width_steps;
+  int length = m_current_params.length_steps;
+  int index = file_header;
+
+  QString indicator;
+
+  //3x3x3 median filter
+  for(int i = 1; i < length-1; i++)
+  {
+      for(int j = 1; j < width -1; j++)
+      {
+          for(int k = 1; k < depth -1; k++, index++)
+          {
+              //Center point
+              rol.push_back(input[index]);
+
+              //Points in the same B-scan
+              rol.push_back(input[index+1]);                       //down
+              rol.push_back(input[index-1]);                       //up
+              rol.push_back(input[index+depth]);                   //forwards
+              rol.push_back(input[index+depth+1]);
+              rol.push_back(input[index+depth-1]);
+              rol.push_back(input[index-depth]);                   //back
+              rol.push_back(input[index-depth+1]);
+              rol.push_back(input[index-depth-1]);
+
+              //Points in the next B-scan
+              rol.push_back(input[index+depth*width+frame_header]);//left
+              rol.push_back(input[index+depth*width+1+frame_header]);
+              rol.push_back(input[index+depth*width-1+frame_header]);
+              rol.push_back(input[index+depth*width+depth+frame_header]);
+              rol.push_back(input[index+depth*width+depth+1+frame_header]);
+              rol.push_back(input[index+depth*width+depth-1+frame_header]);
+              rol.push_back(input[index+depth*width-depth+frame_header]);
+              rol.push_back(input[index+depth*width-depth+1+frame_header]);
+              rol.push_back(input[index+depth*width-depth-1+frame_header]);
+
+              //Points in the previous B-scan
+              rol.push_back(input[index-depth*width-frame_header]);//right
+              rol.push_back(input[index-depth*width+1-frame_header]);
+              rol.push_back(input[index-depth*width-1-frame_header]);
+              rol.push_back(input[index-depth*width+depth-frame_header]);
+              rol.push_back(input[index-depth*width+depth+1-frame_header]);
+              rol.push_back(input[index-depth*width+depth-1-frame_header]);
+              rol.push_back(input[index-depth*width-depth-frame_header]);
+              rol.push_back(input[index-depth*width-depth+1-frame_header]);
+              rol.push_back(input[index-depth*width-depth-1-frame_header]);
+
+              //Sorts the values in the rol
+              std::sort(rol.begin(), rol.end());
+
+              //Inserts the filtered value in the new scalars array
+              filtered_data[index] = rol[ rol.size()/2 ];
+
+              //Clears the vector for the next point
+              rol.clear();
+          }
+      }
+      index += frame_header;
+
+      this->statusBar()->showMessage(QString("Applying median filter... B-scan ") + indicator.number(i) + QString(" of ") + indicator.number(length-1));
+      QApplication::processEvents();
+  }
+
+  input.swap(filtered_data);
+}
+
+//------------------------------------------------------------------------------
+
+void Form::discardTop(std::vector<uint8_t> &input, float fraction_to_discard,
+    int file_header, int frame_header)
+{
+  int depth = m_current_params.depth_steps;
+  int width = m_current_params.width_steps;
+  int length = m_current_params.length_steps;
+
+  int discard_max = depth*fraction_to_discard;
+  std::cout << "Discarding up to " << discard_max << std::endl;
+
+  for(int i = 0; i < length; i++)
+  {
+    for(int j = 0; j < width; j++)
+    {
+      for(int k = 0; k < discard_max; k++)
+      {
+        input[k + j*depth + i*depth*width + frame_header*i + file_header] = 0;
+      }
+    }
+  }
+
+  std::cout << "Done discarding\n";
+}
+
+//------------------------------------------------------------------------------
+
+void Form::normalize(std::vector<uint8_t> &input, int file_header,
+    int frame_header)
+{
+  int depth = m_current_params.depth_steps;
+  int width = m_current_params.width_steps;
+  int length = m_current_params.length_steps;
+
+  std::vector<uint8_t> values;
+  values.resize(256);
+
+  for(int i = 0; i < length; i++)
+  {
+    for(int j = 0; j < width; j++)
+    {
+      for(int k = 0; k < depth; k++)
+      {
+        values[input[k + j*depth + i*depth*width + frame_header*i +file_header]]
+          += 1;
+      }
+    }
+  }
+
+  for(std::vector<uint8_t>::iterator iter = values.begin();
+      iter != values.end(); iter++)
+  {
+    std::cout << "For value " << (unsigned int)(iter - values.begin()) << ": "<<
+        (unsigned int)*iter << std::endl;
+  }
+
+  float max_value = *(std::max_element(input.begin(),input.end()));
+
+  for(int i = 0; i < length; i++)
+  {
+    for(int j = 0; j < width; j++)
+    {
+      for(int k = 0; k < depth; k++)
+      {
+        input[k + j*depth + i*depth*width + frame_header*i +file_header]
+            *= 255.0/max_value;
+      }
+    }
+  }
+}
+
 //============================================================================//
 //                                                                            //
 //  PRIVATE Q_SLOTS                                                           //
@@ -837,7 +926,7 @@ void Form::on_browse_button_clicked()
     //Allows the file dialog to close before moving on
     QApplication::processEvents(QEventLoop::ExcludeSocketNotifiers, 10);
 
-    //Update status bar
+
     this->m_ui->status_bar->showMessage("Reading file... ");
     QApplication::processEvents();
 
@@ -845,7 +934,7 @@ void Form::on_browse_button_clicked()
     std::vector<uint8_t> data;
     m_file_manager->readVector(file_name.toStdString().c_str(), data);
 
-    //Update status bar
+
     this->m_ui->status_bar->showMessage("Loading data into point cloud... ");
     QApplication::processEvents();
 
@@ -911,7 +1000,7 @@ void Form::on_request_scan_button_clicked()
   //Pack the desired OCT params into a struct
   Q_EMIT requestScan(m_current_params);
 
-  //Update status bar
+
   this->m_ui->status_bar->showMessage("Waiting for OCT scanner response... ");
   QApplication::processEvents();
 }
@@ -931,7 +1020,7 @@ void Form::on_save_button_clicked()
     //Allows the file dialog to close before resuming computations
     QApplication::processEvents(QEventLoop::ExcludeSocketNotifiers, 10);
 
-    //Update status bar
+
     this->m_ui->status_bar->showMessage("Writing data to file... ");
     QApplication::processEvents();
 
@@ -956,7 +1045,7 @@ void Form::on_save_button_clicked()
     m_waiting_response = false;
     updateUIStates();
 
-    //Update status bar
+
     this->m_ui->status_bar->showMessage("Writing data to file... done!");
     QApplication::processEvents();
   }
@@ -986,7 +1075,7 @@ void Form::on_calc_oct_surf_button_clicked()
 
   Q_EMIT requestSegmentation(m_current_params);
 
-  //Update status bar
+
   this->m_ui->status_bar->showMessage("Waiting for OCT surface response... ");
   QApplication::processEvents();
 }
@@ -1107,7 +1196,7 @@ void Form::on_calc_transform_button_clicked()
 
   Q_EMIT requestRegistration();
 
-  //Update status bar
+
   this->m_ui->status_bar->showMessage("Waiting for OCT registration "
       "transform... ");
   QApplication::processEvents();
@@ -1117,7 +1206,7 @@ void Form::on_calc_transform_button_clicked()
 
 void Form::on_print_transform_button_clicked()
 {
-  //Update status bar
+
   this->m_ui->status_bar->showMessage("Printing transform to console... ");
   QApplication::processEvents();
 
@@ -1136,7 +1225,7 @@ void Form::on_print_transform_button_clicked()
 
 void Form::on_view_oct_surf_button_clicked()
 {
-  //Update status bar
+
   this->m_ui->status_bar->showMessage("Rendering OCT surface... ");
   QApplication::processEvents();
 
@@ -1148,7 +1237,7 @@ void Form::on_view_oct_surf_button_clicked()
   loadPCLtoPolyData(OCT_SURF_CACHE_PATH, surf_oct_poly_data);
   renderPolyDataSurface(surf_oct_poly_data);
 
-  //Update status bar
+
   this->m_ui->status_bar->showMessage("Rendering OCT surface... done!");
   QApplication::processEvents();
 
@@ -1160,7 +1249,7 @@ void Form::on_view_oct_surf_button_clicked()
 
 void Form::on_view_simple_overlay_button_clicked()
 {
-  //Update status bar
+
   this->m_ui->status_bar->showMessage("Rendering simple surface overlay... ");
   QApplication::processEvents();
 
@@ -1176,7 +1265,7 @@ void Form::on_view_simple_overlay_button_clicked()
   //Render both simultaneously
   renderOverlay(oct_surface, depth_map);
 
-  //Update status bar
+
   this->m_ui->status_bar->showMessage("Rendering simple surface overlay... "
       "done!");
   QApplication::processEvents();
@@ -1188,8 +1277,7 @@ void Form::on_view_simple_overlay_button_clicked()
 //------------------------------------------------------------------------------
 
 void Form::receivedRawOCTData(OCTinfo params)
-{
-  //Update status bar
+{  
   this->m_ui->status_bar->showMessage("Waiting for OCT scanner response... "
       "done!");
   QApplication::processEvents();
@@ -1212,8 +1300,7 @@ void Form::receivedRawOCTData(OCTinfo params)
 //------------------------------------------------------------------------------
 
 void Form::receivedOCTSurfData(OCTinfo params)
-{
-  //Update status bar
+{  
   this->m_ui->status_bar->showMessage("Waiting for OCT surface response... "
       "done!");
   QApplication::processEvents();

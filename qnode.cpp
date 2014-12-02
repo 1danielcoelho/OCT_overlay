@@ -53,6 +53,7 @@ void QNode::connectToMaster()
 
 void QNode::setupSubscriptions()
 {
+#ifndef AT_HOME
   m_oct_tcp_client = m_nh->
       serviceClient<oct_client::octClientServiceTCP>("oct_client_service_TCP");
 
@@ -62,7 +63,7 @@ void QNode::setupSubscriptions()
 
   m_registration_client = m_nh->serviceClient
       <OCT_registration::registrationService>("registration_service");
-
+#endif
   //Fetches the image topic names from the ROS param server, or uses the
   //default values (last arguments in the param calls)
   std::string topic_names[4];
@@ -301,7 +302,8 @@ void QNode::requestScan(OCTinfo params)
 {
     ROS_INFO("OCT scan requested");
 
-	oct_client::octClientServiceTCP octSrvMessage;
+#ifndef AT_HOME
+    oct_client::octClientServiceTCP octSrvMessage;
 
     octSrvMessage.request.x_steps = params.length_steps;
     octSrvMessage.request.y_steps = params.width_steps;
@@ -333,6 +335,7 @@ void QNode::requestScan(OCTinfo params)
 	{
 		ROS_WARN("Service does not exist!");
     }
+#endif
 
 	//Emit this only after writeVector returned, so the file is closed
 	Q_EMIT receivedOCTRawData(params);
@@ -344,6 +347,7 @@ void QNode::requestSegmentation(OCTinfo params)
 {
 	ROS_INFO("OCT surface segmentation requested");
 
+#ifndef AT_HOME
   std::vector<uint8_t> data;
   m_file_manager->readVector(OCT_RAW_CACHE_PATH, data);
 
@@ -357,7 +361,7 @@ void QNode::requestSegmentation(OCTinfo params)
   segmentationMessage.request.depth_range = params.depth_range;
   segmentationMessage.request.length_offset = params.length_offset;
   segmentationMessage.request.width_offset = params.width_offset;
-  segmentationMessage.request.data = data;
+  segmentationMessage.request.data.swap(data);
 
   if(m_segmentation_client.exists())
   {
@@ -387,6 +391,9 @@ void QNode::requestSegmentation(OCTinfo params)
   {
     ROS_WARN("Segmentation service does not exist!");
   }
+
+#endif
+
 }
 
 //------------------------------------------------------------------------------
@@ -409,6 +416,7 @@ void QNode::requestRegistration()
   sensor_msgs::PointCloud2 oct_surface_msg;
   pcl::toROSMsg(*oct_surface, oct_surface_msg);
 
+#ifndef AT_HOME
   //Create a service request message
   OCT_registration::registrationService registrationMessage;
   registrationMessage.request.registrationMatrixSavePath = VIS_TRANS_CACHE_PATH;
@@ -441,4 +449,5 @@ void QNode::requestRegistration()
   {
     ROS_WARN("Registration service does not exist!");
   }
+#endif
 }

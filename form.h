@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <assert.h>
 #include <stdio.h>
+#include <algorithm>
 
 //QT
 #include <QThread>
@@ -92,7 +93,8 @@ public:
 
   //Loads a PCL point cloud saved as a binary file at file_path and builds a
   //poly_data for visualization
-  void loadPCLtoPolyData(const char* file_path, vtkSmartPointer<vtkPolyData> depth_image);
+  void loadPCLtoPolyData(const char* file_path,
+      vtkSmartPointer<vtkPolyData> depth_image);
 
   //Renders the m_stereo_depth_poly_data
   void renderPolyDataSurface(vtkSmartPointer<vtkPolyData> depth_image);
@@ -113,6 +115,20 @@ public:
   //Uses the boolean state variables to figure out which buttons and spinboxes
   //should be enabled and which should be disabled
   void updateUIStates();
+
+  //The OCT scanner produces an artifact where the very top of every A scan
+  //consists of false intensity = 255 samples. Here we discard those (set them
+  //to 0) so it doesn't trouble the other algorithms
+  void discardTop(std::vector<uint8_t>& input, float fraction_to_discard,
+      int file_header = 0, int frame_header = 0);
+
+  //Simple median filter algorithm to reduce speckle noise
+  void medianFilter(std::vector<uint8_t>& input,
+      int file_header = 0, int frame_header = 0);
+
+  //Finds the maximum, maps it to 255 and linearly maps the rest of the vector
+  void normalize(std::vector<uint8_t>& input, int file_header = 0,
+      int frame_header = 0);
 
 private Q_SLOTS:
   void on_browse_button_clicked();
