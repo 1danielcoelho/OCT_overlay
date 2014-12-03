@@ -120,15 +120,19 @@ public:
   //consists of false intensity = 255 samples. Here we discard those (set them
   //to 0) so it doesn't trouble the other algorithms
   void discardTop(std::vector<uint8_t>& input, float fraction_to_discard,
-      int file_header = 0, int frame_header = 0);
+                  int file_header = 0, int frame_header = 0);
 
   //Simple median filter algorithm to reduce speckle noise
   void medianFilter(std::vector<uint8_t>& input,
-      int file_header = 0, int frame_header = 0);
+                    int file_header = 0, int frame_header = 0);
 
   //Finds the maximum, maps it to 255 and linearly maps the rest of the vector
   void normalize(std::vector<uint8_t>& input, int file_header = 0,
-      int frame_header = 0);
+                int frame_header = 0);
+
+  //Sets to 0 a 1-sample think layer around all 4 sides of the sample
+  void discardSides(std::vector<uint8_t>& input,
+                    int file_header = 0, int frame_header = 0);
 
 private Q_SLOTS:
   void on_browse_button_clicked();

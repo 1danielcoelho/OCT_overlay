@@ -190,12 +190,13 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params/*=0*/,
   std::cout << "Loading raw oct data. File header: " << file_header << ", " <<
       "frame header: " << frame_header << std::endl;
 
-  discardTop(oct_data, 0.1, file_header, frame_header);
-  medianFilter(oct_data, file_header, frame_header);
+  //discardTop(oct_data, 0.1, file_header, frame_header);
+  //iscardSides(oct_data, file_header, frame_header);
+  //medianFilter(oct_data, file_header, frame_header);
 
   //The segmentation algorithm shouldn't need this, but we do it anyway for
   //better visual results when looking at the raw data
-  normalize(oct_data, file_header, frame_header);
+  //normalize(oct_data, file_header, frame_header);
 
   //Update our cache with the new, filtered vector
   m_file_manager->writeVector(oct_data, OCT_RAW_CACHE_PATH);
@@ -859,7 +860,7 @@ void Form::discardTop(std::vector<uint8_t> &input, float fraction_to_discard,
 //------------------------------------------------------------------------------
 
 void Form::normalize(std::vector<uint8_t> &input, int file_header,
-    int frame_header)
+                     int frame_header)
 {
   int depth = m_current_params.depth_steps;
   int width = m_current_params.width_steps;
@@ -900,6 +901,31 @@ void Form::normalize(std::vector<uint8_t> &input, int file_header,
       }
     }
   }
+}
+
+//------------------------------------------------------------------------------
+
+void Form::discardSides(std::vector<uint8_t>& input, int file_header,
+                        int frame_header)
+{
+    int depth = m_current_params.depth_steps;
+    int width = m_current_params.width_steps;
+    int length = m_current_params.length_steps;
+
+    for(int i = 0; i < length; i++)
+    {
+      for(int j = 0; j < width; j++)
+      {
+        for(int k = 0; k < depth; k++)
+        {
+            if(i == length || i == 0 || j == width || j == 0)
+            {
+                input[k + j*depth + i*depth*width +frame_header*i +file_header]
+                  = 0;
+            }
+        }
+      }
+    }
 }
 
 //============================================================================//

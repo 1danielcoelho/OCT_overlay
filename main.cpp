@@ -1,14 +1,16 @@
 /*  TODO:
 * 
-* -Pre-processing
-*   -Remove top
-*   -Find greyscale range
-*   -Rescale and median filter (average filter?)
+* -Fix OCT_segmentation
+*   -Different region sizes, look at member functions of defaultSomething, print sizes
+*
+* -Check position of OCT surface compared to actual OCT data
+*   -Render both the surface actor and the raw data simultaneously
+*
+* -Try median filter directly on OCT server side with thorlabs functions
 *
 * -Implement surface reconstruction for OCT segmentation output and stereocam
 *  depth map
 *    -Delaunay2D, Shepard's method
-*
 * 
 *
 * */

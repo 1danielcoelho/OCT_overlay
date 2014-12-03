@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
     <node pkg="oct_client" type="oct_client" name="oct_client" output="screen">
-        <param name="serverIP" type="string" value="130.75.144.209"/>
+        <param name="serverIP" type="string" value="130.75.144.208"/>
     </node>
 	
 	<!--node pkg="OCT_registration" type="OCT_registration_node" 
