@@ -86,18 +86,14 @@ Form::Form(int argc, char** argv, QWidget *parent) :
   m_oct_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_oct_stereo_trans = vtkSmartPointer<vtkTransform>::New();
   //Filters
-  m_vert_filter = vtkSmartPointer<vtkVertexGlyphFilter>::New();
-  m_image_resize_filter = vtkSmartPointer<vtkImageReslice>::New();
-  m_trans_filter = vtkSmartPointer<vtkTransformFilter>::New();
+  //m_vert_filter = vtkSmartPointer<vtkVertexGlyphFilter>::New();
+  //m_image_resize_filter = vtkSmartPointer<vtkImageReslice>::New();
+  //m_trans_filter = vtkSmartPointer<vtkTransformFilter>::New();
+  //m_delaunay_filter = vtkSmartPointer<vtkDelaunay2D>::New();
   //Mappers
-  m_poly_mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
-  m_second_poly_mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
-  m_image_mapper = vtkSmartPointer<vtkImageMapper>::New();
-  //Actors
-  m_actor = vtkSmartPointer<vtkActor>::New();
-  m_second_actor = vtkSmartPointer<vtkActor>::New();
-  m_axes_actor = vtkSmartPointer<vtkAxesActor>::New();
-  m_image_actor = vtkSmartPointer<vtkActor2D>::New();
+  //m_poly_mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+  //m_second_poly_mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+  //m_image_mapper = vtkSmartPointer<vtkImageMapper>::New();
   //Others
   m_renderer = vtkSmartPointer<vtkRenderer>::New();
 
@@ -147,10 +143,10 @@ void Form::updateUIStates()
 
   m_ui->view_raw_oct_button->setEnabled(m_has_raw_oct && !m_waiting_response);
   m_ui->view_oct_surf_button->setEnabled(m_has_oct_surf && !m_waiting_response);
-  m_ui->view_oct_mass_button->setEnabled(m_has_oct_surf && !m_waiting_response);
+  m_ui->view_oct_mass_button->setEnabled(m_has_oct_mass && !m_waiting_response);
 
   m_ui->calc_oct_surf_button->setEnabled(m_has_raw_oct && !m_waiting_response);
-  m_ui->calc_oct_mass_button->setEnabled(m_has_raw_oct && !m_waiting_response);
+  m_ui->calc_oct_mass_button->setEnabled(m_has_oct_surf && !m_waiting_response);
 
   //Stereocamera page
   m_ui->view_left_image_button->setEnabled(m_has_stereo_data &&
@@ -166,6 +162,7 @@ void Form::updateUIStates()
   m_ui->oct_surf_loaded_checkbox->setChecked(m_has_oct_surf);
   m_ui->oct_mass_loaded_checkbox->setChecked(m_has_oct_mass);
   m_ui->stereocamera_surf_loaded_checkbox->setChecked(m_has_stereo_data);
+  m_ui->view_oct_vol_oct_surf->setEnabled(m_has_oct_surf && m_has_raw_oct);
   m_ui->calc_transform_button->setEnabled(m_has_oct_surf && m_has_stereo_data &&
       !m_waiting_response);
   m_ui->print_transform_button->setEnabled(m_has_transform &&
@@ -177,7 +174,7 @@ void Form::updateUIStates()
       !m_waiting_response);
 }
 
-//---------------INPUT--------------------------------------------------------
+//---------------INPUT----------------------------------------------------------
 
 void Form::processOCTHeader(std::vector<uint8_t>&full_array)
 {
@@ -334,6 +331,9 @@ void Form::loadPCLCacheToPolyData(const char* file_path,
 
     cloud_poly_data->Reset();
     cloud_poly_data->SetPoints(points);
+
+    this->statusBar()->showMessage("Building OCT surface vtkPolyData... done!");
+    QApplication::processEvents();
   }
 
   //Points have color component
@@ -383,6 +383,9 @@ void Form::loadPCLCacheToPolyData(const char* file_path,
     cloud_poly_data->Reset();
     cloud_poly_data->SetPoints(points);
     cloud_poly_data->GetPointData()->SetScalars(data_array);
+
+    this->statusBar()->showMessage("Building depth map vtkPolyData... done!");
+    QApplication::processEvents();
   }
   else
   {
@@ -624,7 +627,51 @@ void Form::normalize(std::vector<uint8_t> &input)
   }
 }
 
-//------------PROCESSING--------------------------------------------------------
+//------------RENDERING---------------------------------------------------------
+
+void Form::renderAxes()
+{
+  VTK_NEW(vtkAxesActor, axes_actor);
+  axes_actor->SetNormalizedShaftLength(1.0, 1.0, 1.0);
+  axes_actor->SetShaftTypeToCylinder();
+  axes_actor->SetCylinderRadius(0.02);
+  axes_actor->SetXAxisLabelText("length        ");
+  axes_actor->SetYAxisLabelText("width (B-Scan)");
+  axes_actor->SetZAxisLabelText("depth (A-Scan)");
+  axes_actor->GetXAxisCaptionActor2D()->GetTextActor()->
+              SetTextScaleModeToNone();
+  axes_actor->GetYAxisCaptionActor2D()->GetTextActor()->
+              SetTextScaleModeToNone();
+  axes_actor->GetZAxisCaptionActor2D()->GetTextActor()->
+              SetTextScaleModeToNone();
+  axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->
+              SetFontSize(15);
+  axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->
+              SetFontSize(15);
+  axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->
+              SetFontSize(15);
+  axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->BoldOff();
+  axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->BoldOff();
+  axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->BoldOff();
+  axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->SetItalic(0);
+  axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->SetItalic(0);
+  axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->SetItalic(0);
+  axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->SetShadow(0);
+  axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->SetShadow(0);
+  axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->SetShadow(0);
+  axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->
+              SetColor(1.0, 0.0, 0.0);
+  axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->
+              SetColor(0.0, 1.0, 0.0);
+  axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->
+              SetColor(0.0, 0.0, 1.0);
+
+  m_renderer->AddActor(axes_actor);
+
+  this->m_ui->qvtkWidget->update();
+  QApplication::processEvents();
+}
+
 
 void Form::renderOCTVolumePolyData()
 {
@@ -642,7 +689,6 @@ void Form::renderOCTVolumePolyData()
 
   VTK_NEW(vtkPoints, new_points);
   VTK_NEW(vtkTypeUInt8Array, new_data_array);
-  VTK_NEW(vtkPolyData, vis_poly_data);
   uint8_t value;
 
   this->statusBar()->showMessage("Preparing PolyData for display... ");
@@ -667,74 +713,28 @@ void Form::renderOCTVolumePolyData()
   QApplication::processEvents();
 
   //Restores to original state, releases memory
-  vis_poly_data->Reset();
-
+  VTK_NEW(vtkPolyData, vis_poly_data);
   vis_poly_data->SetPoints(new_points);
   vis_poly_data->GetPointData()->SetScalars(new_data_array);
 
-  m_vert_filter->SetInput(vis_poly_data);
+  VTK_NEW(vtkVertexGlyphFilter, vert_filter);
+  vert_filter->SetInput(vis_poly_data);
 
-  m_poly_mapper->SetInputConnection(m_vert_filter->GetOutputPort());
-  m_poly_mapper->SetScalarVisibility(1);
+  VTK_NEW(vtkPolyDataMapper, mapper);
+  mapper->SetInputConnection(vert_filter->GetOutputPort());
+  mapper->SetScalarVisibility(1);
 
-  m_actor->SetMapper(m_poly_mapper);
+  VTK_NEW(vtkActor, actor);
+  actor->SetMapper(mapper);
 
-  //Reset the renderer
-  m_renderer->RemoveAllViewProps();
-
-  m_renderer->AddActor(m_actor);
-  m_renderer->ResetCamera();
-
-  //Fancies up our axes_actor
-  m_axes_actor->SetNormalizedShaftLength(1.0, 1.0, 1.0);
-  m_axes_actor->SetShaftTypeToCylinder();
-  m_axes_actor->SetCylinderRadius(0.02);
-  m_axes_actor->SetXAxisLabelText("length        ");
-  m_axes_actor->SetYAxisLabelText("width (B-Scan)");
-  m_axes_actor->SetZAxisLabelText("depth (A-Scan)");
-  m_axes_actor->GetXAxisCaptionActor2D()->GetTextActor()->
-      SetTextScaleModeToNone();
-  m_axes_actor->GetYAxisCaptionActor2D()->GetTextActor()->
-      SetTextScaleModeToNone();
-  m_axes_actor->GetZAxisCaptionActor2D()->GetTextActor()->
-      SetTextScaleModeToNone();
-  m_axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetFontSize(15);
-  m_axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetFontSize(15);
-  m_axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetFontSize(15);
-  m_axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->BoldOff();
-  m_axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->BoldOff();
-  m_axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->BoldOff();
-  m_axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetItalic(0);
-  m_axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetItalic(0);
-  m_axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetItalic(0);
-  m_axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetShadow(0);
-  m_axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetShadow(0);
-  m_axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetShadow(0);
-  m_axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetColor(1.0, 0.0, 0.0);
-  m_axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetColor(0.0, 1.0, 0.0);
-  m_axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetColor(0.0, 0.0, 1.0);
-
-  m_renderer->AddActor(m_axes_actor);
-
+  m_renderer->AddActor(actor);
+  //m_renderer->ResetCamera();
 
   this->statusBar()->showMessage("Rendering... ");
   QApplication::processEvents();
 
   this->m_ui->qvtkWidget->update();
   QApplication::processEvents();
-
 
   this->statusBar()->showMessage("Rendering... done!");
   QApplication::processEvents();
@@ -743,7 +743,7 @@ void Form::renderOCTVolumePolyData()
 
 void Form::renderPolyDataSurface(vtkSmartPointer<vtkPolyData> cloud_poly_data)
 {
-  int num_pts = cloud_poly_data->GetPointData()->GetNumberOfTuples();
+  int num_pts = cloud_poly_data->GetNumberOfPoints();
 
   if(num_pts == 0)
   {
@@ -751,74 +751,33 @@ void Form::renderPolyDataSurface(vtkSmartPointer<vtkPolyData> cloud_poly_data)
     return;
   }
 
+  VTK_NEW(vtkDelaunay2D, delaunay_filter);
+  delaunay_filter->SetInput(cloud_poly_data);
+  delaunay_filter->SetTolerance(0.001);
 
-  this->statusBar()->showMessage(
-      "Preparing depth map vtkPolyData for display... ");
+  VTK_NEW(vtkPolyDataMapper, mapper);
+  mapper->SetInputConnection(delaunay_filter->GetOutputPort());
+
+  VTK_NEW(vtkActor, surf_actor);
+  surf_actor->SetMapper(mapper);
+
+  m_renderer->AddActor(surf_actor);
+
+  this->statusBar()->showMessage("Rendering PolyData surface... ");
   QApplication::processEvents();
 
-  m_vert_filter->SetInput(cloud_poly_data);
-
-  m_poly_mapper->SetInputConnection(m_vert_filter->GetOutputPort());
-  //m_poly_mapper->SetScalarVisibility(1);
-
-  m_actor->SetMapper(m_poly_mapper);
-
-  //Reset the renderer
-  m_renderer->RemoveAllViewProps();
-
-  m_renderer->AddActor(m_actor);
-  m_renderer->ResetCamera();
-
-  //Fancies up our axes_actor
-  m_axes_actor->SetNormalizedShaftLength(1.0, 1.0, 1.0);
-  m_axes_actor->SetShaftTypeToCylinder();
-  m_axes_actor->SetCylinderRadius(0.02);
-  m_axes_actor->SetXAxisLabelText("length        ");
-  m_axes_actor->SetYAxisLabelText("width (B-Scan)");
-  m_axes_actor->SetZAxisLabelText("depth (A-Scan)");
-  m_axes_actor->GetXAxisCaptionActor2D()->GetTextActor()->
-      SetTextScaleModeToNone();
-  m_axes_actor->GetYAxisCaptionActor2D()->GetTextActor()->
-      SetTextScaleModeToNone();
-  m_axes_actor->GetZAxisCaptionActor2D()->GetTextActor()->
-      SetTextScaleModeToNone();
-  m_axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetFontSize(15);
-  m_axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetFontSize(15);
-  m_axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetFontSize(15);
-  m_axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->BoldOff();
-  m_axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->BoldOff();
-  m_axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->BoldOff();
-  m_axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetItalic(0);
-  m_axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetItalic(0);
-  m_axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetItalic(0);
-  m_axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetShadow(0);
-  m_axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetShadow(0);
-  m_axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetShadow(0);
-  m_axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetColor(1.0, 0.0, 0.0);
-  m_axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetColor(0.0, 1.0, 0.0);
-  m_axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->
-      SetColor(0.0, 0.0, 1.0);
-
-  m_renderer->AddActor(m_axes_actor);
-
   this->m_ui->qvtkWidget->update();
+  QApplication::processEvents();
+
+  this->statusBar()->showMessage("Rendering PolyData surface... done!");
   QApplication::processEvents();
 }
 
 
 void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data)
 {
+  VTK_NEW(vtkActor2D, actor);
+
   int* window_sizes = this->m_ui->qvtkWidget->GetRenderWindow()->GetSize();
   double window_width, window_height;
   window_width = window_sizes[0];
@@ -833,32 +792,42 @@ void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data)
 
   double image_aspect_ratio = image_width/image_height;
 
+  //Positions and rescales the image to show the largest possible size with the
+  //same aspect ratio
   double scaling = 1;
   if(window_aspect_ratio >= image_aspect_ratio)
   {
     scaling = image_height/window_height;
-    m_image_actor->SetPosition((window_width - image_width/scaling)/2, 0);
+    actor->SetPosition((window_width - image_width/scaling)/2, 0);
   }
   else
   {
     scaling = image_width/window_width;
-    m_image_actor->SetPosition(0, (window_height-image_height/scaling)/2);
+    actor->SetPosition(0, (window_height-image_height/scaling)/2);
   }
 
-  m_image_resize_filter->SetInputConnection(image_data->GetProducerPort());
-  m_image_resize_filter->SetOutputSpacing(scaling, scaling, 1.0);
+  VTK_NEW(vtkImageReslice, image_resize_filter);
+  image_resize_filter->SetInputConnection(image_data->GetProducerPort());
+  image_resize_filter->SetOutputSpacing(scaling, scaling, 1.0);
 
-  m_image_mapper->SetInputConnection(m_image_resize_filter->GetOutputPort());
-  m_image_mapper->SetColorWindow(255.0);
-  m_image_mapper->SetColorLevel(127.5);
+  VTK_NEW(vtkImageMapper, image_mapper);
+  image_mapper->SetInputConnection(image_resize_filter->GetOutputPort());
+  image_mapper->SetColorWindow(255.0);
+  image_mapper->SetColorLevel(127.5);
 
-  m_image_actor->SetMapper(m_image_mapper);
+  actor->SetMapper(image_mapper);
 
   m_renderer->RemoveAllViewProps();
-  m_renderer->AddActor2D(m_image_actor);
+  m_renderer->AddActor2D(actor);
   m_renderer->ResetCamera();
 
+  this->statusBar()->showMessage("Rendering 2D Image... ");
+  QApplication::processEvents();
+
   this->m_ui->qvtkWidget->update();
+
+  this->statusBar()->showMessage("Rendering 2D Image... done!");
+  QApplication::processEvents();
 }
 
 
@@ -879,39 +848,43 @@ void Form::renderOverlay(vtkSmartPointer<vtkPolyData> oct_surface,
         "Preparing vtkPolyData objects for overlay display... ");
   QApplication::processEvents();
 
+
+  VTK_NEW(vtkActor, actor);
+  VTK_NEW(vtkActor, actor2);
+
   //OCT
   {
-    m_trans_filter->SetInput(oct_surface);
-    m_trans_filter->SetTransform(m_oct_stereo_trans);
+    VTK_NEW(vtkTransformFilter, trans_filter);
+    trans_filter->SetInput(oct_surface);
+    trans_filter->SetTransform(m_oct_stereo_trans);
 
-    m_vert_filter->RemoveAllInputs();
-    m_vert_filter->SetInputConnection(m_trans_filter->GetOutputPort());
+    VTK_NEW(vtkVertexGlyphFilter, vert_filter);
+    vert_filter->RemoveAllInputs();
+    vert_filter->SetInputConnection(trans_filter->GetOutputPort());
 
-    m_poly_mapper->SetInputConnection(m_vert_filter->GetOutputPort());
+    VTK_NEW(vtkPolyDataMapper, mapper);
+    mapper->SetInputConnection(vert_filter->GetOutputPort());
 
-    m_actor->SetMapper(m_poly_mapper);
-    m_actor->GetProperty()->SetColor(0, 0, 1); //blue
-
-    //Produce the oct output
-    m_poly_mapper->Update();
+    actor->SetMapper(mapper);
+    actor->GetProperty()->SetColor(0, 0, 1); //blue
   }
 
   //Stereocamera depthmap
   {
-    m_vert_filter->RemoveAllInputs();
-    m_vert_filter->SetInput(depth_map);
+    VTK_NEW(vtkVertexGlyphFilter, vert_filter);
+    vert_filter->RemoveAllInputs();
+    vert_filter->SetInput(depth_map);
 
-    m_second_poly_mapper->SetInputConnection(m_vert_filter->GetOutputPort());
+    VTK_NEW(vtkPolyDataMapper, mapper);
+    mapper->SetInputConnection(vert_filter->GetOutputPort());
 
-    m_second_actor->SetMapper(m_second_poly_mapper);
-    m_second_actor->GetProperty()->SetColor(1, 0, 0); //red
-
-    m_second_poly_mapper->Update();
+    actor2->SetMapper(mapper);
+    actor2->GetProperty()->SetColor(1, 0, 0); //red
   }
 
   m_renderer->RemoveAllViewProps();
-  m_renderer->AddActor(m_actor);
-  m_renderer->AddActor(m_second_actor);
+  m_renderer->AddActor(actor);
+  m_renderer->AddActor(actor2);
   m_renderer->ResetCamera();
 
   this->m_ui->qvtkWidget->update();
@@ -949,11 +922,14 @@ void Form::on_browse_button_clicked()
 
     processOCTHeader(data);
     discardTop(data, 0.1);
-    medianFilter3D(data);
+    //medianFilter3D(data);
     normalize(data);
 
     loadVectorToPolyData(data);
+
+    m_renderer->RemoveAllViewProps();
     renderOCTVolumePolyData();
+    renderAxes();
 
     //Updates our UI param boxes
     on_reset_params_button_clicked();
@@ -1070,7 +1046,22 @@ void Form::on_viewing_threshold_spinbox_editingFinished()
 
 void Form::on_view_raw_oct_button_clicked()
 {
-    renderOCTVolumePolyData();
+  this->m_ui->status_bar->showMessage("Rendering OCT volume data... ");
+  QApplication::processEvents();
+
+  m_waiting_response = true;
+  updateUIStates();
+
+  m_renderer->RemoveAllViewProps();
+  renderOCTVolumePolyData();
+  renderAxes();
+
+  this->m_ui->status_bar->showMessage("Rendering OCT volume data... done!");
+  QApplication::processEvents();
+
+  m_waiting_response = false;
+  updateUIStates();
+
 }
 
 
@@ -1081,7 +1072,6 @@ void Form::on_calc_oct_surf_button_clicked()
   updateUIStates();
 
   Q_EMIT requestSegmentation(m_current_params);
-
 
   this->m_ui->status_bar->showMessage("Waiting for OCT surface response... ");
   QApplication::processEvents();
@@ -1166,7 +1156,9 @@ void Form::on_view_depth_image_button_clicked()
 
   loadPCLCacheToPolyData(STEREO_DEPTH_CACHE_PATH, depth_image);
 
+  m_renderer->RemoveAllViewProps();
   renderPolyDataSurface(depth_image);
+  renderAxes();
 
   this->m_ui->status_bar->showMessage("Rendering depth map... done!");
   QApplication::processEvents();
@@ -1234,14 +1226,37 @@ void Form::on_view_oct_surf_button_clicked()
   VTK_NEW(vtkPolyData, surf_oct_poly_data);
 
   loadPCLCacheToPolyData(OCT_SURF_CACHE_PATH, surf_oct_poly_data);
-  renderPolyDataSurface(surf_oct_poly_data);
 
+  m_renderer->RemoveAllViewProps();
+  renderPolyDataSurface(surf_oct_poly_data);
+  renderAxes();
 
   this->m_ui->status_bar->showMessage("Rendering OCT surface... done!");
   QApplication::processEvents();
 
   m_waiting_response = false;
   updateUIStates();
+}
+
+void Form::on_view_oct_vol_oct_surf_clicked()
+{
+  this->m_ui->status_bar->showMessage("Rendering OCT raw data + OCT surface"
+                                      " overlay... ");
+  QApplication::processEvents();
+
+  m_renderer->RemoveAllViewProps();
+
+  VTK_NEW(vtkPolyData, surf_oct_poly_data);
+  loadPCLCacheToPolyData(OCT_SURF_CACHE_PATH, surf_oct_poly_data);
+  renderPolyDataSurface(surf_oct_poly_data);
+
+  renderOCTVolumePolyData();
+
+  renderAxes();
+
+  this->m_ui->status_bar->showMessage("Rendering OCT raw data + OCT surface"
+                                      " overlay... done!");
+  QApplication::processEvents();
 }
 
 
@@ -1300,9 +1315,13 @@ void Form::receivedRawOCTData(OCTinfo params)
   normalize(raw_data);
 
   loadVectorToPolyData(raw_data);
+
+  m_renderer->RemoveAllViewProps();
   renderOCTVolumePolyData();
+  renderAxes();
 
   //Re-enables controls for a potential new scan
+  m_has_raw_oct = true;
   m_has_ros_raw_oct = true;
   m_waiting_response = false;
   updateUIStates();
@@ -1312,13 +1331,16 @@ void Form::receivedRawOCTData(OCTinfo params)
 void Form::receivedOCTSurfData(OCTinfo params)
 {  
   this->m_ui->status_bar->showMessage("Waiting for OCT surface response... "
-      "done!");
+                                      "done!");
   QApplication::processEvents();
 
   //qnode has written an OCT surface to cache, so we read it
   VTK_NEW(vtkPolyData, surf_oct_poly_data);
   loadPCLCacheToPolyData(OCT_SURF_CACHE_PATH, surf_oct_poly_data);
+
+  m_renderer->RemoveAllViewProps();
   renderPolyDataSurface(surf_oct_poly_data);
+  renderAxes();
 
   //Re-enables controls for a potential new scan
   m_has_oct_surf = true;
@@ -1358,4 +1380,6 @@ void Form::receivedRegistration()
   m_has_transform = true;
   updateUIStates();
 }
+
+
 

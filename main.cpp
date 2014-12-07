@@ -1,13 +1,5 @@
 /*  TODO:
 *
-* -Fix OCT_segmentation
-*   -Different region sizes, look at member functions of defaultSomething, print sizes
-*
-* -Check position of OCT surface compared to actual OCT data
-*   -Render both the surface actor and the raw data simultaneously
-*
-* -Try median filter directly on OCT server side with thorlabs functions
-*
 * -Implement surface reconstruction for OCT segmentation output and stereocam
 *  depth map
 *    -Delaunay2D, Shepard's method
@@ -17,7 +9,13 @@
 
 /* NEXT EXPERIMENT:
 * 
+* -Fix OCT_segmentation
+*   -Different region sizes, look at member functions of defaultSomething,
+*    print sizes
+*   -Now that we can load using qtcreator, look at the member functions to help
+*    print these bounds
 * 
+* -Try rendering the OCT surface on top of OCT data, see if they coincide
 *
 * */
 

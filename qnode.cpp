@@ -391,7 +391,28 @@ void QNode::requestSegmentation(OCTinfo params)
   {
     ROS_WARN("Segmentation service does not exist!");
   }
+#else
+  pcl::PointCloud<pcl::PointXYZ>::Ptr pts(
+            new pcl::PointCloud<pcl::PointXYZ>);
 
+  pts->width = params.width_steps;
+  pts->height = params.length_steps;
+  pts->resize(params.width_steps * params.length_steps);
+
+  int index = 0;
+  for(int i = 0; i < params.length_steps; i++)
+  {
+    for(int j = 0; j < params.width_steps; j++, index++)
+    {
+      pts->points[index].x = i;
+      pts->points[index].y = j;
+      pts->points[index].z = rand()%5;
+    }
+  }
+
+  m_file_manager->writePCL(pts, OCT_SURF_CACHE_PATH);
+
+  Q_EMIT receivedOCTSurfData(params);
 #endif
 
 }

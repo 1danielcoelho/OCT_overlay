@@ -34,6 +34,7 @@
 #include <vtkVertexGlyphFilter.h>
 #include <vtkImageReslice.h>
 #include <vtkTransformFilter.h>
+#include <vtkDelaunay2D.h>
 //Mappers
 #include <vtkPolyDataMapper.h>
 #include <vtkImageMapper.h>
@@ -83,7 +84,7 @@ public:
   //should be enabled and which should be disabled
   void updateUIStates();
 
-  //---------------INPUT-------------------------
+  //---------------INPUT--------------------------------------------------------
 
   //Determines the oct params, including file and frame headers, loads them into
   //m_current_params and finally clears the full_array from file and frame
@@ -104,7 +105,7 @@ public:
   void load2DVectorCacheToImageData(const char* file_path,
                                     vtkSmartPointer<vtkImageData> image_data);
 
-  //------------PROCESSING-----------------------
+  //------------PROCESSING------------------------------------------------------
 
   //The OCT scanner produces an artifact where the very top of every A scan
   //consists of false, intensity = 255 samples. Here we discard those (set them
@@ -120,24 +121,28 @@ public:
   //Finds the maximum, maps it to 255 and linearly maps the rest of the vector
   void normalize(std::vector<uint8_t>& input);
 
-  //-------------RENDERING-----------------------
+  //-------------RENDERING------------------------------------------------------
 
-  //Renders a poly data containing points as individual vertices. Prunes
-  //points based on their scalar values, according to m_vis_threshold
+  //Adds an actor with x,y,z axes to m_renderer
+  void renderAxes();
+
+  //Adds a poly data actor containing points as individual vertices to
+  //m_renderer. Prunes points based on their scalar values, according to
+  //m_vis_threshold
   void renderOCTVolumePolyData();
 
-  //Renders a 1-sample-thick PolyData as a surface
+  //Adds a 1-sample-thick PolyData actor to m_renderer
   void renderPolyDataSurface(vtkSmartPointer<vtkPolyData> depth_image);
 
-  //Renders either the left, right or displacement map vtkImageData objects
-  //created by load2DVectorCacheToImageData
+  //Clears m_renderer from actors and renders either the left, right or
+  //displacement map vtkImageData objects from by load2DVectorCacheToImageData
   void render2DImageData(vtkSmartPointer<vtkImageData> image_data);
 
   //Renders the oct_surface and depth_map simultaneously
   void renderOverlay(vtkSmartPointer<vtkPolyData> oct_surface,
                      vtkSmartPointer<vtkPolyData> depth_map);
 
-  //--------------UI CALLBACKS-------------------
+  //--------------UI CALLBACKS--------------------------------------------------
 
 private Q_SLOTS:
   void on_browse_button_clicked();
@@ -158,13 +163,15 @@ private Q_SLOTS:
   void on_print_transform_button_clicked();
   void on_view_oct_surf_button_clicked();
   void on_view_simple_overlay_button_clicked();
+  void on_view_oct_vol_oct_surf_clicked();
 
-  //------------QNODE CALLBACKS------------------
+  //------------QNODE CALLBACKS-------------------------------------------------
 
   void receivedRawOCTData(OCTinfo params);
   void receivedOCTSurfData(OCTinfo params);
   void receivedStereoData();
   void receivedRegistration();
+
 
   Q_SIGNALS:
   void requestScan(OCTinfo);
@@ -198,18 +205,14 @@ private:
   vtkSmartPointer<vtkPolyData> m_oct_poly_data;
   vtkSmartPointer<vtkTransform> m_oct_stereo_trans;
   //Filters
-  vtkSmartPointer<vtkVertexGlyphFilter> m_vert_filter;
-  vtkSmartPointer<vtkImageReslice> m_image_resize_filter;
-  vtkSmartPointer<vtkTransformFilter> m_trans_filter;
+  //vtkSmartPointer<vtkVertexGlyphFilter> m_vert_filter;
+  //vtkSmartPointer<vtkImageReslice> m_image_resize_filter;
+  //vtkSmartPointer<vtkTransformFilter> m_trans_filter;
+  //vtkSmartPointer<vtkDelaunay2D> m_delaunay_filter;
   //Mappers
-  vtkSmartPointer<vtkPolyDataMapper> m_poly_mapper;
-  vtkSmartPointer<vtkPolyDataMapper> m_second_poly_mapper;
-  vtkSmartPointer<vtkImageMapper> m_image_mapper;
-  //Actors
-  vtkSmartPointer<vtkActor> m_actor;
-  vtkSmartPointer<vtkActor> m_second_actor;
-  vtkSmartPointer<vtkAxesActor> m_axes_actor;
-  vtkSmartPointer<vtkActor2D> m_image_actor;
+  //vtkSmartPointer<vtkPolyDataMapper> m_poly_mapper;
+  //vtkSmartPointer<vtkPolyDataMapper> m_second_poly_mapper;
+  //vtkSmartPointer<vtkImageMapper> m_image_mapper;
   //Others
   vtkSmartPointer<vtkRenderer> m_renderer;
 
