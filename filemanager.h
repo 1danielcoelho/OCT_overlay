@@ -17,8 +17,11 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
 
+//Size of the header in bytes that we use for the raw OCT vector
+#define OCT_HEADER_BYTES 512
 
-#define CACHE_PATH "/opt/imesLS_ROS/OCT_overlay/"
+//Folder where the .cache files will end up. Leave empty for project bin folder
+#define CACHE_PATH ""
 
 #define OCT_RAW_CACHE_PATH CACHE_PATH "oct_raw.cache"
 #define OCT_SURF_CACHE_PATH CACHE_PATH "oct_surf.cache"

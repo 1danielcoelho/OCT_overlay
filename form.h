@@ -49,14 +49,11 @@
 #include <vtkProperty.h>
 #include <vtkLookupTable.h>
 #include <vtkTextProperty.h>
-
-
 //Project files
 #include "qnode.h"
 #include "filemanager.h"
 #include "octinfo.h"
 
-//Maximum number of points displayed on the QVTK widget
 #define VTK_NEW(type, instance); vtkSmartPointer<type> instance = \
                                  vtkSmartPointer<type>::New();
 
@@ -82,57 +79,65 @@ public:
   //Destructor
   ~Form();
 
-  //Loads data from a depth-fast, width-medium, length-slow vector octdata
-  //Into raw_oct_poly_data, using frame and file headers for parsing
-  void loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params =
-      default_oct_info, int file_header = 512, int frame_header = 40);
-
-  //Renders a poly data containing points as individual vertices. Prunes
-  //points based on their scalar values, according to m_vis_threshold
-  void renderRawOCTData();
-
-  //Loads a PCL point cloud saved as a binary file at file_path and builds a
-  //poly_data for visualization
-  void loadPCLtoPolyData(const char* file_path,
-      vtkSmartPointer<vtkPolyData> depth_image);
-
-  //Renders the m_stereo_depth_poly_data
-  void renderPolyDataSurface(vtkSmartPointer<vtkPolyData> depth_image);
-
-  //Loads either the left, right or displacement map images produced by the
-  //stereocamera into a vtkImageData object
-  void load2DStereoImage(const char* file_path,
-      vtkSmartPointer<vtkImageData> image_data);
-
-  //Renders either the left, right or displacement map vtkImageData objects
-  //created by load2DStereoImage
-  void render2DStereoImage(vtkSmartPointer<vtkImageData> image_data);
-
-  //Renders the oct_surface and depth_map simultaneously
-  void renderOverlay(vtkSmartPointer<vtkPolyData> oct_surface,
-      vtkSmartPointer<vtkPolyData> depth_map);
-
   //Uses the boolean state variables to figure out which buttons and spinboxes
   //should be enabled and which should be disabled
   void updateUIStates();
 
-  //The OCT scanner produces an artifact where the very top of every A scan
-  //consists of false intensity = 255 samples. Here we discard those (set them
-  //to 0) so it doesn't trouble the other algorithms
-  void discardTop(std::vector<uint8_t>& input, float fraction_to_discard,
-                  int file_header = 0, int frame_header = 0);
+  //---------------INPUT-------------------------
 
-  //Simple median filter algorithm to reduce speckle noise
-  void medianFilter(std::vector<uint8_t>& input,
-                    int file_header = 0, int frame_header = 0);
+  //Determines the oct params, including file and frame headers, loads them into
+  //m_current_params and finally clears the full_array from file and frame
+  //header bytes (it should be a simple array of raw data now)
+  void processOCTHeader(std::vector<uint8_t>& full_array);
+
+  //Loads data from a depth-fast, width-medium, length-slow vector octdata
+  //Into raw_oct_poly_data
+  void loadVectorToPolyData(std::vector<uint8_t>& oct_data);
+
+  //Loads a PCL point cloud saved as a binary file at file_path and builds a
+  //poly_data for visualization
+  void loadPCLCacheToPolyData(const char* file_path,
+                              vtkSmartPointer<vtkPolyData> depth_image);
+
+  //Loads either the left, right or displacement map images produced by the
+  //stereocamera into a vtkImageData object
+  void load2DVectorCacheToImageData(const char* file_path,
+                                    vtkSmartPointer<vtkImageData> image_data);
+
+  //------------PROCESSING-----------------------
+
+  //The OCT scanner produces an artifact where the very top of every A scan
+  //consists of false, intensity = 255 samples. Here we discard those (set them
+  //to 0) so it doesn't trouble the other algorithms
+  void discardTop(std::vector<uint8_t>& input, float fraction_to_discard);
+
+  //2D, 8-neighbor median filter. Sets edge elements to zero
+  void medianFilter2D(std::vector<uint8_t>& input);
+
+  //3D, 26-neighbor median filter. Sets edge elements to zero
+  void medianFilter3D(std::vector<uint8_t>& input);
 
   //Finds the maximum, maps it to 255 and linearly maps the rest of the vector
-  void normalize(std::vector<uint8_t>& input, int file_header = 0,
-                int frame_header = 0);
+  void normalize(std::vector<uint8_t>& input);
 
-  //Sets to 0 a 1-sample think layer around all 4 sides of the sample
-  void discardSides(std::vector<uint8_t>& input,
-                    int file_header = 0, int frame_header = 0);
+  //-------------RENDERING-----------------------
+
+  //Renders a poly data containing points as individual vertices. Prunes
+  //points based on their scalar values, according to m_vis_threshold
+  void renderOCTVolumePolyData();
+
+  //Renders a 1-sample-thick PolyData as a surface
+  void renderPolyDataSurface(vtkSmartPointer<vtkPolyData> depth_image);
+
+  //Renders either the left, right or displacement map vtkImageData objects
+  //created by load2DVectorCacheToImageData
+  void render2DImageData(vtkSmartPointer<vtkImageData> image_data);
+
+  //Renders the oct_surface and depth_map simultaneously
+  void renderOverlay(vtkSmartPointer<vtkPolyData> oct_surface,
+                     vtkSmartPointer<vtkPolyData> depth_map);
+
+  //--------------UI CALLBACKS-------------------
 
 private Q_SLOTS:
   void on_browse_button_clicked();
@@ -153,6 +158,9 @@ private Q_SLOTS:
   void on_print_transform_button_clicked();
   void on_view_oct_surf_button_clicked();
   void on_view_simple_overlay_button_clicked();
+
+  //------------QNODE CALLBACKS------------------
+
   void receivedRawOCTData(OCTinfo params);
   void receivedOCTSurfData(OCTinfo params);
   void receivedStereoData();
@@ -187,7 +195,7 @@ private:
 
   //VTK objects
   //Data structures
-  vtkSmartPointer<vtkPolyData> m_raw_oct_poly_data;
+  vtkSmartPointer<vtkPolyData> m_oct_poly_data;
   vtkSmartPointer<vtkTransform> m_oct_stereo_trans;
   //Filters
   vtkSmartPointer<vtkVertexGlyphFilter> m_vert_filter;

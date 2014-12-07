@@ -1,7 +1,7 @@
 #ifndef OCT_stereocamera_overlay_QNODE_HPP_
 #define OCT_stereocamera_overlay_QNODE_HPP_
 
-//#define AT_HOME
+#define AT_HOME
 
 //C, C++
 #include <iostream>

@@ -18,10 +18,6 @@ struct OCTinfo
 
   //Simple comparisson operator
   bool operator==(const OCTinfo& other_struct) const;
-
 };
-
-//Empty default OCTinfo, used as default parameter for some functions
-static OCTinfo default_oct_info = {0, 0, 0, 0, 0, 0, 0, 0};
 
 #endif // OCTINFO_H

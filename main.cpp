@@ -1,5 +1,5 @@
 /*  TODO:
-* 
+*
 * -Fix OCT_segmentation
 *   -Different region sizes, look at member functions of defaultSomething, print sizes
 *

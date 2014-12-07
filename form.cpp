@@ -1,12 +1,6 @@
 #include "form.h"
 #include "ui_form.h"
 
-//============================================================================//
-//                                                                            //
-//  PUBLIC METHODS                                                            //
-//                                                                            //
-//============================================================================//
-
 Form::Form(int argc, char** argv, QWidget *parent) :
   QMainWindow(parent),
   m_ui(new Ui::Form)
@@ -89,7 +83,7 @@ Form::Form(int argc, char** argv, QWidget *parent) :
 
   //Instantiate vtk objects
   //Data structures
-  m_raw_oct_poly_data = vtkSmartPointer<vtkPolyData>::New();
+  m_oct_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_oct_stereo_trans = vtkSmartPointer<vtkTransform>::New();
   //Filters
   m_vert_filter = vtkSmartPointer<vtkVertexGlyphFilter>::New();
@@ -115,8 +109,6 @@ Form::Form(int argc, char** argv, QWidget *parent) :
   this->m_ui->qvtkWidget->GetRenderWindow()->AddRenderer(m_renderer);
 }
 
-//------------------------------------------------------------------------------
-
 Form::~Form()
 {
   delete m_ui;
@@ -130,77 +122,118 @@ Form::~Form()
   m_file_manager->clearAllFiles();
 }
 
-//------------------------------------------------------------------------------
-
-void Form::loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params/*=0*/,
-      int file_header /*= 512*/, int frame_header /*= 40*/)
+void Form::updateUIStates()
 {
-  //If we get in here it means we're opening a Thorlabs img file
-  if(file_header == 512 && params == default_oct_info)
-  {
-    std::memcpy(&m_current_params.length_steps,  &(oct_data[16]),
-                                                 4*sizeof(uint8_t));
-    std::memcpy(&m_current_params.width_steps,   &(oct_data[20]),
-                                                 4*sizeof(uint8_t));
-    std::memcpy(&m_current_params.depth_steps,   &(oct_data[24]),
-                                                 4*sizeof(uint8_t));
-    std::memcpy(&m_current_params.length_range,  &(oct_data[72]),
-                                                 4*sizeof(uint8_t));
-    std::memcpy(&m_current_params.width_range,   &(oct_data[76]),
-                                                 4*sizeof(uint8_t));
-    std::memcpy(&m_current_params.depth_range,   &(oct_data[116]),
-                                                 4*sizeof(uint8_t));
-    std::memcpy(&m_current_params.length_offset, &(oct_data[120]),
-                                                 4*sizeof(uint8_t));
-    std::memcpy(&m_current_params.width_offset,  &(oct_data[124]),
-                                                 4*sizeof(uint8_t));
-    //Reset our controls to show the actual params of the received data
-    on_reset_params_button_clicked();
-  }
-  //If not, then we take the params out of the OCTinfo struct that was passed
-  else if(file_header == 0 && !(params == default_oct_info))
-  {
-    m_current_params.length_steps = params.length_steps;
-    m_current_params.width_steps  = params.width_steps;
-    m_current_params.depth_steps  = params.depth_steps;
-    m_current_params.length_range = params.length_range;
-    m_current_params.width_range  = params.width_range;
-    m_current_params.depth_range  = params.depth_range;
-    m_current_params.length_offset= params.length_offset;
-    m_current_params.width_offset = params.width_offset;
+  //OCT page
+  m_ui->connected_master_checkbox->setChecked(m_connected_to_master);
+  m_ui->connected_master_checkbox_2->setChecked(m_connected_to_master);
 
-    //Reset our controls to show the actual params of the received data
-    on_reset_params_button_clicked();
-  }
-  else
-  {
-    std::cerr << "Invalid input to loadRawOCTData!" << std::endl;
-    return;
-  }
+  m_ui->browse_button->setEnabled(!m_waiting_response && !m_waiting_response);
 
-  //Checks for the datetime string: If it exists, this is a thorlabs img
-  //file, and the frameheader needs to be 40. It should be 0 otherwise
-  uint32_t checker = 0;
-  std::memcpy(&checker, &(oct_data[44]), 4*sizeof(uint8_t));
-  if(checker == 0) //Still 0
-  {
-    frame_header = 0;
-  }
+  m_ui->request_scan_button->setEnabled(!m_waiting_response);
+  m_ui->save_button->setEnabled(m_has_ros_raw_oct && !m_waiting_response);
+  m_ui->reset_params_button->setEnabled(!m_waiting_response);
 
-  std::cout << "Loading raw oct data. File header: " << file_header << ", " <<
-      "frame header: " << frame_header << std::endl;
+  m_ui->len_steps_spinbox->setEnabled(!m_waiting_response);
+  m_ui->len_range_spinbox->setEnabled(!m_waiting_response);
+  m_ui->len_off_spinbox->setEnabled(!m_waiting_response);
+  m_ui->wid_steps_spinbox->setEnabled(!m_waiting_response);
+  m_ui->wid_range_spinbox->setEnabled(!m_waiting_response);
+  m_ui->wid_off_spinbox->setEnabled(!m_waiting_response);
+  m_ui->dep_steps_spinbox->setEnabled(!m_waiting_response);
+  m_ui->dep_range_spinbox->setEnabled(!m_waiting_response);
 
-  //discardTop(oct_data, 0.1, file_header, frame_header);
-  //iscardSides(oct_data, file_header, frame_header);
-  //medianFilter(oct_data, file_header, frame_header);
+  m_ui->viewing_threshold_spinbox->setEnabled(!m_waiting_response);
 
-  //The segmentation algorithm shouldn't need this, but we do it anyway for
-  //better visual results when looking at the raw data
-  //normalize(oct_data, file_header, frame_header);
+  m_ui->view_raw_oct_button->setEnabled(m_has_raw_oct && !m_waiting_response);
+  m_ui->view_oct_surf_button->setEnabled(m_has_oct_surf && !m_waiting_response);
+  m_ui->view_oct_mass_button->setEnabled(m_has_oct_surf && !m_waiting_response);
 
-  //Update our cache with the new, filtered vector
-  m_file_manager->writeVector(oct_data, OCT_RAW_CACHE_PATH);
+  m_ui->calc_oct_surf_button->setEnabled(m_has_raw_oct && !m_waiting_response);
+  m_ui->calc_oct_mass_button->setEnabled(m_has_raw_oct && !m_waiting_response);
 
+  //Stereocamera page
+  m_ui->view_left_image_button->setEnabled(m_has_stereo_data &&
+      !m_waiting_response);
+  m_ui->view_right_image_button->setEnabled(m_has_stereo_data &&
+      !m_waiting_response);
+  m_ui->view_disp_image_button->setEnabled(m_has_stereo_data &&
+      !m_waiting_response);
+  m_ui->view_depth_image_button->setEnabled(m_has_stereo_data &&
+      !m_waiting_response);
+
+  //Visualization page
+  m_ui->oct_surf_loaded_checkbox->setChecked(m_has_oct_surf);
+  m_ui->oct_mass_loaded_checkbox->setChecked(m_has_oct_mass);
+  m_ui->stereocamera_surf_loaded_checkbox->setChecked(m_has_stereo_data);
+  m_ui->calc_transform_button->setEnabled(m_has_oct_surf && m_has_stereo_data &&
+      !m_waiting_response);
+  m_ui->print_transform_button->setEnabled(m_has_transform &&
+      !m_waiting_response);
+  m_ui->view_simple_overlay_button->setEnabled(m_has_transform && m_has_oct_surf
+      && m_has_stereo_data && !m_waiting_response);
+  m_ui->view_complete_overlay_button->setEnabled(m_has_transform &&
+      m_has_oct_surf && m_has_stereo_data && m_has_oct_mass &&
+      !m_waiting_response);
+}
+
+//---------------INPUT--------------------------------------------------------
+
+void Form::processOCTHeader(std::vector<uint8_t>&full_array)
+{
+    std::memcpy(&m_current_params.length_steps, &(full_array[16]),  4);
+    std::memcpy(&m_current_params.width_steps,  &(full_array[20]),  4);
+    std::memcpy(&m_current_params.depth_steps,  &(full_array[24]),  4);
+
+    std::memcpy(&m_current_params.length_range, &(full_array[72]),  4);
+    std::memcpy(&m_current_params.width_range,  &(full_array[76]),  4);
+    std::memcpy(&m_current_params.depth_range,  &(full_array[116]), 4);
+
+    std::memcpy(&m_current_params.length_offset,&(full_array[120]), 4);
+    std::memcpy(&m_current_params.width_offset, &(full_array[124]), 4);
+
+    //Checks the datetime string. The Thorlabs software always fills this, but
+    //we don't, so we use this to check whether we have one of their img files
+    uint32_t checker, frame_header = 0;
+    std::memcpy(&checker,                       &(full_array[44]),  4);
+    if(checker == 0) //Not a thorlabs .img file, so get frame_header from array
+    {
+      std::memcpy(&frame_header,                &(full_array[132]), 4);
+    }
+    else //Thorlabs image, so we use their default 40 bytes frame_header
+    {
+      frame_header = 40;
+    }
+
+    std::vector<uint8_t> result;
+    uint32_t b_scan_size = m_current_params.width_steps *
+                           m_current_params.depth_steps;
+    uint32_t b_scan_count = 0;
+
+    result.resize(m_current_params.length_steps * b_scan_size);
+
+    std::cout << "ls: "   << m_current_params.length_steps
+              << "\nws: " << m_current_params.width_steps
+              << "\nds: " << m_current_params.depth_steps
+              << "\nlr: " << m_current_params.length_range
+              << "\nwr: " << m_current_params.width_range
+              << "\ndr: " << m_current_params.depth_range
+              << "\nlo: " << m_current_params.length_offset
+              << "\nwo: " << m_current_params.width_offset << std::endl;
+
+    //Clears the file and frame headers out of full_array
+    for(std::vector<uint8_t>::iterator iter=full_array.begin()+OCT_HEADER_BYTES;
+        iter != full_array.end(); ++b_scan_count)
+    {
+      std::copy(iter, iter+b_scan_size, &(result[b_scan_count*b_scan_size]));
+      iter += b_scan_size + frame_header;
+    }
+    result.swap(full_array);
+}
+
+
+void Form::loadVectorToPolyData(std::vector<uint8_t>& oct_data)
+{
   //Determines the distance between consecutive points in each direction
   float length_incrm = 1;
   float width_incrm = 1;
@@ -234,16 +267,14 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params/*=0*/,
     for(int j = 0; j < m_current_params.width_steps; j++)
     {
       for(int k = 0; k < m_current_params.depth_steps; k++, id++)
-      {
-        int val = oct_data[id + frame_header*i + file_header];
-
+      {        
         points->SetPoint(id, i*length_incrm + m_current_params.length_offset,
-                             j*width_incrm + m_current_params.width_offset,
+                             j*width_incrm  + m_current_params.width_offset,
                              k*depth_incrm);
-        dataArray->SetValue(id,val);
+        dataArray->SetValue(id, oct_data[id]);
 //        std::cout << "id: " << id << "\t\tx: " << i*length_incrm << "\t\ty: "
 //        << j*width_incrm << "\t\tz: " << k*depth_incrm << "\t\tval: " <<
-//        val << std::endl;
+//        oct_data[id] << std::endl;
       }
     }
 
@@ -255,9 +286,9 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params/*=0*/,
     QApplication::processEvents();
   }
 
-  m_raw_oct_poly_data->Reset();
-  m_raw_oct_poly_data->SetPoints(points);
-  m_raw_oct_poly_data->GetPointData()->SetScalars(dataArray);
+  m_oct_poly_data->Reset();
+  m_oct_poly_data->SetPoints(points);
+  m_oct_poly_data->GetPointData()->SetScalars(dataArray);
 
   m_has_raw_oct = true;
   updateUIStates();
@@ -266,27 +297,353 @@ void Form::loadRawOCTData(std::vector<uint8_t>& oct_data, OCTinfo params/*=0*/,
   QApplication::processEvents();
 }
 
-//------------------------------------------------------------------------------
 
-void Form::renderRawOCTData()
+void Form::loadPCLCacheToPolyData(const char* file_path,
+    vtkSmartPointer<vtkPolyData> cloud_poly_data)
 {
-  uint32_t num_pts = m_raw_oct_poly_data->GetPointData()->GetNumberOfTuples();
+  //Points have no color component
+  if(file_path == OCT_SURF_CACHE_PATH)
+  {
+
+    this->statusBar()->showMessage("Reading OCT surface PCL cache... ");
+    QApplication::processEvents();
+
+    pcl::PointCloud<pcl::PointXYZ>::Ptr pts(
+          new pcl::PointCloud<pcl::PointXYZ>);
+
+    //Reads the file into our pts point cloud
+    m_file_manager->readPCL(file_path, pts);
+
+    int num_pts = pts->size();
+
+    VTK_NEW(vtkPoints, points);
+    points->Reset();
+    points->SetNumberOfPoints(num_pts);
+
+    pcl::PointXYZ* cloud_point;
+
+
+    this->statusBar()->showMessage("Building OCT surface vtkPolyData... ");
+    QApplication::processEvents();
+
+    for(int i = 0; i < num_pts; i++)
+    {
+      cloud_point = &(pts->at(i));
+      points->SetPoint(i, cloud_point->x, cloud_point->y, cloud_point->z);
+    }
+
+    cloud_poly_data->Reset();
+    cloud_poly_data->SetPoints(points);
+  }
+
+  //Points have color component
+  else if (file_path == STEREO_DEPTH_CACHE_PATH)
+  {
+
+    this->statusBar()->showMessage("Reading depth map PCL cache... ");
+    QApplication::processEvents();
+
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr pts(
+          new pcl::PointCloud<pcl::PointXYZRGB>);
+
+    //Reads the file into our pts point cloud
+    m_file_manager->readPCL(file_path, pts);
+    int num_pts = pts->size();
+
+    VTK_NEW(vtkPoints, points);
+    points->Reset();
+    points->SetNumberOfPoints(num_pts);
+
+    VTK_NEW(vtkUnsignedCharArray, data_array);
+    data_array->Reset();
+    data_array->SetNumberOfComponents(3);
+    data_array->SetNumberOfTuples(num_pts);
+    data_array->SetName("Colors");
+
+    pcl::PointXYZRGB* cloud_point;
+    unsigned char color[3] = {0, 0, 0};
+
+
+    this->statusBar()->showMessage("Building depth map vtkPolyData... ");
+    QApplication::processEvents();
+
+    //Iterate over our pts
+    for(int i = 0; i < num_pts; i++)
+    {
+      cloud_point = &(pts->at(i));
+
+      points->SetPoint(i, cloud_point->x, cloud_point->y, cloud_point->z);
+
+      color[0] = cloud_point->r;
+      color[1] = cloud_point->g;
+      color[2] = cloud_point->b;
+      data_array->SetTupleValue(i, color);
+    }
+
+    cloud_poly_data->Reset();
+    cloud_poly_data->SetPoints(points);
+    cloud_poly_data->GetPointData()->SetScalars(data_array);
+  }
+  else
+  {
+    qDebug() << "Invalid file path for loadPCLCacheToPolyData";
+    return;
+  }
+}
+
+
+void Form::load2DVectorCacheToImageData(const char* file_path,
+                             vtkSmartPointer<vtkImageData> image_data)
+{
+  //Create a vector to hold the data
+  std::vector<uint32_t> data;
+
+  //Read the entire file
+  m_file_manager->readVector(file_path, data);
+
+  //Parse the first 8 bytes to determine dimensions
+  uint32_t rows, cols;
+  memcpy(&rows,  &data[0],  4);
+  memcpy(&cols,  &data[1],  4);
+
+  image_data->SetDimensions(cols, rows, 1);
+  image_data->SetNumberOfScalarComponents(3);
+  image_data->SetScalarTypeToUnsignedChar();
+  image_data->AllocateScalars();
+
+  uint32_t val;
+  for(uint32_t y = 0; y < rows; y++)
+  {
+    for(uint32_t x = 0; x < cols; x++)
+    {
+      unsigned char* pixel = static_cast<unsigned char*>
+                             (image_data->GetScalarPointer(x, y, 0));
+
+      //The two first uint32_t are the header
+      val = data[x + y*cols + 2];
+      memcpy(&pixel[0],  &val,  3*sizeof(uint8_t));
+    }
+  }
+
+  image_data->Modified();
+}
+
+//------------PROCESSING--------------------------------------------------------
+
+void Form::medianFilter2D(std::vector<uint8_t>& input)
+{
+  std::vector<double> rol;
+  rol.resize(9);
+  std::vector<uint8_t> filtered_data;
+  filtered_data.resize(input.size());
+
+  int depth = m_current_params.depth_steps;
+  int width = m_current_params.width_steps;
+  int length = m_current_params.length_steps;
+  int index = 0;
+
+  QString indicator;
+
+  for(int i = 1; i < length-1; i++)
+  {
+      for(int j = 1; j < width -1; j++)
+      {
+          for(int k = 1; k < depth -1; k++)
+          {
+              index = i*(width*depth) + j*depth + k;
+
+              rol[0] = input[index - depth - 1];
+              rol[1] = input[index - depth];
+              rol[2] = input[index - depth + 1];
+
+              rol[3] = input[index - 1];
+              rol[4] = input[index];
+              rol[5] = input[index + 1];
+
+              rol[6] = input[index + depth - 1];
+              rol[7] = input[index + depth];
+              rol[8] = input[index + depth + 1];
+
+              std::sort(rol.begin(), rol.end());
+
+              filtered_data[index] = rol[4];
+          }
+      }
+      this->statusBar()->showMessage(
+          QString("Applying 2D median filter... B-scan ") + indicator.number(i)
+          + QString(" of ") + indicator.number(length-1));
+      QApplication::processEvents();
+  }
+
+  input.swap(filtered_data);
+}
+
+
+void Form::medianFilter3D(std::vector<uint8_t>& input)
+{
+  std::vector<double> rol;
+  rol.resize(27);
+  std::vector<uint8_t> filtered_data;
+  filtered_data.resize(input.size());
+
+  int depth = m_current_params.depth_steps;
+  int width = m_current_params.width_steps;
+  int length = m_current_params.length_steps;
+  uint32_t index = 0;
+
+  QString indicator;
+
+  for(int i = 1; i < length-1; i++)
+  {
+      for(int j = 1; j < width -1; j++)
+      {
+          for(int k = 1; k < depth -1; k++)
+          {
+              index = i*(width*depth) + j*depth +k;
+
+              //Center point
+              rol[0]  = input[index];
+
+              //Points in the same B-scan
+              rol[1]  = input[index + 1];                       //down
+              rol[2]  = input[index - 1];                       //up
+              rol[3]  = input[index + depth];                   //forwards
+              rol[4]  = input[index + depth + 1];
+              rol[5]  = input[index + depth - 1];
+              rol[6]  = input[index - depth];                   //back
+              rol[7]  = input[index - depth + 1];
+              rol[8]  = input[index - depth - 1];
+
+              //Points in the next B-scan
+              rol[9]  = input[index + depth*width];//left
+              rol[10] = input[index + depth*width + 1];
+              rol[11] = input[index + depth*width - 1];
+              rol[12] = input[index + depth*width + depth];
+              rol[13] = input[index + depth*width + depth + 1];
+              rol[14] = input[index + depth*width + depth - 1];
+              rol[15] = input[index + depth*width - depth];
+              rol[16] = input[index + depth*width - depth + 1];
+              rol[17] = input[index + depth*width - depth - 1];
+
+              //Points in the previous B-scan
+              rol[18] = input[index - depth*width];//right
+              rol[19] = input[index - depth*width + 1];
+              rol[20] = input[index - depth*width - 1];
+              rol[21] = input[index - depth*width + depth];
+              rol[22] = input[index - depth*width + depth + 1];
+              rol[23] = input[index - depth*width + depth - 1];
+              rol[24] = input[index - depth*width - depth];
+              rol[25] = input[index - depth*width - depth + 1];
+              rol[26] = input[index - depth*width - depth - 1];
+
+              std::sort(rol.begin(), rol.end());
+
+              filtered_data[index] = rol[13];
+          }
+      }
+
+
+      this->statusBar()->showMessage(
+          QString("Applying 3D median filter... B-scan ") + indicator.number(i)
+          + QString(" of ") + indicator.number(length-1));
+      QApplication::processEvents();
+  }
+  input.swap(filtered_data);
+}
+
+
+void Form::discardTop(std::vector<uint8_t> &input, float fraction_to_discard)
+{
+  int depth = m_current_params.depth_steps;
+  int width = m_current_params.width_steps;
+  int length = m_current_params.length_steps;
+
+  int discard_max = depth*fraction_to_discard;
+
+  for(int i = 0; i < length; i++)
+  {
+    for(int j = 0; j < width; j++)
+    {
+      for(int k = 0; k < discard_max; k++)
+      {
+        input[k + j*depth + i*depth*width] = 0;
+      }
+    }
+  }
+
+  std::cout << "Done discarding\n";
+}
+
+
+void Form::normalize(std::vector<uint8_t> &input)
+{
+  int depth = m_current_params.depth_steps;
+  int width = m_current_params.width_steps;
+  int length = m_current_params.length_steps;
+  int index;
+  int max_value = 0;
+
+  std::vector<uint32_t> values;
+  values.resize(256);
+
+  //Build a histogram of the greyscale values of the whole image
+  for(int i = 0; i < length; i++)
+  {
+    for(int j = 0; j < width; j++)
+    {
+      for(int k = 0; k < depth; k++)
+      {
+        index = input[k + j*depth + i*depth*width];
+        values[index] += 1;
+
+        if(index > max_value)max_value = index;
+      }
+    }
+  }
+
+  //Print said histogram to console
+  for(std::vector<uint32_t>::iterator iter=values.begin();
+      iter != values.end(); ++iter)
+  {
+    std::cout << "For value \t" << (unsigned int)(iter - values.begin())<<
+        ":\t"<< (unsigned int)*iter << std::endl;
+  }
+
+  std::cout << "Rescaling by " << (int) max_value << std::endl;
+
+  //Rescales every value to the range [0,255]
+  for(int i = 0; i < length; i++)
+  {
+    for(int j = 0; j < width; j++)
+    {
+      for(int k = 0; k < depth; k++)
+      {
+        input[k + j*depth + i*depth*width] *= 255.0/max_value;
+      }
+    }
+  }
+}
+
+//------------PROCESSING--------------------------------------------------------
+
+void Form::renderOCTVolumePolyData()
+{
+  uint32_t num_pts = m_oct_poly_data->GetPointData()->GetNumberOfTuples();
 
   if(num_pts == 0)
   {
-    qDebug() << "m_raw_oct_poly_data is empty!";
+    qDebug() << "m_oct_poly_data is empty!";
     return;
   }
 
-  vtkPoints* old_points = m_raw_oct_poly_data->GetPoints();
+  vtkPoints* old_points = m_oct_poly_data->GetPoints();
   vtkTypeUInt8Array* old_data_array = vtkTypeUInt8Array::SafeDownCast(
-                m_raw_oct_poly_data->GetPointData()->GetScalars());
+                m_oct_poly_data->GetPointData()->GetScalars());
 
   VTK_NEW(vtkPoints, new_points);
   VTK_NEW(vtkTypeUInt8Array, new_data_array);
   VTK_NEW(vtkPolyData, vis_poly_data);
   uint8_t value;
-
 
   this->statusBar()->showMessage("Preparing PolyData for display... ");
   QApplication::processEvents();
@@ -383,102 +740,6 @@ void Form::renderRawOCTData()
   QApplication::processEvents();
 }
 
-//------------------------------------------------------------------------------
-
-void Form::loadPCLtoPolyData(const char* file_path,
-    vtkSmartPointer<vtkPolyData> cloud_poly_data)
-{
-  //Points have no color component
-  if(file_path == OCT_SURF_CACHE_PATH)
-  {
-
-    this->statusBar()->showMessage("Reading OCT surface PCL cache... ");
-    QApplication::processEvents();
-
-    pcl::PointCloud<pcl::PointXYZ>::Ptr pts(
-          new pcl::PointCloud<pcl::PointXYZ>);
-
-    //Reads the file into our pts point cloud
-    m_file_manager->readPCL(file_path, pts);
-
-    int num_pts = pts->size();
-
-    VTK_NEW(vtkPoints, points);
-    points->Reset();
-    points->SetNumberOfPoints(num_pts);
-
-    pcl::PointXYZ* cloud_point;
-
-
-    this->statusBar()->showMessage("Building OCT surface vtkPolyData... ");
-    QApplication::processEvents();
-
-    for(int i = 0; i < num_pts; i++)
-    {
-      cloud_point = &(pts->at(i));
-      points->SetPoint(i, cloud_point->x, cloud_point->y, cloud_point->z);
-    }
-
-    cloud_poly_data->Reset();
-    cloud_poly_data->SetPoints(points);
-  }
-
-  //Points have color component
-  else if (file_path == STEREO_DEPTH_CACHE_PATH)
-  {
-
-    this->statusBar()->showMessage("Reading depth map PCL cache... ");
-    QApplication::processEvents();
-
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr pts(
-          new pcl::PointCloud<pcl::PointXYZRGB>);
-
-    //Reads the file into our pts point cloud
-    m_file_manager->readPCL(file_path, pts);
-    int num_pts = pts->size();
-
-    VTK_NEW(vtkPoints, points);
-    points->Reset();
-    points->SetNumberOfPoints(num_pts);
-
-    VTK_NEW(vtkUnsignedCharArray, data_array);
-    data_array->Reset();
-    data_array->SetNumberOfComponents(3);
-    data_array->SetNumberOfTuples(num_pts);
-    data_array->SetName("Colors");
-
-    pcl::PointXYZRGB* cloud_point;
-    unsigned char color[3] = {0, 0, 0};
-
-
-    this->statusBar()->showMessage("Building depth map vtkPolyData... ");
-    QApplication::processEvents();
-
-    //Iterate over our pts
-    for(int i = 0; i < num_pts; i++)
-    {
-      cloud_point = &(pts->at(i));
-
-      points->SetPoint(i, cloud_point->x, cloud_point->y, cloud_point->z);
-
-      color[0] = cloud_point->r;
-      color[1] = cloud_point->g;
-      color[2] = cloud_point->b;
-      data_array->SetTupleValue(i, color);
-    }
-
-    cloud_poly_data->Reset();
-    cloud_poly_data->SetPoints(points);
-    cloud_poly_data->GetPointData()->SetScalars(data_array);
-  }
-  else
-  {
-    qDebug() << "Invalid file path for loadPCLtoPolyData";
-    return;
-  }
-}
-
-//------------------------------------------------------------------------------
 
 void Form::renderPolyDataSurface(vtkSmartPointer<vtkPolyData> cloud_poly_data)
 {
@@ -555,47 +816,8 @@ void Form::renderPolyDataSurface(vtkSmartPointer<vtkPolyData> cloud_poly_data)
   QApplication::processEvents();
 }
 
-//------------------------------------------------------------------------------
 
-void Form::load2DStereoImage(const char* file_path,
-      vtkSmartPointer<vtkImageData> image_data)
-{
-  //Create a vector to hold the data
-  std::vector<uint32_t> data;
-
-  //Read the entire file
-  m_file_manager->readVector(file_path, data);
-
-  //Parse the first 8 bytes to determine dimensions
-  uint32_t rows, cols;
-  memcpy(&rows,  &data[0],  4*sizeof(uint8_t));
-  memcpy(&cols,  &data[1],  4*sizeof(uint8_t));
-
-  image_data->SetDimensions(cols, rows, 1);
-  image_data->SetNumberOfScalarComponents(3);
-  image_data->SetScalarTypeToUnsignedChar();
-  image_data->AllocateScalars();
-
-  uint32_t val;
-  for(uint32_t y = 0; y < rows; y++)
-  {
-    for(uint32_t x = 0; x < cols; x++)
-    {
-      unsigned char* pixel = static_cast<unsigned char*>
-                             (image_data->GetScalarPointer(x, y, 0));
-
-      //The two first uint32_t are the header
-      val = data[x + y*cols + 2];
-      memcpy(&pixel[0],  &val,  3*sizeof(uint8_t));
-    }
-  }
-
-  image_data->Modified();
-}
-
-//------------------------------------------------------------------------------
-
-void Form::render2DStereoImage(vtkSmartPointer<vtkImageData> image_data)
+void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data)
 {
   int* window_sizes = this->m_ui->qvtkWidget->GetRenderWindow()->GetSize();
   double window_width, window_height;
@@ -639,7 +861,6 @@ void Form::render2DStereoImage(vtkSmartPointer<vtkImageData> image_data)
   this->m_ui->qvtkWidget->update();
 }
 
-//------------------------------------------------------------------------------
 
 void Form::renderOverlay(vtkSmartPointer<vtkPolyData> oct_surface,
     vtkSmartPointer<vtkPolyData> depth_map)
@@ -697,242 +918,7 @@ void Form::renderOverlay(vtkSmartPointer<vtkPolyData> oct_surface,
   QApplication::processEvents();
 }
 
-//------------------------------------------------------------------------------
-
-void Form::updateUIStates()
-{
-  //OCT page
-  m_ui->connected_master_checkbox->setChecked(m_connected_to_master);
-  m_ui->connected_master_checkbox_2->setChecked(m_connected_to_master);
-
-  m_ui->browse_button->setEnabled(!m_waiting_response && !m_waiting_response);
-
-  m_ui->request_scan_button->setEnabled(!m_waiting_response);
-  m_ui->save_button->setEnabled(m_has_ros_raw_oct && !m_waiting_response);
-  m_ui->reset_params_button->setEnabled(!m_waiting_response);
-
-  m_ui->len_steps_spinbox->setEnabled(!m_waiting_response);
-  m_ui->len_range_spinbox->setEnabled(!m_waiting_response);
-  m_ui->len_off_spinbox->setEnabled(!m_waiting_response);
-  m_ui->wid_steps_spinbox->setEnabled(!m_waiting_response);
-  m_ui->wid_range_spinbox->setEnabled(!m_waiting_response);
-  m_ui->wid_off_spinbox->setEnabled(!m_waiting_response);
-  m_ui->dep_steps_spinbox->setEnabled(!m_waiting_response);
-  m_ui->dep_range_spinbox->setEnabled(!m_waiting_response);
-
-  m_ui->viewing_threshold_spinbox->setEnabled(!m_waiting_response);
-
-  m_ui->view_raw_oct_button->setEnabled(m_has_raw_oct && !m_waiting_response);
-  m_ui->view_oct_surf_button->setEnabled(m_has_oct_surf && !m_waiting_response);
-  m_ui->view_oct_mass_button->setEnabled(m_has_oct_surf && !m_waiting_response);
-
-  m_ui->calc_oct_surf_button->setEnabled(m_has_raw_oct && !m_waiting_response);
-  m_ui->calc_oct_mass_button->setEnabled(m_has_raw_oct && !m_waiting_response);
-
-  //Stereocamera page
-  m_ui->view_left_image_button->setEnabled(m_has_stereo_data &&
-      !m_waiting_response);
-  m_ui->view_right_image_button->setEnabled(m_has_stereo_data &&
-      !m_waiting_response);
-  m_ui->view_disp_image_button->setEnabled(m_has_stereo_data &&
-      !m_waiting_response);
-  m_ui->view_depth_image_button->setEnabled(m_has_stereo_data &&
-      !m_waiting_response);
-
-  //Visualization page
-  m_ui->oct_surf_loaded_checkbox->setChecked(m_has_oct_surf);
-  m_ui->oct_mass_loaded_checkbox->setChecked(m_has_oct_mass);
-  m_ui->stereocamera_surf_loaded_checkbox->setChecked(m_has_stereo_data);
-  m_ui->calc_transform_button->setEnabled(m_has_oct_surf && m_has_stereo_data &&
-      !m_waiting_response);
-  m_ui->print_transform_button->setEnabled(m_has_transform &&
-      !m_waiting_response);
-  m_ui->view_simple_overlay_button->setEnabled(m_has_transform && m_has_oct_surf
-      && m_has_stereo_data && !m_waiting_response);
-  m_ui->view_complete_overlay_button->setEnabled(m_has_transform &&
-      m_has_oct_surf && m_has_stereo_data && m_has_oct_mass &&
-      !m_waiting_response);
-}
-
-//------------------------------------------------------------------------------
-
-void Form::medianFilter(std::vector<uint8_t>& input, int file_header,
-    int frame_header)
-{
-  std::vector<double> rol;
-  std::vector<uint8_t> filtered_data;
-  filtered_data.resize(input.size());
-
-  int depth = m_current_params.depth_steps;
-  int width = m_current_params.width_steps;
-  int length = m_current_params.length_steps;
-  int index = file_header;
-
-  QString indicator;
-
-  //3x3x3 median filter
-  for(int i = 1; i < length-1; i++)
-  {
-      for(int j = 1; j < width -1; j++)
-      {
-          for(int k = 1; k < depth -1; k++, index++)
-          {
-              //Center point
-              rol.push_back(input[index]);
-
-              //Points in the same B-scan
-              rol.push_back(input[index+1]);                       //down
-              rol.push_back(input[index-1]);                       //up
-              rol.push_back(input[index+depth]);                   //forwards
-              rol.push_back(input[index+depth+1]);
-              rol.push_back(input[index+depth-1]);
-              rol.push_back(input[index-depth]);                   //back
-              rol.push_back(input[index-depth+1]);
-              rol.push_back(input[index-depth-1]);
-
-              //Points in the next B-scan
-              rol.push_back(input[index+depth*width+frame_header]);//left
-              rol.push_back(input[index+depth*width+1+frame_header]);
-              rol.push_back(input[index+depth*width-1+frame_header]);
-              rol.push_back(input[index+depth*width+depth+frame_header]);
-              rol.push_back(input[index+depth*width+depth+1+frame_header]);
-              rol.push_back(input[index+depth*width+depth-1+frame_header]);
-              rol.push_back(input[index+depth*width-depth+frame_header]);
-              rol.push_back(input[index+depth*width-depth+1+frame_header]);
-              rol.push_back(input[index+depth*width-depth-1+frame_header]);
-
-              //Points in the previous B-scan
-              rol.push_back(input[index-depth*width-frame_header]);//right
-              rol.push_back(input[index-depth*width+1-frame_header]);
-              rol.push_back(input[index-depth*width-1-frame_header]);
-              rol.push_back(input[index-depth*width+depth-frame_header]);
-              rol.push_back(input[index-depth*width+depth+1-frame_header]);
-              rol.push_back(input[index-depth*width+depth-1-frame_header]);
-              rol.push_back(input[index-depth*width-depth-frame_header]);
-              rol.push_back(input[index-depth*width-depth+1-frame_header]);
-              rol.push_back(input[index-depth*width-depth-1-frame_header]);
-
-              //Sorts the values in the rol
-              std::sort(rol.begin(), rol.end());
-
-              //Inserts the filtered value in the new scalars array
-              filtered_data[index] = rol[ rol.size()/2 ];
-
-              //Clears the vector for the next point
-              rol.clear();
-          }
-      }
-      index += frame_header;
-
-      this->statusBar()->showMessage(QString("Applying median filter... B-scan ") + indicator.number(i) + QString(" of ") + indicator.number(length-1));
-      QApplication::processEvents();
-  }
-
-  input.swap(filtered_data);
-}
-
-//------------------------------------------------------------------------------
-
-void Form::discardTop(std::vector<uint8_t> &input, float fraction_to_discard,
-    int file_header, int frame_header)
-{
-  int depth = m_current_params.depth_steps;
-  int width = m_current_params.width_steps;
-  int length = m_current_params.length_steps;
-
-  int discard_max = depth*fraction_to_discard;
-  std::cout << "Discarding up to " << discard_max << std::endl;
-
-  for(int i = 0; i < length; i++)
-  {
-    for(int j = 0; j < width; j++)
-    {
-      for(int k = 0; k < discard_max; k++)
-      {
-        input[k + j*depth + i*depth*width + frame_header*i + file_header] = 0;
-      }
-    }
-  }
-
-  std::cout << "Done discarding\n";
-}
-
-//------------------------------------------------------------------------------
-
-void Form::normalize(std::vector<uint8_t> &input, int file_header,
-                     int frame_header)
-{
-  int depth = m_current_params.depth_steps;
-  int width = m_current_params.width_steps;
-  int length = m_current_params.length_steps;
-
-  std::vector<uint8_t> values;
-  values.resize(256);
-
-  for(int i = 0; i < length; i++)
-  {
-    for(int j = 0; j < width; j++)
-    {
-      for(int k = 0; k < depth; k++)
-      {
-        values[input[k + j*depth + i*depth*width + frame_header*i +file_header]]
-          += 1;
-      }
-    }
-  }
-
-  for(std::vector<uint8_t>::iterator iter = values.begin();
-      iter != values.end(); iter++)
-  {
-    std::cout << "For value " << (unsigned int)(iter - values.begin()) << ": "<<
-        (unsigned int)*iter << std::endl;
-  }
-
-  float max_value = *(std::max_element(input.begin(),input.end()));
-
-  for(int i = 0; i < length; i++)
-  {
-    for(int j = 0; j < width; j++)
-    {
-      for(int k = 0; k < depth; k++)
-      {
-        input[k + j*depth + i*depth*width + frame_header*i +file_header]
-            *= 255.0/max_value;
-      }
-    }
-  }
-}
-
-//------------------------------------------------------------------------------
-
-void Form::discardSides(std::vector<uint8_t>& input, int file_header,
-                        int frame_header)
-{
-    int depth = m_current_params.depth_steps;
-    int width = m_current_params.width_steps;
-    int length = m_current_params.length_steps;
-
-    for(int i = 0; i < length; i++)
-    {
-      for(int j = 0; j < width; j++)
-      {
-        for(int k = 0; k < depth; k++)
-        {
-            if(i == length || i == 0 || j == width || j == 0)
-            {
-                input[k + j*depth + i*depth*width +frame_header*i +file_header]
-                  = 0;
-            }
-        }
-      }
-    }
-}
-
-//============================================================================//
-//                                                                            //
-//  PRIVATE Q_SLOTS                                                           //
-//                                                                            //
-//============================================================================//
+//--------------UI CALLBACKS----------------------------------------------------
 
 void Form::on_browse_button_clicked()
 {
@@ -952,25 +938,25 @@ void Form::on_browse_button_clicked()
     //Allows the file dialog to close before moving on
     QApplication::processEvents(QEventLoop::ExcludeSocketNotifiers, 10);
 
-
     this->m_ui->status_bar->showMessage("Reading file... ");
     QApplication::processEvents();
 
-    //Read the file into data
     std::vector<uint8_t> data;
     m_file_manager->readVector(file_name.toStdString().c_str(), data);
-
 
     this->m_ui->status_bar->showMessage("Loading data into point cloud... ");
     QApplication::processEvents();
 
-    //Loads the raw oct data vector into m_raw_oct_poly_data
-    loadRawOCTData(data);
+    processOCTHeader(data);
+    discardTop(data, 0.1);
+    medianFilter3D(data);
+    normalize(data);
 
-    //Renders the m_raw_oct_poly_data vtkPolyData
-    renderRawOCTData();
+    loadVectorToPolyData(data);
+    renderOCTVolumePolyData();
 
-    //Displays the file name in the ui
+    //Updates our UI param boxes
+    on_reset_params_button_clicked();
     this->m_ui->file_name_lineedit->setText(file_name);
 
     m_has_ros_raw_oct = false;
@@ -979,7 +965,6 @@ void Form::on_browse_button_clicked()
   }
 }
 
-//------------------------------------------------------------------------------
 
 void Form::on_connected_master_checkbox_clicked(bool checked)
 {
@@ -987,7 +972,6 @@ void Form::on_connected_master_checkbox_clicked(bool checked)
   updateUIStates();
 }
 
-//------------------------------------------------------------------------------
 
 void Form::on_dep_steps_spinbox_editingFinished()
 {
@@ -996,7 +980,6 @@ void Form::on_dep_steps_spinbox_editingFinished()
       (float)this->m_ui->dep_steps_spinbox->value()/1024.0*2.762);
 }
 
-//------------------------------------------------------------------------------
 
 void Form::on_dep_range_spinbox_editingFinished()
 {
@@ -1005,7 +988,6 @@ void Form::on_dep_range_spinbox_editingFinished()
       this->m_ui->dep_range_spinbox->value()/2.762*1024 + 0.5));
 }
 
-//------------------------------------------------------------------------------
 
 void Form::on_request_scan_button_clicked()
 {
@@ -1023,6 +1005,9 @@ void Form::on_request_scan_button_clicked()
   m_current_params.length_offset = this->m_ui->len_off_spinbox->value();
   m_current_params.width_offset = this->m_ui->wid_off_spinbox->value();
 
+  //Updates our UI param boxes
+  on_reset_params_button_clicked();
+
   //Pack the desired OCT params into a struct
   Q_EMIT requestScan(m_current_params);
 
@@ -1031,7 +1016,6 @@ void Form::on_request_scan_button_clicked()
   QApplication::processEvents();
 }
 
-//------------------------------------------------------------------------------
 
 void Form::on_save_button_clicked()
 {
@@ -1052,14 +1036,14 @@ void Form::on_save_button_clicked()
 
     std::vector<uint8_t> header;
     header.resize(512);
-    memcpy(&header[16],  &m_current_params.length_steps,  4*sizeof(uint8_t));
-    memcpy(&header[20],  &m_current_params.width_steps,   4*sizeof(uint8_t));
-    memcpy(&header[24],  &m_current_params.depth_steps,   4*sizeof(uint8_t));
-    memcpy(&header[72],  &m_current_params.length_range,  4*sizeof(uint8_t));
-    memcpy(&header[76],  &m_current_params.width_range,   4*sizeof(uint8_t));
-    memcpy(&header[116], &m_current_params.depth_range,   4*sizeof(uint8_t));
-    memcpy(&header[120], &m_current_params.length_offset, 4*sizeof(uint8_t));
-    memcpy(&header[124], &m_current_params.width_offset,  4*sizeof(uint8_t));
+    memcpy(&header[16],  &m_current_params.length_steps,  4);
+    memcpy(&header[20],  &m_current_params.width_steps,   4);
+    memcpy(&header[24],  &m_current_params.depth_steps,   4);
+    memcpy(&header[72],  &m_current_params.length_range,  4);
+    memcpy(&header[76],  &m_current_params.width_range,   4);
+    memcpy(&header[116], &m_current_params.depth_range,   4);
+    memcpy(&header[120], &m_current_params.length_offset, 4);
+    memcpy(&header[124], &m_current_params.width_offset,  4);
 
     m_file_manager->writeVector(header, file_name.toStdString().c_str());
 
@@ -1077,21 +1061,18 @@ void Form::on_save_button_clicked()
   }
 }
 
-//------------------------------------------------------------------------------
 
 void Form::on_viewing_threshold_spinbox_editingFinished()
 {
   m_vis_threshold = m_ui->viewing_threshold_spinbox->value();
 }
 
-//------------------------------------------------------------------------------
 
 void Form::on_view_raw_oct_button_clicked()
 {
-    renderRawOCTData();
+    renderOCTVolumePolyData();
 }
 
-//------------------------------------------------------------------------------
 
 void Form::on_calc_oct_surf_button_clicked()
 {
@@ -1106,7 +1087,6 @@ void Form::on_calc_oct_surf_button_clicked()
   QApplication::processEvents();
 }
 
-//------------------------------------------------------------------------------
 
 void Form::on_view_left_image_button_clicked()
 {  
@@ -1118,9 +1098,9 @@ void Form::on_view_left_image_button_clicked()
 
   VTK_NEW(vtkImageData, left_image);
 
-  load2DStereoImage(STEREO_LEFT_CACHE_PATH, left_image);
+  load2DVectorCacheToImageData(STEREO_LEFT_CACHE_PATH, left_image);
 
-  render2DStereoImage(left_image);
+  render2DImageData(left_image);
 
   this->m_ui->status_bar->showMessage("Rendering left image... done!");
   QApplication::processEvents();
@@ -1129,7 +1109,6 @@ void Form::on_view_left_image_button_clicked()
   updateUIStates();
 }
 
-//------------------------------------------------------------------------------
 
 void Form::on_view_right_image_button_clicked()
 {
@@ -1141,9 +1120,9 @@ void Form::on_view_right_image_button_clicked()
 
   VTK_NEW(vtkImageData, right_image);
 
-  load2DStereoImage(STEREO_RIGHT_CACHE_PATH, right_image);
+  load2DVectorCacheToImageData(STEREO_RIGHT_CACHE_PATH, right_image);
 
-  render2DStereoImage(right_image);
+  render2DImageData(right_image);
 
   this->m_ui->status_bar->showMessage("Rendering right image... done!");
   QApplication::processEvents();
@@ -1152,7 +1131,6 @@ void Form::on_view_right_image_button_clicked()
   updateUIStates();
 }
 
-//------------------------------------------------------------------------------
 
 void Form::on_view_disp_image_button_clicked()
 {
@@ -1164,9 +1142,9 @@ void Form::on_view_disp_image_button_clicked()
 
   VTK_NEW(vtkImageData, disp_image);
 
-  load2DStereoImage(STEREO_DISP_CACHE_PATH, disp_image);
+  load2DVectorCacheToImageData(STEREO_DISP_CACHE_PATH, disp_image);
 
-  render2DStereoImage(disp_image);
+  render2DImageData(disp_image);
 
   this->m_ui->status_bar->showMessage("Rendering displacement image... done!");
   QApplication::processEvents();
@@ -1175,7 +1153,6 @@ void Form::on_view_disp_image_button_clicked()
   updateUIStates();
 }
 
-//------------------------------------------------------------------------------
 
 void Form::on_view_depth_image_button_clicked()
 {
@@ -1187,7 +1164,7 @@ void Form::on_view_depth_image_button_clicked()
 
   VTK_NEW(vtkPolyData, depth_image);
 
-  loadPCLtoPolyData(STEREO_DEPTH_CACHE_PATH, depth_image);
+  loadPCLCacheToPolyData(STEREO_DEPTH_CACHE_PATH, depth_image);
 
   renderPolyDataSurface(depth_image);
 
@@ -1198,7 +1175,6 @@ void Form::on_view_depth_image_button_clicked()
   updateUIStates();
 }
 
-//------------------------------------------------------------------------------
 
 void Form::on_reset_params_button_clicked()
 {
@@ -1212,7 +1188,6 @@ void Form::on_reset_params_button_clicked()
   this->m_ui->wid_off_spinbox->setValue(m_current_params.width_offset);
 }
 
-//------------------------------------------------------------------------------
 
 void Form::on_calc_transform_button_clicked()
 {
@@ -1228,7 +1203,6 @@ void Form::on_calc_transform_button_clicked()
   QApplication::processEvents();
 }
 
-//------------------------------------------------------------------------------
 
 void Form::on_print_transform_button_clicked()
 {
@@ -1247,7 +1221,6 @@ void Form::on_print_transform_button_clicked()
   }
 }
 
-//------------------------------------------------------------------------------
 
 void Form::on_view_oct_surf_button_clicked()
 {
@@ -1260,7 +1233,7 @@ void Form::on_view_oct_surf_button_clicked()
 
   VTK_NEW(vtkPolyData, surf_oct_poly_data);
 
-  loadPCLtoPolyData(OCT_SURF_CACHE_PATH, surf_oct_poly_data);
+  loadPCLCacheToPolyData(OCT_SURF_CACHE_PATH, surf_oct_poly_data);
   renderPolyDataSurface(surf_oct_poly_data);
 
 
@@ -1271,7 +1244,6 @@ void Form::on_view_oct_surf_button_clicked()
   updateUIStates();
 }
 
-//------------------------------------------------------------------------------
 
 void Form::on_view_simple_overlay_button_clicked()
 {
@@ -1285,8 +1257,8 @@ void Form::on_view_simple_overlay_button_clicked()
   //Read the oct surface and depth maps
   VTK_NEW(vtkPolyData, oct_surface);
   VTK_NEW(vtkPolyData, depth_map);
-  loadPCLtoPolyData(OCT_SURF_CACHE_PATH, oct_surface);
-  loadPCLtoPolyData(STEREO_DEPTH_CACHE_PATH, depth_map);
+  loadPCLCacheToPolyData(OCT_SURF_CACHE_PATH, oct_surface);
+  loadPCLCacheToPolyData(STEREO_DEPTH_CACHE_PATH, depth_map);
 
   //Render both simultaneously
   renderOverlay(oct_surface, depth_map);
@@ -1300,7 +1272,7 @@ void Form::on_view_simple_overlay_button_clicked()
   updateUIStates();
 }
 
-//------------------------------------------------------------------------------
+//------------QNODE CALLBACKS---------------------------------------------------
 
 void Form::receivedRawOCTData(OCTinfo params)
 {  
@@ -1308,14 +1280,27 @@ void Form::receivedRawOCTData(OCTinfo params)
       "done!");
   QApplication::processEvents();
 
-  //Loads m_qnode's data vector into m_raw_oct_poly_data
+  //Loads m_qnode's data vector into m_oct_poly_data
   std::vector<uint8_t> raw_data;
   m_file_manager->readVector(OCT_RAW_CACHE_PATH, raw_data);
 
-  loadRawOCTData(raw_data, params, 0, 0);
+  //Load updated values. These get sent all the way from the actual OCT scan
+  //performed, so it's a way of debugging
+  m_current_params.length_steps = params.length_steps;
+  m_current_params.width_steps = params.width_steps;
+  m_current_params.depth_steps = params.depth_steps;
+  m_current_params.length_range = params.length_range;
+  m_current_params.width_range = params.width_range;
+  m_current_params.depth_range = params.depth_range;
+  m_current_params.length_offset = params.length_offset;
+  m_current_params.width_offset = params.width_offset;
 
-  //Immediately render it
-  renderRawOCTData();
+  discardTop(raw_data, 0.1);
+  medianFilter3D(raw_data);
+  normalize(raw_data);
+
+  loadVectorToPolyData(raw_data);
+  renderOCTVolumePolyData();
 
   //Re-enables controls for a potential new scan
   m_has_ros_raw_oct = true;
@@ -1323,7 +1308,6 @@ void Form::receivedRawOCTData(OCTinfo params)
   updateUIStates();
 }
 
-//------------------------------------------------------------------------------
 
 void Form::receivedOCTSurfData(OCTinfo params)
 {  
@@ -1331,9 +1315,9 @@ void Form::receivedOCTSurfData(OCTinfo params)
       "done!");
   QApplication::processEvents();
 
+  //qnode has written an OCT surface to cache, so we read it
   VTK_NEW(vtkPolyData, surf_oct_poly_data);
-
-  loadPCLtoPolyData(OCT_SURF_CACHE_PATH, surf_oct_poly_data);
+  loadPCLCacheToPolyData(OCT_SURF_CACHE_PATH, surf_oct_poly_data);
   renderPolyDataSurface(surf_oct_poly_data);
 
   //Re-enables controls for a potential new scan
@@ -1342,7 +1326,6 @@ void Form::receivedOCTSurfData(OCTinfo params)
   updateUIStates();
 }
 
-//------------------------------------------------------------------------------
 
 void Form::receivedStereoData()
 {
@@ -1350,7 +1333,6 @@ void Form::receivedStereoData()
   updateUIStates();
 }
 
-//------------------------------------------------------------------------------
 
 void Form::receivedRegistration()
 {
