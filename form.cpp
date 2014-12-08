@@ -324,9 +324,9 @@ void Form::loadPCLCacheToPolyData(const char* file_path,
     QApplication::processEvents();
 
     for(int i = 0; i < num_pts; i++)
-    {
+    {      
       cloud_point = &(pts->at(i));
-      points->SetPoint(i, cloud_point->x, cloud_point->y, cloud_point->z);
+      points->SetPoint(i, cloud_point->y, cloud_point->x, cloud_point->z); //INVERTED X AND Y
     }
 
     cloud_poly_data->Reset();
@@ -915,15 +915,18 @@ void Form::on_browse_button_clicked()
     QApplication::processEvents();
 
     std::vector<uint8_t> data;
-    m_file_manager->readVector(file_name.toStdString().c_str(), data);
+    m_file_manager->readVector(file_name.toStdString().c_str(), data);    
 
     this->m_ui->status_bar->showMessage("Loading data into point cloud... ");
     QApplication::processEvents();
 
+    //Data opened with the browse button should always already be processed
+    //Just interpret the header, nothing else
     processOCTHeader(data);
-    discardTop(data, 0.1);
-    //medianFilter3D(data);
-    normalize(data);
+
+    //Immediately write our headerless vector to cache so we can segment
+    //Or register using this data
+    m_file_manager->writeVector(data, OCT_RAW_CACHE_PATH);
 
     loadVectorToPolyData(data);
 
@@ -1313,6 +1316,9 @@ void Form::receivedRawOCTData(OCTinfo params)
   discardTop(raw_data, 0.1);
   medianFilter3D(raw_data);
   normalize(raw_data);
+
+  //Write our new, filtered vector to our cache file
+  m_file_manager->writeVector(raw_data, OCT_RAW_CACHE_PATH);
 
   loadVectorToPolyData(raw_data);
 

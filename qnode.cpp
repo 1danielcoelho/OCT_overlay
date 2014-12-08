@@ -351,16 +351,23 @@ void QNode::requestSegmentation(OCTinfo params)
   std::vector<uint8_t> data;
   m_file_manager->readVector(OCT_RAW_CACHE_PATH, data);
 
+  //.imgs created by the Thorlabs software don't create a depth range since
+  //the axial resolution is fixed. In that case it would be zero, so we fix it
+  if(params.depth_range == 0)
+  {
+      params.depth_range = params.depth_steps/1024.0*2.762;
+  }
+
   //Pack params and raw_data into a segmentationServerFromDataArray srv request
   OCT_segmentation::segmentationServiceFromDataArray segmentationMessage;
-  segmentationMessage.request.length_steps = params.length_steps;
-  segmentationMessage.request.width_steps = params.width_steps;
+  segmentationMessage.request.length_steps = params.width_steps;
+  segmentationMessage.request.width_steps = params.length_steps;
   segmentationMessage.request.depth_steps = params.depth_steps;
-  segmentationMessage.request.length_range = params.length_range;
-  segmentationMessage.request.width_range = params.width_range;
+  segmentationMessage.request.length_range = params.width_range; //INVERTED LENGTH AND WITDH
+  segmentationMessage.request.width_range = params.length_range;
   segmentationMessage.request.depth_range = params.depth_range;
-  segmentationMessage.request.length_offset = params.length_offset;
-  segmentationMessage.request.width_offset = params.width_offset;
+  segmentationMessage.request.length_offset = params.width_offset;
+  segmentationMessage.request.width_offset = params.length_offset;
   segmentationMessage.request.data.swap(data);
 
   if(m_segmentation_client.exists())

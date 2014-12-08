@@ -1,26 +1,30 @@
 <?xml version="1.0"?>
 <launch>
-    <node pkg="oct_client" type="oct_client" name="oct_client" output="screen">
-        <param name="serverIP" type="string" value="130.75.144.208"/>
-    </node>
+        <node pkg="oct_client" type="oct_client" name="oct_client" output="screen">
+                <param name="serverIP" type="string" value="130.75.144.168"/>
+        </node>
 	
-	<!--node pkg="OCT_registration" type="OCT_registration_node" 
-	    name="OCT_registration" output="screen">
-	</node-->
-	
-	<node pkg="OCT_segmentation" type="OCT_segmentation_node" 
-	    name="OCT_segmentation" output="screen">
-	</node>
+        <!--node pkg="OCT_registration" type="OCT_registration_node" 
+            name="OCT_registration" output="screen">
+        </node-->
 
- 	<node name="OCT_overlay" pkg="OCT_overlay" type="OCT_overlay" 
- 	    output="screen">
-		<param name="leftImageTopicName" type="string" value="/stereomatching/
-		    image_left"/>
-		<param name="rightImageTopicName" type="string" value="/stereomatching/
-		    image_right"/>
-		<param name="dispImageTopicName" type="string" value="/stereomatching/
-		    disparity_map"/>
-		<param name="depthImageTopicName" type="string" value="/stereomatching/
-		    depth_map"/>
-	</node>
+        <node pkg="OCT_segmentation" type="OCT_segmentation_node" 
+            name="OCT_segmentation" output="screen">
+        </node>
+
+        <node pkg="dynamic_reconfigure" type="reconfigure_gui"
+              name="reconfigure_gui" output="screen">
+        </node>
+
+        <node name="OCT_overlay" pkg="OCT_overlay" type="OCT_overlay" 
+            output="screen">
+                <param name="leftImageTopicName" type="string" value="/stereomatching/
+                    image_left"/>
+                <param name="rightImageTopicName" type="string" value="/stereomatching/
+                    image_right"/>
+                <param name="dispImageTopicName" type="string" value="/stereomatching/
+                    disparity_map"/>
+                <param name="depthImageTopicName" type="string" value="/stereomatching/
+                    depth_map"/>
+        </node>
 </launch>
