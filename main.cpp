@@ -1,21 +1,16 @@
 /*  TODO:
 *
-* -Implement surface reconstruction for OCT segmentation output and stereocam
-*  depth map
-*    -Delaunay2D, Shepard's method
+* -Open an extra Qt window
+*
+* -Look for where they render video with openCV, try to understand it
 * 
+* -Try looking at peretti3d stuff, see if you can find samples from the 4 imgs
 *
 * */
 
 /* NEXT EXPERIMENT:
 * 
-* -Fix OCT_segmentation
-*   -Different region sizes, look at member functions of defaultSomething,
-*    print sizes
-*   -Now that we can load using qtcreator, look at the member functions to help
-*    print these bounds
 * 
-* -Try rendering the OCT surface on top of OCT data, see if they coincide
 *
 * */
 
