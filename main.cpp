@@ -1,7 +1,10 @@
 /*  TODO:
 *
-* -Allow changing the threshold value in overlay bar
-*   -Maybe add a menu item with OCT volume visualization options
+* -Split m_waiting_response into actual waiting response and "processing"
+*   -We should be able to change a greyscale range while we wait for
+*    a node, for example
+*
+* -RenderOverlay is not necessary: Just call the two independent render funcs
 *
 * -Open an extra Qt window
 *

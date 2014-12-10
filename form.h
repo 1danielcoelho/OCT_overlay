@@ -167,6 +167,14 @@ private Q_SLOTS:
   void on_raw_max_vis_spinbox_editingFinished();
   void on_raw_min_vis_slider_valueChanged(int value);
   void on_raw_max_vis_slider_valueChanged(int value);
+  void on_raw_min_vis_slider_sliderReleased();
+  void on_raw_max_vis_slider_sliderReleased();
+  void on_over_min_vis_slider_valueChanged(int value);
+  void on_over_max_vis_slider_valueChanged(int value);
+  void on_over_min_vis_slider_sliderReleased();
+  void on_over_max_vis_slider_sliderReleased();
+  void on_over_min_vis_spinbox_editingFinished();
+  void on_over_max_vis_spinbox_editingFinished();
 
   //------------QNODE CALLBACKS-------------------------------------------------
 
@@ -174,22 +182,6 @@ private Q_SLOTS:
   void receivedOCTSurfData(OCTinfo params);
   void receivedStereoData();
   void receivedRegistration();
-
-  void on_raw_min_vis_slider_sliderReleased();
-
-  void on_raw_max_vis_slider_sliderReleased();
-
-  void on_over_min_vis_slider_valueChanged(int value);
-
-  void on_over_max_vis_slider_valueChanged(int value);
-
-  void on_over_min_vis_slider_sliderReleased();
-
-  void on_over_max_vis_slider_sliderReleased();
-
-  void on_over_min_vis_spinbox_editingFinished();
-
-  void on_over_max_vis_spinbox_editingFinished();
 
 Q_SIGNALS:
   void requestScan(OCTinfo);

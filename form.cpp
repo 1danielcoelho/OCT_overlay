@@ -161,13 +161,22 @@ void Form::updateUIStates()
   m_ui->oct_surf_loaded_checkbox->setChecked(m_has_oct_surf);
   m_ui->oct_mass_loaded_checkbox->setChecked(m_has_oct_mass);
   m_ui->stereocamera_surf_loaded_checkbox->setChecked(m_has_stereo_data);
+
   m_ui->view_oct_vol_oct_surf->setEnabled(m_has_oct_surf && m_has_raw_oct);
+
+  m_ui->over_min_vis_spinbox->setEnabled(!m_waiting_response);
+  m_ui->over_max_vis_spinbox->setEnabled(!m_waiting_response);
+  m_ui->over_min_vis_slider->setEnabled(!m_waiting_response);
+  m_ui->over_max_vis_slider->setEnabled(!m_waiting_response);
+
   m_ui->calc_transform_button->setEnabled(m_has_oct_surf && m_has_stereo_data &&
       !m_waiting_response);
   m_ui->print_transform_button->setEnabled(m_has_transform &&
       !m_waiting_response);
+
   m_ui->view_simple_overlay_button->setEnabled(m_has_transform && m_has_oct_surf
       && m_has_stereo_data && !m_waiting_response);
+
   m_ui->view_complete_overlay_button->setEnabled(m_has_transform &&
       m_has_oct_surf && m_has_stereo_data && m_has_oct_mass &&
       !m_waiting_response);
@@ -682,6 +691,9 @@ void Form::renderOCTVolumePolyData()
     return;
   }
 
+  m_waiting_response = true;
+  updateUIStates();
+
   vtkPoints* old_points = m_oct_poly_data->GetPoints();
   vtkTypeUInt8Array* old_data_array = vtkTypeUInt8Array::SafeDownCast(
                 m_oct_poly_data->GetPointData()->GetScalars());
@@ -738,6 +750,9 @@ void Form::renderOCTVolumePolyData()
 
   this->statusBar()->showMessage("Rendering... done!");
   QApplication::processEvents();
+
+  m_waiting_response = false;
+  updateUIStates();
 }
 
 
