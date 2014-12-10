@@ -126,12 +126,12 @@ public:
   //Adds an actor with x,y,z axes to m_renderer
   void renderAxes();
 
-  //Adds a poly data actor containing points as individual vertices to
+  //Adds m_oct_vol_actor, containing points as individual vertices, to
   //m_renderer. Prunes points based on their scalar values, according to
   //m_vis_threshold
   void renderOCTVolumePolyData();
 
-  //Adds a 1-sample-thick PolyData actor to m_renderer
+  //Adds m_oct_surf_actor, a 1-sample-thick PolyData actor, to m_renderer
   void renderPolyDataSurface(vtkSmartPointer<vtkPolyData> depth_image);
 
   //Clears m_renderer from actors and renders either the left, right or

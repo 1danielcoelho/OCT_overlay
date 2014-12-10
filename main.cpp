@@ -4,8 +4,6 @@
 *   -We should be able to change a greyscale range while we wait for
 *    a node, for example
 *
-* -RenderOverlay is not necessary: Just call the two independent render funcs
-*
 * -Open an extra Qt window
 *
 * -Look for where they render video with openCV, try to understand it
