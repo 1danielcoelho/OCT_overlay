@@ -1,5 +1,8 @@
 /*  TODO:
 *
+* -Allow changing the threshold value in overlay bar
+*   -Maybe add a menu item with OCT volume visualization options
+*
 * -Open an extra Qt window
 *
 * -Look for where they render video with openCV, try to understand it

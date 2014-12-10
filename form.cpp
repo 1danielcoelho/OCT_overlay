@@ -8,7 +8,8 @@ Form::Form(int argc, char** argv, QWidget *parent) :
   m_ui->setupUi(this);
 
   //Initialize the oct parameters
-  m_vis_threshold = this->m_ui->viewing_threshold_spinbox->value();
+  m_min_vis_thresh = this->m_ui->raw_min_vis_spinbox->value();
+  m_max_vis_thresh = this->m_ui->raw_max_vis_spinbox->value();
   m_current_params.length_steps  = this->m_ui->len_steps_spinbox->value();
   m_current_params.width_steps   = this->m_ui->wid_steps_spinbox->value();
   m_current_params.depth_steps   = this->m_ui->dep_steps_spinbox->value();
@@ -85,21 +86,16 @@ Form::Form(int argc, char** argv, QWidget *parent) :
   //Data structures
   m_oct_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_oct_stereo_trans = vtkSmartPointer<vtkTransform>::New();
-  //Filters
-  //m_vert_filter = vtkSmartPointer<vtkVertexGlyphFilter>::New();
-  //m_image_resize_filter = vtkSmartPointer<vtkImageReslice>::New();
-  //m_trans_filter = vtkSmartPointer<vtkTransformFilter>::New();
-  //m_delaunay_filter = vtkSmartPointer<vtkDelaunay2D>::New();
-  //Mappers
-  //m_poly_mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
-  //m_second_poly_mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
-  //m_image_mapper = vtkSmartPointer<vtkImageMapper>::New();
+  //Actors
+  m_oct_vol_actor = vtkSmartPointer<vtkActor>::New();
+  m_oct_surf_actor = vtkSmartPointer<vtkActor>::New();
+  m_stereo_2d_actor = vtkSmartPointer<vtkActor2D>::New();
   //Others
   m_renderer = vtkSmartPointer<vtkRenderer>::New();
 
-  m_renderer->SetBackground(0, 0, 0);
-  //m_renderer->SetBackground2(0.1, 0.1, 0.1);
-  //m_renderer->SetGradientBackground(1);
+  m_renderer->SetBackground(0, 0, 0.1);
+  m_renderer->SetBackground2(0, 0, 0.2);
+  m_renderer->SetGradientBackground(1);
 
   //Adds our renderer to the QVTK widget
   this->m_ui->qvtkWidget->GetRenderWindow()->AddRenderer(m_renderer);
@@ -139,7 +135,10 @@ void Form::updateUIStates()
   m_ui->dep_steps_spinbox->setEnabled(!m_waiting_response);
   m_ui->dep_range_spinbox->setEnabled(!m_waiting_response);
 
-  m_ui->viewing_threshold_spinbox->setEnabled(!m_waiting_response);
+  m_ui->raw_min_vis_spinbox->setEnabled(!m_waiting_response);
+  m_ui->raw_max_vis_spinbox->setEnabled(!m_waiting_response);
+  m_ui->raw_min_vis_slider->setEnabled(!m_waiting_response);
+  m_ui->raw_max_vis_slider->setEnabled(!m_waiting_response);
 
   m_ui->view_raw_oct_button->setEnabled(m_has_raw_oct && !m_waiting_response);
   m_ui->view_oct_surf_button->setEnabled(m_has_oct_surf && !m_waiting_response);
@@ -694,6 +693,8 @@ void Form::renderOCTVolumePolyData()
   this->statusBar()->showMessage("Preparing PolyData for display... ");
   QApplication::processEvents();
 
+  std::cout << "min: " << (unsigned int)m_min_vis_thresh << ", max: " << (unsigned int)m_max_vis_thresh << std::endl;
+
   for(uint32_t i = 0; i < num_pts; i++)
   {
     value = old_data_array->GetValue(i);
@@ -701,7 +702,8 @@ void Form::renderOCTVolumePolyData()
 //          "\t\ty: " << (old_points->GetPoint(i))[1] <<
 //          "\t\tz: " << (old_points->GetPoint(i))[2] <<
 //          "\t\tI: " << (unsigned int)value << std::endl;
-    if(value > m_vis_threshold)
+
+    if(value >= m_min_vis_thresh && value <= m_max_vis_thresh)
     {
       new_points->InsertNextPoint(old_points->GetPoint(i));
       new_data_array->InsertNextValue(value);
@@ -724,11 +726,9 @@ void Form::renderOCTVolumePolyData()
   mapper->SetInputConnection(vert_filter->GetOutputPort());
   mapper->SetScalarVisibility(1);
 
-  VTK_NEW(vtkActor, actor);
-  actor->SetMapper(mapper);
+  m_oct_vol_actor->SetMapper(mapper);
 
-  m_renderer->AddActor(actor);
-  //m_renderer->ResetCamera();
+  m_renderer->AddActor(m_oct_vol_actor);
 
   this->statusBar()->showMessage("Rendering... ");
   QApplication::processEvents();
@@ -758,10 +758,9 @@ void Form::renderPolyDataSurface(vtkSmartPointer<vtkPolyData> cloud_poly_data)
   VTK_NEW(vtkPolyDataMapper, mapper);
   mapper->SetInputConnection(delaunay_filter->GetOutputPort());
 
-  VTK_NEW(vtkActor, surf_actor);
-  surf_actor->SetMapper(mapper);
+  m_oct_surf_actor->SetMapper(mapper);
 
-  m_renderer->AddActor(surf_actor);
+  m_renderer->AddActor(m_oct_surf_actor);
 
   this->statusBar()->showMessage("Rendering PolyData surface... ");
   QApplication::processEvents();
@@ -776,8 +775,6 @@ void Form::renderPolyDataSurface(vtkSmartPointer<vtkPolyData> cloud_poly_data)
 
 void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data)
 {
-  VTK_NEW(vtkActor2D, actor);
-
   int* window_sizes = this->m_ui->qvtkWidget->GetRenderWindow()->GetSize();
   double window_width, window_height;
   window_width = window_sizes[0];
@@ -798,12 +795,12 @@ void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data)
   if(window_aspect_ratio >= image_aspect_ratio)
   {
     scaling = image_height/window_height;
-    actor->SetPosition((window_width - image_width/scaling)/2, 0);
+    m_stereo_2d_actor->SetPosition((window_width - image_width/scaling)/2, 0);
   }
   else
   {
     scaling = image_width/window_width;
-    actor->SetPosition(0, (window_height-image_height/scaling)/2);
+    m_stereo_2d_actor->SetPosition(0, (window_height-image_height/scaling)/2);
   }
 
   VTK_NEW(vtkImageReslice, image_resize_filter);
@@ -815,11 +812,10 @@ void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data)
   image_mapper->SetColorWindow(255.0);
   image_mapper->SetColorLevel(127.5);
 
-  actor->SetMapper(image_mapper);
+  m_stereo_2d_actor->SetMapper(image_mapper);
 
   m_renderer->RemoveAllViewProps();
-  m_renderer->AddActor2D(actor);
-  m_renderer->ResetCamera();
+  m_renderer->AddActor2D(m_stereo_2d_actor);
 
   this->statusBar()->showMessage("Rendering 2D Image... ");
   QApplication::processEvents();
@@ -849,9 +845,6 @@ void Form::renderOverlay(vtkSmartPointer<vtkPolyData> oct_surface,
   QApplication::processEvents();
 
 
-  VTK_NEW(vtkActor, actor);
-  VTK_NEW(vtkActor, actor2);
-
   //OCT
   {
     VTK_NEW(vtkTransformFilter, trans_filter);
@@ -865,8 +858,8 @@ void Form::renderOverlay(vtkSmartPointer<vtkPolyData> oct_surface,
     VTK_NEW(vtkPolyDataMapper, mapper);
     mapper->SetInputConnection(vert_filter->GetOutputPort());
 
-    actor->SetMapper(mapper);
-    actor->GetProperty()->SetColor(0, 0, 1); //blue
+    m_oct_vol_actor->SetMapper(mapper);
+    m_oct_vol_actor->GetProperty()->SetColor(0, 0, 1); //blue
   }
 
   //Stereocamera depthmap
@@ -878,13 +871,13 @@ void Form::renderOverlay(vtkSmartPointer<vtkPolyData> oct_surface,
     VTK_NEW(vtkPolyDataMapper, mapper);
     mapper->SetInputConnection(vert_filter->GetOutputPort());
 
-    actor2->SetMapper(mapper);
-    actor2->GetProperty()->SetColor(1, 0, 0); //red
+    m_oct_surf_actor->SetMapper(mapper);
+    m_oct_surf_actor->GetProperty()->SetColor(1, 0, 0); //red
   }
 
   m_renderer->RemoveAllViewProps();
-  m_renderer->AddActor(actor);
-  m_renderer->AddActor(actor2);
+  m_renderer->AddActor(m_oct_vol_actor);
+  m_renderer->AddActor(m_oct_surf_actor);
   m_renderer->ResetCamera();
 
   this->m_ui->qvtkWidget->update();
@@ -932,6 +925,7 @@ void Form::on_browse_button_clicked()
 
     m_renderer->RemoveAllViewProps();
     renderOCTVolumePolyData();
+    m_renderer->ResetCamera();
     renderAxes();
 
     //Updates our UI param boxes
@@ -1040,12 +1034,146 @@ void Form::on_save_button_clicked()
   }
 }
 
-
-void Form::on_viewing_threshold_spinbox_editingFinished()
+void Form::on_raw_min_vis_spinbox_editingFinished()
 {
-  m_vis_threshold = m_ui->viewing_threshold_spinbox->value();
+  uint8_t new_value = m_ui->raw_min_vis_spinbox->value();
+  m_min_vis_thresh = new_value;
+  m_ui->raw_min_vis_slider->setValue(new_value);  
+
+  m_ui->over_min_vis_slider->setValue(new_value);
+
+  //Adjusts the max slider if we need to
+  if(new_value > m_max_vis_thresh)
+      m_ui->raw_max_vis_slider->setValue(new_value);
+
+  m_renderer->RemoveAllViewProps();
+  renderOCTVolumePolyData();
+  renderAxes();
 }
 
+void Form::on_raw_max_vis_spinbox_editingFinished()
+{
+  uint8_t new_value = m_ui->raw_max_vis_spinbox->value();
+  m_max_vis_thresh = new_value;
+  m_ui->raw_max_vis_slider->setValue(new_value);
+
+  m_ui->over_max_vis_slider->setValue(new_value);
+
+  //Adjusts the min slider if we need to
+  if(new_value < m_min_vis_thresh)
+      m_ui->raw_min_vis_slider->setValue(new_value);
+
+  m_renderer->RemoveAllViewProps();
+  renderOCTVolumePolyData();
+  renderAxes();
+}
+
+void Form::on_raw_min_vis_slider_valueChanged(int value)
+{
+  m_min_vis_thresh = value;
+  m_ui->raw_min_vis_spinbox->setValue(value);
+
+  m_ui->over_min_vis_slider->setValue(value);
+
+  //Adjusts the max slider if we need to
+  if(value > m_max_vis_thresh)
+      m_ui->raw_max_vis_slider->setValue(value);
+}
+
+void Form::on_raw_max_vis_slider_valueChanged(int value)
+{
+  m_max_vis_thresh = value;
+  m_ui->raw_max_vis_spinbox->setValue(value);  
+
+  m_ui->over_max_vis_slider->setValue(value);
+
+  //Adjusts the min slider if we need to
+  if(value < m_min_vis_thresh)
+      m_ui->raw_min_vis_slider->setValue(value);
+
+}
+
+void Form::on_raw_min_vis_slider_sliderReleased()
+{
+    m_renderer->RemoveAllViewProps();
+    renderOCTVolumePolyData();
+    renderAxes();
+}
+
+void Form::on_raw_max_vis_slider_sliderReleased()
+{
+    m_renderer->RemoveAllViewProps();
+    renderOCTVolumePolyData();
+    renderAxes();
+}
+
+void Form::on_over_min_vis_slider_valueChanged(int value)
+{
+    m_min_vis_thresh = value;
+    m_ui->over_min_vis_spinbox->setValue(value);
+
+    m_ui->raw_min_vis_slider->setValue(value);
+
+    //Adjusts the max slider if we need to
+    if(value > m_max_vis_thresh)
+        m_ui->over_max_vis_slider->setValue(value);
+}
+
+void Form::on_over_max_vis_slider_valueChanged(int value)
+{
+    m_max_vis_thresh = value;
+    m_ui->over_max_vis_spinbox->setValue(value);
+
+    m_ui->raw_max_vis_slider->setValue(value);
+
+    //Adjusts the min slider if we need to
+    if(value < m_min_vis_thresh)
+        m_ui->over_min_vis_slider->setValue(value);
+}
+
+void Form::on_over_min_vis_slider_sliderReleased()
+{
+    m_renderer->RemoveActor(m_oct_vol_actor);
+    renderOCTVolumePolyData();
+}
+
+void Form::on_over_max_vis_slider_sliderReleased()
+{
+    m_renderer->RemoveActor(m_oct_vol_actor);
+    renderOCTVolumePolyData();
+}
+
+void Form::on_over_min_vis_spinbox_editingFinished()
+{
+    uint8_t new_value = m_ui->over_min_vis_spinbox->value();
+    m_min_vis_thresh = new_value;
+    m_ui->over_min_vis_slider->setValue(new_value);
+
+    m_ui->raw_min_vis_slider->setValue(new_value);
+
+    //Adjusts the max slider if we need to
+    if(new_value > m_max_vis_thresh)
+        m_ui->over_max_vis_slider->setValue(new_value);
+
+    m_renderer->RemoveActor(m_oct_vol_actor);
+    renderOCTVolumePolyData();
+}
+
+void Form::on_over_max_vis_spinbox_editingFinished()
+{
+    uint8_t new_value = m_ui->over_max_vis_spinbox->value();
+    m_max_vis_thresh = new_value;
+    m_ui->over_max_vis_slider->setValue(new_value);
+
+    m_ui->raw_max_vis_slider->setValue(new_value);
+
+    //Adjusts the min slider if we need to
+    if(new_value < m_min_vis_thresh)
+        m_ui->over_min_vis_slider->setValue(new_value);
+
+    m_renderer->RemoveActor(m_oct_vol_actor);
+    renderOCTVolumePolyData();
+}
 
 void Form::on_view_raw_oct_button_clicked()
 {
@@ -1324,6 +1452,7 @@ void Form::receivedRawOCTData(OCTinfo params)
 
   m_renderer->RemoveAllViewProps();
   renderOCTVolumePolyData();
+  m_renderer->ResetCamera();
   renderAxes();
 
   //Re-enables controls for a potential new scan
@@ -1346,6 +1475,7 @@ void Form::receivedOCTSurfData(OCTinfo params)
 
   m_renderer->RemoveAllViewProps();
   renderPolyDataSurface(surf_oct_poly_data);
+  m_renderer->ResetCamera();
   renderAxes();
 
   //Re-enables controls for a potential new scan
@@ -1386,6 +1516,20 @@ void Form::receivedRegistration()
   m_has_transform = true;
   updateUIStates();
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

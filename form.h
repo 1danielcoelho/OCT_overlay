@@ -150,8 +150,7 @@ private Q_SLOTS:
   void on_dep_steps_spinbox_editingFinished();
   void on_dep_range_spinbox_editingFinished();
   void on_request_scan_button_clicked();
-  void on_save_button_clicked();  
-  void on_viewing_threshold_spinbox_editingFinished();
+  void on_save_button_clicked();
   void on_view_raw_oct_button_clicked();  
   void on_calc_oct_surf_button_clicked();
   void on_view_left_image_button_clicked();
@@ -164,6 +163,10 @@ private Q_SLOTS:
   void on_view_oct_surf_button_clicked();
   void on_view_simple_overlay_button_clicked();
   void on_view_oct_vol_oct_surf_clicked();
+  void on_raw_min_vis_spinbox_editingFinished();
+  void on_raw_max_vis_spinbox_editingFinished();
+  void on_raw_min_vis_slider_valueChanged(int value);
+  void on_raw_max_vis_slider_valueChanged(int value);
 
   //------------QNODE CALLBACKS-------------------------------------------------
 
@@ -172,8 +175,23 @@ private Q_SLOTS:
   void receivedStereoData();
   void receivedRegistration();
 
+  void on_raw_min_vis_slider_sliderReleased();
 
-  Q_SIGNALS:
+  void on_raw_max_vis_slider_sliderReleased();
+
+  void on_over_min_vis_slider_valueChanged(int value);
+
+  void on_over_max_vis_slider_valueChanged(int value);
+
+  void on_over_min_vis_slider_sliderReleased();
+
+  void on_over_max_vis_slider_sliderReleased();
+
+  void on_over_min_vis_spinbox_editingFinished();
+
+  void on_over_max_vis_spinbox_editingFinished();
+
+Q_SIGNALS:
   void requestScan(OCTinfo);
   void requestSegmentation(OCTinfo);
   void requestRegistration();
@@ -185,7 +203,8 @@ private:
   FileManager* m_file_manager;
 
   //Controls minimum displayed intensity value when viewing raw OCT
-  uint8_t m_vis_threshold;
+  uint8_t m_min_vis_thresh;
+  uint8_t m_max_vis_thresh;
 
   //State booleans
   bool m_connected_to_master;
@@ -204,15 +223,10 @@ private:
   //Data structures
   vtkSmartPointer<vtkPolyData> m_oct_poly_data;
   vtkSmartPointer<vtkTransform> m_oct_stereo_trans;
-  //Filters
-  //vtkSmartPointer<vtkVertexGlyphFilter> m_vert_filter;
-  //vtkSmartPointer<vtkImageReslice> m_image_resize_filter;
-  //vtkSmartPointer<vtkTransformFilter> m_trans_filter;
-  //vtkSmartPointer<vtkDelaunay2D> m_delaunay_filter;
-  //Mappers
-  //vtkSmartPointer<vtkPolyDataMapper> m_poly_mapper;
-  //vtkSmartPointer<vtkPolyDataMapper> m_second_poly_mapper;
-  //vtkSmartPointer<vtkImageMapper> m_image_mapper;
+  //Actors
+  vtkSmartPointer<vtkActor> m_oct_vol_actor;
+  vtkSmartPointer<vtkActor> m_oct_surf_actor;
+  vtkSmartPointer<vtkActor2D> m_stereo_2d_actor;
   //Others
   vtkSmartPointer<vtkRenderer> m_renderer;
 
