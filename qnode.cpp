@@ -1,11 +1,5 @@
 #include "qnode.h"
 
-//============================================================================//
-//                                                                            //
-//  PUBLIC METHODS                                                            //
-//                                                                            //
-//============================================================================//
-
 
 QNode::QNode(int argc, char** argv ) : no_argc(argc), no_argv(argv)
 {
@@ -13,18 +7,17 @@ QNode::QNode(int argc, char** argv ) : no_argc(argc), no_argv(argv)
 	m_file_manager = new FileManager;
 }
 
-//------------------------------------------------------------------------------
 
 QNode::~QNode()
 {
 	stopCurrentNode();
 	m_shutdown = true;
 
-	//Tells the GUI that we're finished deconstructing everything
+	//Tells the GUI that we're finished deconstructing everything so it can kill
+	//our thread
 	Q_EMIT finished();
 }
 
-//------------------------------------------------------------------------------
 
 void QNode::connectToMaster()
 {
@@ -49,11 +42,12 @@ void QNode::connectToMaster()
 	this->setupSubscriptions();
 }
 
-//------------------------------------------------------------------------------
 
 void QNode::setupSubscriptions()
 {
+
 #ifndef AT_HOME
+
   m_oct_tcp_client = m_nh->
       serviceClient<oct_client::octClientServiceTCP>("oct_client_service_TCP");
 
@@ -63,7 +57,9 @@ void QNode::setupSubscriptions()
 
   m_registration_client = m_nh->serviceClient
       <OCT_registration::registrationService>("registration_service");
+
 #endif
+
   //Fetches the image topic names from the ROS param server, or uses the
   //default values (last arguments in the param calls)
   std::string topic_names[4];
@@ -77,9 +73,9 @@ void QNode::setupSubscriptions()
       "/stereomatching/depth_map");
   ROS_INFO("Topic names fetched");
 
-  //Swaps the current synchronizer object for nothing, effectively deleting the
-  //previous one. Since it needs to disconnect it's previous subscriptions, we
-  //need to run this, disconnecting them before they get deleted right below
+  //Deletes the current synchronizer object (if it exists). This needs to run
+  //before the lines below, where its old subscriptions (if they exist) are
+  //deleted
   m_synchronizer.reset();
 
   //Subscribes to all four image topics. We use message_filters here since
@@ -103,14 +99,13 @@ void QNode::setupSubscriptions()
       *m_right_image_sub, *m_disp_image_sub, *m_depth_image_sub));
 
   //Register which callback will receive the sync'd messages
-  m_synchronizer->registerCallback(boost::bind(
-      &QNode::imageCallback, this, _1, _2, _3, _4));
+  m_synchronizer->registerCallback(boost::bind(&QNode::imageCallback,
+                                               this, _1, _2, _3, _4));
 
   ROS_INFO("Topic subscription and synchronization completed");
 
 }
 
-//------------------------------------------------------------------------------
 
 void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
                           const sensor_msgs::ImageConstPtr &msg_right,
@@ -138,7 +133,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
   ROS_INFO("Image data fetched");
 
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr pts(
-        new pcl::PointCloud<pcl::PointXYZRGB>);
+                                         new pcl::PointCloud<pcl::PointXYZRGB>);
 
   //Build a PCL cloud out of the depth map
   uint32_t rows = depth_map.rows;
@@ -246,7 +241,6 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
   Q_EMIT receivedStereoData();
 }
 
-//------------------------------------------------------------------------------
 
 void QNode::stopCurrentNode()
 {
@@ -257,16 +251,12 @@ void QNode::stopCurrentNode()
     ros::shutdown();
     ros::waitForShutdown();
 
-    //Deletes the node handle manually, so it can be created again
+    //Deletes the node handle manually, so it can be created again whenever we
+    //find a new Master
     delete m_nh;
   }
 }
 
-//============================================================================//
-//                                                                            //
-//  PUBLIC Q_SLOTS                                                            //
-//                                                                            //
-//============================================================================//
 
 void QNode::process()
 {	
@@ -281,14 +271,14 @@ void QNode::process()
 
 		ros::spinOnce();
 
-		//Check for signals from main thread
+		//Check for signals
 		QCoreApplication::processEvents();
 
 		if(!ros::master::check())
 		{
 			stopCurrentNode();
 
-			//Updates the checkbox
+			//Updates the checkbox at Form
 			Q_EMIT rosMasterChanged(false);
 
 			connectToMaster();
@@ -296,13 +286,13 @@ void QNode::process()
 	}
 }
 
-//------------------------------------------------------------------------------
 
 void QNode::requestScan(OCTinfo params)
 {
     ROS_INFO("OCT scan requested");
 
 #ifndef AT_HOME
+
     oct_client::octClientServiceTCP octSrvMessage;
 
     octSrvMessage.request.x_steps = params.length_steps;
@@ -334,20 +324,22 @@ void QNode::requestScan(OCTinfo params)
 	else
 	{
 		ROS_WARN("Service does not exist!");
-    }
+	}
+
 #endif
 
-	//Emit this only after writeVector returned, so the file is closed
+	//Even if the call failed, emit this signal. Form will fail to read the vector
+	//but at least it won't wait indefinitely
 	Q_EMIT receivedOCTRawData(params);
 }
 
-//------------------------------------------------------------------------------
 
 void QNode::requestSegmentation(OCTinfo params)
 {
 	ROS_INFO("OCT surface segmentation requested");
 
 #ifndef AT_HOME
+
   std::vector<uint8_t> data;
   m_file_manager->readVector(OCT_RAW_CACHE_PATH, data);
 
@@ -385,9 +377,6 @@ void QNode::requestSegmentation(OCTinfo params)
       m_file_manager->writePCL(pts, OCT_SURF_CACHE_PATH);
 
       ROS_INFO("OCT surface segmentation completed");
-
-      //Lets the UI know that it can already pickup its PCL point cloud
-      Q_EMIT receivedOCTSurfData(params);
     }
     else
     {
@@ -398,33 +387,41 @@ void QNode::requestSegmentation(OCTinfo params)
   {
     ROS_WARN("Segmentation service does not exist!");
   }
+
 #else
+
   pcl::PointCloud<pcl::PointXYZ>::Ptr pts(
             new pcl::PointCloud<pcl::PointXYZ>);
 
-  pts->width = params.width_steps;
-  pts->height = params.length_steps;
+  //Determine the consecutive increments of the oct data
+  double length_incrm = params.length_range / params.length_steps;
+  double width_incrm = params.width_range / params.width_steps;
+
   pts->resize(params.width_steps * params.length_steps);
 
+  //Build a random surface
   int index = 0;
   for(int i = 0; i < params.length_steps; i++)
   {
     for(int j = 0; j < params.width_steps; j++, index++)
     {
-      pts->points[index].x = i;
-      pts->points[index].y = j;
-      pts->points[index].z = rand()%5;
+      pts->points[index].x = i*length_incrm;
+      pts->points[index].y = j*width_incrm;
+      pts->points[index].z = 0.001*(rand()%100)
+                             + 0.5*sin(3*3.141592*(1.0*i)/params.length_steps)
+                             + 0.6;
     }
   }
 
   m_file_manager->writePCL(pts, OCT_SURF_CACHE_PATH);
 
-  Q_EMIT receivedOCTSurfData(params);
 #endif
 
+	//Even if the call failed, emit this signal. Form will fail to read the file
+	//but at least it won't wait indefinitely
+	Q_EMIT receivedOCTSurfData(params);
 }
 
-//------------------------------------------------------------------------------
 
 void QNode::requestRegistration()
 {
@@ -445,6 +442,7 @@ void QNode::requestRegistration()
   pcl::toROSMsg(*oct_surface, oct_surface_msg);
 
 #ifndef AT_HOME
+
   //Create a service request message
   OCT_registration::registrationService registrationMessage;
   registrationMessage.request.registrationMatrixSavePath = VIS_TRANS_CACHE_PATH;
@@ -461,7 +459,6 @@ void QNode::requestRegistration()
         ROS_INFO("OCT surface to depth map registration completed");
 
         //Lets the UI know that it can already pickup its transform
-        Q_EMIT receivedRegistration();
       }
       else
       {
@@ -477,5 +474,10 @@ void QNode::requestRegistration()
   {
     ROS_WARN("Registration service does not exist!");
   }
+
 #endif
+
+	//Even if the call failed, emit this signal. Form will fail to read the file
+	//but at least it won't wait indefinitely
+	Q_EMIT receivedRegistration();
 }

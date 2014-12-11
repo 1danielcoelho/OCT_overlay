@@ -1,7 +1,8 @@
 #ifndef OCT_stereocamera_overlay_QNODE_HPP_
 #define OCT_stereocamera_overlay_QNODE_HPP_
 
-//#define AT_HOME
+//Allows me to test the program at home only changing this line
+#define AT_HOME
 
 //C, C++
 #include <iostream>
@@ -98,6 +99,23 @@ public:
 	//Kills subscriptions and the current node
 	void stopCurrentNode();
 
+public Q_SLOTS:
+	//Infinite execution loop
+	void process();
+
+	//Uses oct_client's service to request an OCT scan with the passed params.
+	//Writes the result to a cache file also known by Form
+	void requestScan(OCTinfo params);
+
+	//Uses the new OCT_segmentation service to perform surface segmentation
+	//Input is not only the passed params, but also a raw data vector read from
+	//a cache location also known by Form
+	void requestSegmentation(OCTinfo params);
+
+	//Uses OCT_registration's service to perform a stereocamera depth-map to oct
+	//surface registration. Both are read from cache locations also known by Form
+	void requestRegistration();
+
 Q_SIGNALS: //Same as 'signals'
 	void rosMasterChanged(bool);
 	void finished();
@@ -105,12 +123,6 @@ Q_SIGNALS: //Same as 'signals'
 	void receivedOCTSurfData(OCTinfo params);
 	void receivedStereoData();
 	void receivedRegistration();
-
-public Q_SLOTS:
-	void process();
-	void requestScan(OCTinfo params);
-	void requestSegmentation(OCTinfo params);
-	void requestRegistration();
 
 private:
 	ros::NodeHandle* m_nh;

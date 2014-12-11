@@ -1,20 +1,12 @@
 /*  TODO:
 *
-* -Split m_waiting_response into actual waiting response and "processing"
-*   -We should be able to change a greyscale range while we wait for
-*    a node, for example
-*
-* -Open an extra Qt window
-*
-* -Look for where they render video with openCV, try to understand it
-* 
-* -Try looking at peretti3d stuff, see if you can find samples from the 4 imgs
 *
 * */
 
 /* NEXT EXPERIMENT:
 * 
-* 
+* -Get the actual stereocamera node and look at the code for opening a window
+*  with live camera feed from left camera
 *
 * */
 
