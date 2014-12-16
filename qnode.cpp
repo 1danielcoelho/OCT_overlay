@@ -4,6 +4,7 @@
 QNode::QNode(int argc, char** argv ) : no_argc(argc), no_argv(argv)
 {
 	m_shutdown = false;
+    m_grabbed = false;
 	m_file_manager = new FileManager;
 }
 
@@ -112,6 +113,8 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
                           const sensor_msgs::ImageConstPtr &msg_disp,
                           const sensor_msgs::ImageConstPtr &msg_depth)
 {
+  if(m_grabbed) return;
+
   ROS_INFO("imageCallback called");
 
   cv::Mat image_left, image_right, disp_map, depth_map;
@@ -165,9 +168,9 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
   rows = image_left.rows;
   cols = image_left.cols;
   header.clear();
-  header.resize(8);
-  memcpy(&header[0],  &rows,  4*sizeof(uint8_t));
-  memcpy(&header[4],  &cols,  4*sizeof(uint8_t));
+  header.resize(2);
+  memcpy(&header[0],  &rows,  4);
+  memcpy(&header[1],  &cols,  4);
 
   //Populate the left vector with the raw data from the left image
   left.reserve(rows*cols);
@@ -191,9 +194,9 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
   rows = image_right.rows;
   cols = image_left.cols;
   header.clear();
-  header.resize(8);
-  memcpy(&header[0],  &rows,  4*sizeof(uint8_t));
-  memcpy(&header[4],  &cols,  4*sizeof(uint8_t));
+  header.resize(2);
+  memcpy(&header[0],  &rows,  4);
+  memcpy(&header[1],  &cols,  4);
 
   //Populate the right vector with the raw data from the right image
   right.reserve(rows*cols);
@@ -218,9 +221,9 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
   rows = disp_map.rows;
   cols = disp_map.cols;
   header.clear();
-  header.resize(8);
-  memcpy(&header[0],  &rows,  4*sizeof(uint8_t));
-  memcpy(&header[4],  &cols,  4*sizeof(uint8_t));
+  header.resize(2);
+  memcpy(&header[0],  &rows,  4);
+  memcpy(&header[1],  &cols,  4);
 
   //Populate displacement vector with the raw data from the disp map
   disp.reserve(rows*cols);
@@ -228,7 +231,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
   {
     for(uint32_t j = 0; j < cols; j++)
     {
-      disp.push_back(disp_map.at<float>(i,j));
+      disp.push_back(disp_map.at<uint32_t>(i,j));
     }
   }
 
@@ -239,6 +242,8 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
   ROS_INFO("Displacement map vector written");
 
   Q_EMIT receivedStereoData();
+
+  m_grabbed = true;
 }
 
 
@@ -264,7 +269,7 @@ void QNode::process()
 
 	while (!m_shutdown)
 	{
-		static ros::Rate loop_rate(1);
+        static ros::Rate loop_rate(1);
 		loop_rate.sleep();
 
 		//ROS_INFO("Executing");

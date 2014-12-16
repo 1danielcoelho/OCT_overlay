@@ -91,12 +91,13 @@ Form::Form(int argc, char** argv, QWidget *parent) :
   m_oct_surf_actor = vtkSmartPointer<vtkActor>::New();
   m_oct_mass_actor = vtkSmartPointer<vtkActor>::New();
   m_stereo_2d_actor = vtkSmartPointer<vtkActor2D>::New();
+  m_stereo_depth_actor = vtkSmartPointer<vtkActor>::New();
   //Others
   m_renderer = vtkSmartPointer<vtkRenderer>::New();
 
   //A non-black background allows us to see datapoints with scalar value 0
   m_renderer->SetBackground(0, 0, 0.1);
-  m_renderer->SetBackground2(0, 0, 0.2);
+  m_renderer->SetBackground2(0, 0, 0.05);
   m_renderer->SetGradientBackground(1);
 
   //Adds our renderer to the QVTK widget
@@ -343,7 +344,6 @@ void Form::loadPCLCacheToPolyData(const char* file_path,
   //Points have color component
   else if (file_path == STEREO_DEPTH_CACHE_PATH)
   {
-
     this->statusBar()->showMessage("Reading depth map PCL cache... ");
     QApplication::processEvents();
 
@@ -386,6 +386,9 @@ void Form::loadPCLCacheToPolyData(const char* file_path,
     cloud_poly_data->SetPoints(points);
     cloud_poly_data->GetPointData()->SetScalars(data_array);
 
+    std::cout << "\n\n=========================================\ncloud_poly_data:\n";
+    cloud_poly_data->Print(std::cout);
+
     this->statusBar()->showMessage("Building depth map vtkPolyData... done!");
     QApplication::processEvents();
   }
@@ -400,36 +403,76 @@ void Form::loadPCLCacheToPolyData(const char* file_path,
 void Form::load2DVectorCacheToImageData(const char* file_path,
                                        vtkSmartPointer<vtkImageData> image_data)
 {
-  std::vector<uint32_t> data;
-
-  //Read the entire file
-  m_file_manager->readVector(file_path, data);
-
-  //Parse the first 8 bytes to determine dimensions
-  uint32_t rows, cols;
-  memcpy(&rows,  &data[0],  4);
-  memcpy(&cols,  &data[1],  4);
-
-  image_data->SetDimensions(cols, rows, 1);
-  image_data->SetNumberOfScalarComponents(3);
-  image_data->SetScalarTypeToUnsignedChar();
-  image_data->AllocateScalars();
-
-  uint32_t val;
-  for(uint32_t y = 0; y < rows; y++)
-  {
-    for(uint32_t x = 0; x < cols; x++)
+    if(file_path == STEREO_DISP_CACHE_PATH)
     {
-      unsigned char* pixel = static_cast<unsigned char*>
-                             (image_data->GetScalarPointer(x, y, 0));
+        std::vector<uint32_t> data;
 
-      //The two first uint32_t are the header
-      val = data[x + y*cols + 2];
-      memcpy(&pixel[0],  &val,  3*sizeof(uint8_t));
+        //Read the entire file
+        m_file_manager->readVector(file_path, data);
+
+        //Parse the first 8 bytes to determine dimensions
+        uint32_t rows, cols;
+        memcpy(&rows,  &data[0],  4);
+        memcpy(&cols,  &data[1],  4);
+
+        image_data->SetDimensions(cols, rows, 1);
+        image_data->SetNumberOfScalarComponents(1);
+        image_data->SetScalarTypeToUnsignedChar();
+        image_data->AllocateScalars();
+
+        uint32_t val;
+        for(uint32_t y = 0; y < rows; y++)
+        {
+            for(uint32_t x = 0; x < cols; x++)
+            {
+                //We need to invert the vertical coordinate since we use different origins
+                unsigned char* pixel = static_cast<unsigned char*>
+                        (image_data->GetScalarPointer(x, (rows-1)-y, 0));
+
+                //The two first uint32_t are the header
+                val = ((1.0*data[x + y*cols + 2])/((1 << 32)-1.0)) * 1.0*((1 << 8)-1);
+                std::cout << (unsigned int) val << "\n";
+                memcpy(&pixel[0],  &val,  1);
+            }
+        }
+
+        image_data->Modified();
     }
-  }
+    else
+    {
+        std::vector<uint32_t> data;
 
-  image_data->Modified();
+        //Read the entire file
+        m_file_manager->readVector(file_path, data);
+
+        //Parse the first 8 bytes to determine dimensions
+        uint32_t rows, cols;
+        memcpy(&rows,  &data[0],  4);
+        memcpy(&cols,  &data[1],  4);
+
+        image_data->SetDimensions(cols, rows, 1);
+        image_data->SetNumberOfScalarComponents(3);
+        image_data->SetScalarTypeToUnsignedChar();
+        image_data->AllocateScalars();
+
+        uint32_t val;
+        for(uint32_t y = 0; y < rows; y++)
+        {
+            for(uint32_t x = 0; x < cols; x++)
+            {
+                //We need to invert the vertical coordinate since we use different origins
+                unsigned char* pixel = static_cast<unsigned char*>
+                        (image_data->GetScalarPointer(x, (rows-1)-y, 0));
+
+                //The two first uint32_t are the header
+                val = data[x + y*cols + 2];
+                memcpy(&pixel[0],  &val,  3*sizeof(uint8_t));
+            }
+        }
+
+        image_data->Modified();
+    }
+
 }
 
 //------------PROCESSING--------------------------------------------------------
@@ -760,12 +803,15 @@ void Form::renderPolyDataSurface(vtkSmartPointer<vtkPolyData> cloud_poly_data,
     return;
   }
 
-  VTK_NEW(vtkDelaunay2D, delaunay_filter);
-  delaunay_filter->SetInput(cloud_poly_data);
-  delaunay_filter->SetTolerance(0.001);
+//  VTK_NEW(vtkDelaunay2D, delaunay_filter);
+//  delaunay_filter->SetInput(cloud_poly_data);
+//  delaunay_filter->SetTolerance(0.001);
+
+  VTK_NEW(vtkVertexGlyphFilter, vert_filter);
+  vert_filter->SetInput(cloud_poly_data);
 
   VTK_NEW(vtkPolyDataMapper, mapper);
-  mapper->SetInputConnection(delaunay_filter->GetOutputPort());
+  mapper->SetInputConnection(vert_filter->GetOutputPort());
 
   actor->SetMapper(mapper);
 

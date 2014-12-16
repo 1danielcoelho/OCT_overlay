@@ -2,7 +2,7 @@
 #define OCT_stereocamera_overlay_QNODE_HPP_
 
 //Allows me to test the program at home only changing this line
-#define AT_HOME
+//#define AT_HOME
 
 //C, C++
 #include <iostream>
@@ -137,6 +137,9 @@ private:
 
 	//Turns true when its time to shutdown
 	bool m_shutdown;
+
+    //Placeholder variable to just grab 1 set of published images
+    bool m_grabbed;
 
 	boost::shared_ptr<message_filters::Subscriber<sensor_msgs::Image> >
 			m_left_image_sub;

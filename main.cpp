@@ -1,5 +1,9 @@
 /*  TODO:
 *
+* -Have things checked in Overlay tab -> Request new segmentation -> Go back to
+*  overlay tab and things are still checked
+*
+* -Invert x and y coordinates correctly before sending to OCT_registration
 *
 * */
 
@@ -15,7 +19,14 @@
 *
 * -Needed to add the correct export tags on OCT_seg and reg's manifest files
 *
-* 
+* -LED light circle to 9 and 12 volts, power supply disconnected
+*
+* -stereomathing_SOMIKON.launch -> visualizationOn to true, should also publish
+*
+* -Change brightness/contrast with dynamic reconfigure
+*
+* -Use Smaract_Jog_Mode/Jog_Mode/Jog_Mode.pro -> run executable -> Connect ->
+*  -> Enc. nullen -> 34 mm -> GO !
 *
 */
 
