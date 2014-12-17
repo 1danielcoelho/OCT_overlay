@@ -1,127 +1,123 @@
 #include "qnode.h"
 
+QNode::QNode(int argc, char **argv) : no_argc(argc), no_argv(argv) {
+  m_shutdown = false;
+  m_file_manager = new FileManager;
 
-QNode::QNode(int argc, char** argv ) : no_argc(argc), no_argv(argv)
-{
-	m_shutdown = false;
-    m_grabbed = false;
-	m_file_manager = new FileManager;
+  m_left_accu_size = 1;
+  m_depth_accu_size = 1;
 }
 
+QNode::~QNode() {
+  stopCurrentNode();
+  m_shutdown = true;
 
-QNode::~QNode()
-{
-	stopCurrentNode();
-	m_shutdown = true;
-
-	//Tells the GUI that we're finished deconstructing everything so it can kill
-	//our thread
-	Q_EMIT finished();
+  // Tells the GUI that we're finished deconstructing everything so it can kill
+  // our thread
+  Q_EMIT finished();
 }
 
+void QNode::connectToMaster() {
+  ros::init(no_argc, no_argv, "OCT_overlay");
 
-void QNode::connectToMaster()
-{
-  ros::init(no_argc,no_argv,"OCT_overlay");
-
-  while(!ros::master::check())
-  {
-    if(m_shutdown) return;
+  while (!ros::master::check()) {
+    if (m_shutdown) return;
   }
 
   ROS_INFO("Connected to the Master node");
 
-  //This needs to be called before a node is created to prevent ros from
-  //permanently shutting us down after said node is explicitly deleted
+  // This needs to be called before a node is created to prevent ros from
+  // permanently shutting us down after said node is explicitly deleted
   ros::start();
 
-	//Signal the UI that Master has connected
-	Q_EMIT rosMasterChanged(true);
+  // Signal the UI that Master has connected
+  Q_EMIT rosMasterChanged(true);
 
-	m_nh = new ros::NodeHandle;
+  m_nh = new ros::NodeHandle;
 
-	this->setupSubscriptions();
+  this->setupSubscriptions();
 }
 
-
-void QNode::setupSubscriptions()
-{
+void QNode::setupSubscriptions() {
 
 #ifndef AT_HOME
 
-  m_oct_tcp_client = m_nh->
-      serviceClient<oct_client::octClientServiceTCP>("oct_client_service_TCP");
+  m_oct_tcp_client = m_nh->serviceClient<oct_client::octClientServiceTCP>(
+      "oct_client_service_TCP");
 
-  m_segmentation_client = m_nh->serviceClient
-      <OCT_segmentation::segmentationServiceFromDataArray>
-      ("segmentation_service_from_data_array");
+  m_segmentation_client =
+      m_nh->serviceClient<OCT_segmentation::segmentationServiceFromDataArray>(
+          "segmentation_service_from_data_array");
 
-  m_registration_client = m_nh->serviceClient
-      <OCT_registration::registrationService>("registration_service");
+  m_registration_client =
+      m_nh->serviceClient<OCT_registration::registrationService>(
+          "registration_service");
 
 #endif
 
-  //Fetches the image topic names from the ROS param server, or uses the
-  //default values (last arguments in the param calls)
+  // Fetches the image topic names from the ROS param server, or uses the
+  // default values (last arguments in the param calls)
   std::string topic_names[4];
   m_nh->param<std::string>("leftImageTopicName", topic_names[0],
-      "/stereomatching/image_left");
+                           "/stereomatching/image_left");
   m_nh->param<std::string>("rightImageTopicName", topic_names[1],
-      "/stereomatching/image_right");
+                           "/stereomatching/image_right");
   m_nh->param<std::string>("dispImageTopicName", topic_names[2],
-      "/stereomatching/disparity_map");
+                           "/stereomatching/disparity_map");
   m_nh->param<std::string>("depthImageTopicName", topic_names[3],
-      "/stereomatching/depth_map");
+                           "/stereomatching/depth_map");
   ROS_INFO("Topic names fetched");
 
-  //Deletes the current synchronizer object (if it exists). This needs to run
-  //before the lines below, where its old subscriptions (if they exist) are
-  //deleted
+  // Deletes the current synchronizer object (if it exists). This needs to run
+  // before the lines below, where its old subscriptions (if they exist) are
+  // deleted
   m_synchronizer.reset();
 
-  //Subscribes to all four image topics. We use message_filters here since
-  //the messages published to these topics will come at slightly different
-  //time points. Last param is queue size
-  m_left_image_sub.reset( new
-  message_filters::Subscriber<sensor_msgs::Image>(*m_nh, topic_names[0], 1));
-  m_right_image_sub.reset( new
-  message_filters::Subscriber<sensor_msgs::Image>(*m_nh, topic_names[1], 1));
-  m_disp_image_sub.reset( new
-  message_filters::Subscriber<sensor_msgs::Image>(*m_nh, topic_names[2], 1));
-  m_depth_image_sub.reset( new
-  message_filters::Subscriber<sensor_msgs::Image>(*m_nh, topic_names[3], 1));
+  // Subscribes to all four image topics. We use message_filters here since
+  // the messages published to these topics will come at slightly different
+  // time points. Last param is queue size
+  m_left_image_sub.reset(new message_filters::Subscriber<sensor_msgs::Image>(
+      *m_nh, topic_names[0], 1));
+  m_right_image_sub.reset(new message_filters::Subscriber<sensor_msgs::Image>(
+      *m_nh, topic_names[1], 1));
+  m_disp_image_sub.reset(new message_filters::Subscriber<sensor_msgs::Image>(
+      *m_nh, topic_names[2], 1));
+  m_depth_image_sub.reset(new message_filters::Subscriber<sensor_msgs::Image>(
+      *m_nh, topic_names[3], 1));
 
-  //Using the policy typedef'd in the header file, we approximate the
-  //message publish time instants and produce a single callback for all
-  //of them. syncPolicy takes a queue size as its constructor argument,
-  //which we need to be 4 to hold all four images before syncing
-  m_synchronizer.reset( new
-  message_filters::Synchronizer<myPolicyType>(myPolicyType(4),*m_left_image_sub,
-      *m_right_image_sub, *m_disp_image_sub, *m_depth_image_sub));
+  // Using the policy typedef'd in the header file, we approximate the
+  // message publish time instants and produce a single callback for all
+  // of them. syncPolicy takes a queue size as its constructor argument,
+  // which we need to be 4 to hold all four images before syncing
+  m_synchronizer.reset(new message_filters::Synchronizer<myPolicyType>(
+      myPolicyType(4), *m_left_image_sub, *m_right_image_sub, *m_disp_image_sub,
+      *m_depth_image_sub));
 
-  //Register which callback will receive the sync'd messages
-  m_synchronizer->registerCallback(boost::bind(&QNode::imageCallback,
-                                               this, _1, _2, _3, _4));
+  // Register which callback will receive the sync'd messages
+  m_synchronizer->registerCallback(
+      boost::bind(&QNode::imageCallback, this, _1, _2, _3, _4));
+
+  // Initialize the accumulator matrices with camera dimensions
+  resetAccumulators();
 
   ROS_INFO("Topic subscription and synchronization completed");
 
 }
 
-
 void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
                           const sensor_msgs::ImageConstPtr &msg_right,
                           const sensor_msgs::ImageConstPtr &msg_disp,
-                          const sensor_msgs::ImageConstPtr &msg_depth)
-{
-  if(m_grabbed) return;
+                          const sensor_msgs::ImageConstPtr &msg_depth) {
 
   ROS_INFO("imageCallback called");
 
   cv::Mat image_left, image_right, disp_map, depth_map;
+  std::vector<uint32_t> left, right, disp, header;
+  uint32_t rows, cols;
 
-  //cv_bridges convert between ROS image messages and opencv images.
-  //Here, we create cv images from ROS image messages by doing a deep
-  //copy of the ROS image data and returning a mutable object
+  // cv_bridges convert between ROS image messages and opencv images.
+  // Here, we create cv images from ROS image messages by doing a deep
+  // copy of the ROS image data and returning a mutable object
   m_cv_image_ptr = cv_bridge::toCvCopy(msg_left, enc::RGB8);
   image_left = m_cv_image_ptr->image;
   m_cv_image_ptr = cv_bridge::toCvCopy(msg_right, enc::RGB8);
@@ -135,213 +131,224 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
 
   ROS_INFO("Image data fetched");
 
-  pcl::PointCloud<pcl::PointXYZRGB>::Ptr pts(
-                                         new pcl::PointCloud<pcl::PointXYZRGB>);
-
-  //Build a PCL cloud out of the depth map
-  uint32_t rows = depth_map.rows;
-  uint32_t cols = depth_map.cols;
-  for (uint32_t idx = 0; idx < cols; idx++)
-  {
-    for (uint32_t idy = 0; idy < rows; idy++)
-    {
-      pcl::PointXYZRGB point;
-      point.x = depth_map.at<cv::Vec3f>(idy,idx)[0];
-      point.y = depth_map.at<cv::Vec3f>(idy,idx)[1];
-      point.z = depth_map.at<cv::Vec3f>(idy,idx)[2];
-      uint32_t rgb = (image_left.at<cv::Vec3b>(idy,idx)[0] << 16 |
-                      image_left.at<cv::Vec3b>(idy,idx)[1] << 8 |
-                      image_left.at<cv::Vec3b>(idy,idx)[2]);
-      point.rgb = *reinterpret_cast<float*>(&rgb);
-      pts->points.push_back(point);
-    }
+  if (m_left_accu_count < m_left_accu_size) {
+    cv::accumulate(image_left, m_left_accu);
+    m_left_accu_count++;
   }
 
-  //Write PCL cloud to disk
-  m_file_manager->writePCL(pts, STEREO_DEPTH_CACHE_PATH);
+  if (m_left_accu_count == m_left_accu_size) {
+    // Make sure we only come back here if we reset the accumulator
+    m_left_accu_count++;
 
-  ROS_INFO("Depth map PCL cloud written");
+    m_left_accu /= m_left_accu_size;
 
-  std::vector<uint32_t> left, right, disp, header;
+    // Populate header with information about the left image dimensions
+    rows = m_left_accu.rows;
+    cols = m_left_accu.cols;
+    header.clear();
+    header.resize(2);
+    memcpy(&header[0], &rows, 4);
+    memcpy(&header[1], &cols, 4);
 
-  //Populate header with information about the left image dimensions
-  rows = image_left.rows;
-  cols = image_left.cols;
-  header.clear();
-  header.resize(2);
-  memcpy(&header[0],  &rows,  4);
-  memcpy(&header[1],  &cols,  4);
-
-  //Populate the left vector with the raw data from the left image
-  left.reserve(rows*cols);
-  for(uint32_t i = 0; i < rows; i++)
-  {
-    for(uint32_t j = 0; j < cols; j++)
-    {
-      left.push_back(image_left.at<cv::Vec3b>(i,j)[0] << 16 |
-                     image_left.at<cv::Vec3b>(i,j)[1] << 8 |
-                     image_left.at<cv::Vec3b>(i,j)[2]);
+    // Populate the left vector with the raw data from the left image
+    left.reserve(rows * cols);
+    for (uint32_t i = 0; i < rows; i++) {
+      for (uint32_t j = 0; j < cols; j++) {
+        left.push_back(m_left_accu.at<cv::Vec3b>(i, j)[0] << 16 |
+                       m_left_accu.at<cv::Vec3b>(i, j)[1] << 8 |
+                       m_left_accu.at<cv::Vec3b>(i, j)[2]);
+      }
     }
+
+    // Write the header and append the vector to the same file
+    m_file_manager->writeVector(header, STEREO_LEFT_CACHE_PATH, false);
+    m_file_manager->writeVector(left, STEREO_LEFT_CACHE_PATH, true);
+
+    ROS_INFO("Left image vector written");
+
+    Q_EMIT receivedLeftImage();
   }
 
-  //Write the header and append the vector to the same file
-  m_file_manager->writeVector(header, STEREO_LEFT_CACHE_PATH, false);
-  m_file_manager->writeVector(left, STEREO_LEFT_CACHE_PATH, true);
+  if (m_right_img_count == 0) {
+    m_right_img_count++;
 
-  ROS_INFO("Left image vector written");
+    // Populate header with information about the right image dimensions
+    rows = image_right.rows;
+    cols = image_left.cols;
+    header.clear();
+    header.resize(2);
+    memcpy(&header[0], &rows, 4);
+    memcpy(&header[1], &cols, 4);
 
-  //Populate header with information about the right image dimensions
-  rows = image_right.rows;
-  cols = image_left.cols;
-  header.clear();
-  header.resize(2);
-  memcpy(&header[0],  &rows,  4);
-  memcpy(&header[1],  &cols,  4);
-
-  //Populate the right vector with the raw data from the right image
-  right.reserve(rows*cols);
-  for(uint32_t i = 0; i < rows; i++)
-  {
-    for(uint32_t j = 0; j < cols; j++)
-    {
-      //Assembles a BGR 32bit int
-      right.push_back(image_right.at<cv::Vec3b>(i,j)[0] << 16 |
-                      image_right.at<cv::Vec3b>(i,j)[1] << 8 |
-                      image_right.at<cv::Vec3b>(i,j)[2]);
+    // Populate the right vector with the raw data from the right image
+    right.reserve(rows * cols);
+    for (uint32_t i = 0; i < rows; i++) {
+      for (uint32_t j = 0; j < cols; j++) {
+        // Assembles a BGR 32bit int
+        right.push_back(image_right.at<cv::Vec3b>(i, j)[0] << 16 |
+                        image_right.at<cv::Vec3b>(i, j)[1] << 8 |
+                        image_right.at<cv::Vec3b>(i, j)[2]);
+      }
     }
+
+    // Write the header and append the vector to the same file
+    m_file_manager->writeVector(header, STEREO_RIGHT_CACHE_PATH, false);
+    m_file_manager->writeVector(right, STEREO_RIGHT_CACHE_PATH, true);
+
+    ROS_INFO("Right image vector written");
+
+    Q_EMIT receivedRightImage();
   }
 
-  //Write the header and append the vector to the same file
-  m_file_manager->writeVector(header, STEREO_RIGHT_CACHE_PATH, false);
-  m_file_manager->writeVector(right, STEREO_RIGHT_CACHE_PATH, true);
+  if (m_disp_img_count == 0) {
+    m_disp_img_count++;
 
-  ROS_INFO("Right image vector written");
+    // Populate header with information about the displacement image dimensions
+    rows = disp_map.rows;
+    cols = disp_map.cols;
+    header.clear();
+    header.resize(2);
+    memcpy(&header[0], &rows, 4);
+    memcpy(&header[1], &cols, 4);
 
-  //Populate header with information about the displacement image dimensions
-  rows = disp_map.rows;
-  cols = disp_map.cols;
-  header.clear();
-  header.resize(2);
-  memcpy(&header[0],  &rows,  4);
-  memcpy(&header[1],  &cols,  4);
-
-  //Populate displacement vector with the raw data from the disp map
-  disp.reserve(rows*cols);
-  for(uint32_t i = 0; i < rows; i++)
-  {
-    for(uint32_t j = 0; j < cols; j++)
-    {
-      disp.push_back(disp_map.at<uint32_t>(i,j));
+    // Populate displacement vector with the raw data from the disp map
+    disp.reserve(rows * cols);
+    for (uint32_t i = 0; i < rows; i++) {
+      for (uint32_t j = 0; j < cols; j++) {
+        disp.push_back(disp_map.at<uint32_t>(i, j));
+      }
     }
+
+    // Write the header and append the vector to the same file
+    m_file_manager->writeVector(header, STEREO_DISP_CACHE_PATH, false);
+    m_file_manager->writeVector(disp, STEREO_DISP_CACHE_PATH, true);
+
+    ROS_INFO("Displacement map vector written");
+
+    Q_EMIT receivedDispImage();
   }
 
-  //Write the header and append the vector to the same file
-  m_file_manager->writeVector(header, STEREO_DISP_CACHE_PATH, false);
-  m_file_manager->writeVector(disp, STEREO_DISP_CACHE_PATH, true);
+  if (m_depth_accu_count < m_depth_accu_size) {
+    cv::accumulate(depth_map, m_depth_accu);
+    m_depth_accu_count++;
+  }
 
-  ROS_INFO("Displacement map vector written");
+  if (m_depth_accu_count == m_depth_accu_size &&
+      m_left_accu_count > m_left_accu_size) { //We need the left accu ready
+    m_depth_accu /= m_depth_accu_size;
 
-  Q_EMIT receivedStereoData();
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr pts(
+        new pcl::PointCloud<pcl::PointXYZRGB>);
 
-  m_grabbed = true;
+    // Build a PCL cloud out of the depth map
+    rows = m_depth_accu.rows;
+    cols = m_depth_accu.cols;
+    for (uint32_t idx = 0; idx < cols; idx++) {
+      for (uint32_t idy = 0; idy < rows; idy++) {
+        pcl::PointXYZRGB point;
+        point.x = m_depth_accu.at<cv::Vec3f>(idy, idx)[0];
+        point.y = m_depth_accu.at<cv::Vec3f>(idy, idx)[1];
+        point.z = m_depth_accu.at<cv::Vec3f>(idy, idx)[2];
+        uint32_t rgb = (m_left_accu.at<cv::Vec3b>(idy, idx)[0] << 16 |
+                        m_left_accu.at<cv::Vec3b>(idy, idx)[1] << 8 |
+                        m_left_accu.at<cv::Vec3b>(idy, idx)[2]);
+        point.rgb = *reinterpret_cast<float *>(&rgb);
+        pts->points.push_back(point);
+      }
+    }
+
+    // Write PCL cloud to disk
+    m_file_manager->writePCL(pts, STEREO_DEPTH_CACHE_PATH);
+
+    ROS_INFO("Depth map PCL cloud written");
+
+    Q_EMIT receivedDepthImage();
+  }
 }
 
-
-void QNode::stopCurrentNode()
-{
+void QNode::stopCurrentNode() {
   ROS_INFO("Stopping current ROS node");
 
-  if(ros::isStarted())
-  {
+  if (ros::isStarted()) {
     ros::shutdown();
     ros::waitForShutdown();
 
-    //Deletes the node handle manually, so it can be created again whenever we
-    //find a new Master
+    // Deletes the node handle manually, so it can be created again whenever we
+    // find a new Master
     delete m_nh;
+
+    m_left_accu.release();
+    m_depth_accu.release();
   }
 }
 
+void QNode::process() {
+  connectToMaster();
 
-void QNode::process()
-{	
-	connectToMaster();
+  while (!m_shutdown) {
+    static ros::Rate loop_rate(1);
+    loop_rate.sleep();
 
-	while (!m_shutdown)
-	{
-        static ros::Rate loop_rate(1);
-		loop_rate.sleep();
+    // ROS_INFO("Executing");
 
-		//ROS_INFO("Executing");
+    ros::spinOnce();
 
-		ros::spinOnce();
+    // Check for signals
+    QCoreApplication::processEvents();
 
-		//Check for signals
-		QCoreApplication::processEvents();
+    if (!ros::master::check()) {
+      stopCurrentNode();
 
-		if(!ros::master::check())
-		{
-			stopCurrentNode();
+      // Updates the checkbox at Form
+      Q_EMIT rosMasterChanged(false);
 
-			//Updates the checkbox at Form
-			Q_EMIT rosMasterChanged(false);
-
-			connectToMaster();
-		}		
-	}
+      connectToMaster();
+    }
+  }
 }
 
-
-void QNode::requestScan(OCTinfo params)
-{
-    ROS_INFO("OCT scan requested");
+void QNode::requestScan(OCTinfo params) {
+  ROS_INFO("OCT scan requested");
 
 #ifndef AT_HOME
 
-    oct_client::octClientServiceTCP octSrvMessage;
+  oct_client::octClientServiceTCP octSrvMessage;
 
-    octSrvMessage.request.x_steps = params.length_steps;
-    octSrvMessage.request.y_steps = params.width_steps;
-    octSrvMessage.request.z_steps = params.depth_steps;
+  octSrvMessage.request.x_steps = params.length_steps;
+  octSrvMessage.request.y_steps = params.width_steps;
+  octSrvMessage.request.z_steps = params.depth_steps;
 
-    octSrvMessage.request.x_range = params.length_range;
-    octSrvMessage.request.y_range = params.width_range;
-    octSrvMessage.request.z_range = params.depth_range;
+  octSrvMessage.request.x_range = params.length_range;
+  octSrvMessage.request.y_range = params.width_range;
+  octSrvMessage.request.z_range = params.depth_range;
 
-    octSrvMessage.request.x_offset = params.length_offset;
-    octSrvMessage.request.y_offset = params.width_offset;
+  octSrvMessage.request.x_offset = params.length_offset;
+  octSrvMessage.request.y_offset = params.width_offset;
 
-	if(m_oct_tcp_client.exists())
-	{
-		if(m_oct_tcp_client.call(octSrvMessage))
-        {
-            m_file_manager->writeVector(octSrvMessage.response.octImage.data,
-                                        OCT_RAW_CACHE_PATH);
+  if (m_oct_tcp_client.exists()) {
+    if (m_oct_tcp_client.call(octSrvMessage)) {
+      m_file_manager->writeVector(octSrvMessage.response.octImage.data,
+                                  OCT_RAW_CACHE_PATH);
 
-            ROS_INFO("OCT scan completed");
+      ROS_INFO("OCT scan completed");
 
-		}
-		else
-		{
-			ROS_WARN("Call to service failed!");
-		}
-	}
-	else
-	{
-		ROS_WARN("Service does not exist!");
-	}
+    } else {
+      ROS_WARN("Call to service failed!");
+    }
+  } else {
+    ROS_WARN("Service does not exist!");
+  }
 
 #endif
 
-	//Even if the call failed, emit this signal. Form will fail to read the vector
-	//but at least it won't wait indefinitely
-	Q_EMIT receivedOCTRawData(params);
+  // Even if the call failed, emit this signal. Form will fail to read the
+  // vector
+  // but at least it won't wait indefinitely
+  Q_EMIT receivedOCTRawData(params);
 }
 
-
-void QNode::requestSegmentation(OCTinfo params)
-{
-	ROS_INFO("OCT surface segmentation requested");
+void QNode::requestSegmentation(OCTinfo params) {
+  ROS_INFO("OCT surface segmentation requested");
 
 #ifndef AT_HOME
 
@@ -349,30 +356,30 @@ void QNode::requestSegmentation(OCTinfo params)
   m_file_manager->readVector(OCT_RAW_CACHE_PATH, data);
 
   //.imgs created by the Thorlabs software don't create a depth range since
-  //the axial resolution is fixed. In that case it would be zero, so we fix it
-  if(params.depth_range == 0)
-  {
-      params.depth_range = params.depth_steps/1024.0*2.762;
+  // the axial resolution is fixed. In that case it would be zero, so we fix it
+  if (params.depth_range == 0) {
+    params.depth_range = params.depth_steps / 1024.0 * 2.762;
   }
 
-  //Pack params and raw_data into a segmentationServerFromDataArray srv request
+  // Pack params and raw_data into a segmentationServerFromDataArray srv request
   OCT_segmentation::segmentationServiceFromDataArray segmentationMessage;
   segmentationMessage.request.length_steps = params.width_steps;
+
+  // Inverted length and range. For some reason these are necessary
   segmentationMessage.request.width_steps = params.length_steps;
   segmentationMessage.request.depth_steps = params.depth_steps;
-  segmentationMessage.request.length_range = params.width_range; //INVERTED LENGTH AND WITDH
+  segmentationMessage.request.length_range = params.width_range;
   segmentationMessage.request.width_range = params.length_range;
+
   segmentationMessage.request.depth_range = params.depth_range;
   segmentationMessage.request.length_offset = params.width_offset;
   segmentationMessage.request.width_offset = params.length_offset;
   segmentationMessage.request.data.swap(data);
 
-  if(m_segmentation_client.exists())
-  {
-    if(m_segmentation_client.call(segmentationMessage))
-    {
+  if (m_segmentation_client.exists()) {
+    if (m_segmentation_client.call(segmentationMessage)) {
       pcl::PointCloud<pcl::PointXYZ>::Ptr pts(
-            new pcl::PointCloud<pcl::PointXYZ>);
+          new pcl::PointCloud<pcl::PointXYZ>);
 
       const sensor_msgs::PointCloud2 pclMessage =
           segmentationMessage.response.pclSurface;
@@ -382,39 +389,32 @@ void QNode::requestSegmentation(OCTinfo params)
       m_file_manager->writePCL(pts, OCT_SURF_CACHE_PATH);
 
       ROS_INFO("OCT surface segmentation completed");
-    }
-    else
-    {
+    } else {
       ROS_WARN("Call to segmentation service failed!");
     }
-  }
-  else
-  {
+  } else {
     ROS_WARN("Segmentation service does not exist!");
   }
 
 #else
 
-  pcl::PointCloud<pcl::PointXYZ>::Ptr pts(
-            new pcl::PointCloud<pcl::PointXYZ>);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr pts(new pcl::PointCloud<pcl::PointXYZ>);
 
-  //Determine the consecutive increments of the oct data
+  // Determine the consecutive increments of the oct data
   double length_incrm = params.length_range / params.length_steps;
   double width_incrm = params.width_range / params.width_steps;
 
   pts->resize(params.width_steps * params.length_steps);
 
-  //Build a random surface
+  // Build a random surface
   int index = 0;
-  for(int i = 0; i < params.length_steps; i++)
-  {
-    for(int j = 0; j < params.width_steps; j++, index++)
-    {
-      pts->points[index].x = i*length_incrm;
-      pts->points[index].y = j*width_incrm;
-      pts->points[index].z = 0.001*(rand()%100)
-                             + 0.5*sin(3*3.141592*(1.0*i)/params.length_steps)
-                             + 0.6;
+  for (int i = 0; i < params.length_steps; i++) {
+    for (int j = 0; j < params.width_steps; j++, index++) {
+      pts->points[index].x = i * length_incrm;
+      pts->points[index].y = j * width_incrm;
+      pts->points[index].z =
+          0.001 * (rand() % 100) +
+          0.5 * sin(3 * 3.141592 * (1.0 * i) / params.length_steps) + 0.6;
     }
   }
 
@@ -422,24 +422,22 @@ void QNode::requestSegmentation(OCTinfo params)
 
 #endif
 
-	//Even if the call failed, emit this signal. Form will fail to read the file
-	//but at least it won't wait indefinitely
-	Q_EMIT receivedOCTSurfData(params);
+  // Even if the call failed, emit this signal. Form will fail to read the file
+  // but at least it won't wait indefinitely
+  Q_EMIT receivedOCTSurfData(params);
 }
 
-
-void QNode::requestRegistration()
-{
+void QNode::requestRegistration() {
   ROS_INFO("OCT surface to depth map registration requested");
 
-  //Read Depth map as PCL and build a sensor_msgs::Image with it
+  // Read Depth map as PCL and build a sensor_msgs::Image with it
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr depth_map_pcl(
       new pcl::PointCloud<pcl::PointXYZRGB>);
   m_file_manager->readPCL(STEREO_DEPTH_CACHE_PATH, depth_map_pcl);
   sensor_msgs::Image depth_map_msg;
   pcl::toROSMsg(*depth_map_pcl, depth_map_msg);
 
-  //Read OCT surface PCL and create a PointCloud2 with it
+  // Read OCT surface PCL and create a PointCloud2 with it
   pcl::PointCloud<pcl::PointXYZ>::Ptr oct_surface(
       new pcl::PointCloud<pcl::PointXYZ>);
   m_file_manager->readPCL(OCT_SURF_CACHE_PATH, oct_surface);
@@ -448,41 +446,81 @@ void QNode::requestRegistration()
 
 #ifndef AT_HOME
 
-  //Create a service request message
+  // Create a service request message
   OCT_registration::registrationService registrationMessage;
   registrationMessage.request.registrationMatrixSavePath = VIS_TRANS_CACHE_PATH;
   registrationMessage.request.pclOctSurface = oct_surface_msg;
   registrationMessage.request.cvDepthMap = depth_map_msg;
 
-  //Call the service passing the transform path
-  if(m_registration_client.exists())
-  {
-    if(m_registration_client.call(registrationMessage))
-    {
-      if(registrationMessage.response.success)
-      {
+  // Call the service passing the transform path
+  if (m_registration_client.exists()) {
+    if (m_registration_client.call(registrationMessage)) {
+      if (registrationMessage.response.success) {
         ROS_INFO("OCT surface to depth map registration completed");
 
-        //Lets the UI know that it can already pickup its transform
-      }
-      else
-      {
+        // Lets the UI know that it can already pickup its transform
+      } else {
         ROS_WARN("Registration algorithm failed!");
       }
-    }
-    else
-    {
+    } else {
       ROS_WARN("Call to registration service failed!");
     }
-  }
-  else
-  {
+  } else {
     ROS_WARN("Registration service does not exist!");
   }
 
 #endif
 
-	//Even if the call failed, emit this signal. Form will fail to read the file
-	//but at least it won't wait indefinitely
-	Q_EMIT receivedRegistration();
+  // Even if the call failed, emit this signal. Form will fail to read the file
+  // but at least it won't wait indefinitely
+  Q_EMIT receivedRegistration();
 }
+
+void QNode::setLeftAccumulatorSize(unsigned int n) {
+  n > 0 ? m_left_accu_size = n : m_left_accu_size = 1;
+  resetAccumulators();
+}
+
+void QNode::setDepthAccumulatorSize(unsigned int n) {
+  n > 0 ? m_left_accu_size = n : m_left_accu_size = 1;
+  resetAccumulators();
+}
+
+void QNode::resetAccumulators()
+{
+  int rows, cols;
+  m_nh->param<int>("imageHeight", rows, 480);
+  m_nh->param<int>("imageWidth", cols, 640);
+  m_left_accu.zeros(rows, cols, CV_8U);
+  m_depth_accu.zeros(rows, cols, CV_32FC3);
+
+  m_left_accu_count = 0;
+  m_depth_accu_count = 0;
+  m_right_img_count = 0;
+  m_disp_img_count = 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

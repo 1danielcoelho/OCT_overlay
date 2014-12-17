@@ -1,16 +1,16 @@
 #ifndef OCT_stereocamera_overlay_QNODE_HPP_
 #define OCT_stereocamera_overlay_QNODE_HPP_
 
-//Allows me to test the program at home only changing this line
-//#define AT_HOME
+// Allows me to test the program at home only changing this line
+#define AT_HOME
 
-//C, C++
+// C, C++
 #include <iostream>
 #include <math.h>
 #include <stdio.h>
 #include <string>
 
-//QT
+// QT
 #include <QObject>
 #include <QFile>
 #include <QStringList>
@@ -20,7 +20,7 @@
 #include <QDebug>
 #include <QCoreApplication>
 
-//ROS
+// ROS
 #include <ros/ros.h>
 #include <ros/package.h>
 #include <sensor_msgs/Image.h>
@@ -36,126 +36,140 @@
 #include <OCT_registration/registrationService.h>
 #endif
 
-//Boost
+// Boost
 #include <boost/filesystem.hpp>
 
-//OpenCV
+// OpenCV
 #include <cv.h>
 #include <opencv2/opencv.hpp>
 
 #include "octinfo.h"
 #include "filemanager.h"
 
-//Create a synchronization policy used to match messages based on their
-//approximate timestamp. Permits a single callback for multiple,
-//not simultaneous messages
-typedef message_filters::sync_policies::ApproximateTime
-        <sensor_msgs::Image, sensor_msgs::Image,
-        sensor_msgs::Image, sensor_msgs::Image>
-        myPolicyType;
+// Create a synchronization policy used to match messages based on their
+// approximate timestamp. Permits a single callback for multiple,
+// not simultaneous messages
+typedef message_filters::sync_policies::ApproximateTime<
+    sensor_msgs::Image, sensor_msgs::Image, sensor_msgs::Image,
+    sensor_msgs::Image> myPolicyType;
 
-//Simply shortens code. This namespace is used by the cv_bridge conversions
+// Simply shortens code. This namespace is used by the cv_bridge conversions
 namespace enc = sensor_msgs::image_encodings;
 
-
-
-//Tells Qt about our new type. When we register it later, we can use it in
-//signals and slots
+// Tells Qt about our new type. When we register it later, we can use it in
+// signals and slots
 Q_DECLARE_METATYPE(OCTinfo)
 Q_DECLARE_METATYPE(std::vector<uint8_t>)
 
+class QNode : public QObject {
+  Q_OBJECT
 
+ public:
+  enum LogLevel {
+    Debug,
+    Info,
+    Warn,
+    Error,
+    Fatal
+  };
 
-class QNode : public QObject
-{
-	Q_OBJECT
+  QNode(int argc, char** argv);
+  virtual ~QNode();
 
-public:
-	enum LogLevel
-	{
-		Debug,
-		Info,
-		Warn,
-		Error,
-		Fatal
-	};
+  // Waits for a ROS master node. Creates a new node whenever it shows up
+  void connectToMaster();
 
-	QNode(int argc, char** argv );
-	virtual ~QNode();
+  // Creates subscriptions to topics and services
+  void setupSubscriptions();
 
-	//Waits for a ROS master node. Creates a new node whenever it shows up
-	void connectToMaster();
+  // Callback to the stereocamera topic subscription. Packs the four incoming
+  // images into the apropriate formats and saves to the correct files
+  void imageCallback(const sensor_msgs::ImageConstPtr& msg_left,
+                     const sensor_msgs::ImageConstPtr& msg_right,
+                     const sensor_msgs::ImageConstPtr& msg_disp,
+                     const sensor_msgs::ImageConstPtr& msg_depth);
 
-	//Creates subscriptions to topics and services
-	void setupSubscriptions();
+  // Kills subscriptions and the current node
+  void stopCurrentNode();
 
-	//Callback to the stereocamera topic subscription. Packs the four incoming
-	//images into the apropriate formats and saves to the correct files
-	void imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
-										 const sensor_msgs::ImageConstPtr &msg_right,
-										 const sensor_msgs::ImageConstPtr &msg_disp,
-										 const sensor_msgs::ImageConstPtr &msg_depth);
+ public
+Q_SLOTS:
+  // Infinite execution loop
+  void process();
 
-	//Kills subscriptions and the current node
-	void stopCurrentNode();
+  // Uses oct_client's service to request an OCT scan with the passed params.
+  // Writes the result to a cache file also known by Form
+  void requestScan(OCTinfo params);
 
-public Q_SLOTS:
-	//Infinite execution loop
-	void process();
+  // Uses the new OCT_segmentation service to perform surface segmentation
+  // Input is not only the passed params, but also a raw data vector read from
+  // a cache location also known by Form
+  void requestSegmentation(OCTinfo params);
 
-	//Uses oct_client's service to request an OCT scan with the passed params.
-	//Writes the result to a cache file also known by Form
-	void requestScan(OCTinfo params);
+  // Uses OCT_registration's service to perform a stereocamera depth-map to oct
+  // surface registration. Both are read from cache locations also known by Form
+  void requestRegistration();
 
-	//Uses the new OCT_segmentation service to perform surface segmentation
-	//Input is not only the passed params, but also a raw data vector read from
-	//a cache location also known by Form
-	void requestSegmentation(OCTinfo params);
+  // Sets the size 'n' of the accumulator for the left image. The 'left' images
+  // written to cache by imageCallback are the result of a mean of the last 'n'
+  // of such 'left' images
+  void setLeftAccumulatorSize(unsigned int n);
 
-	//Uses OCT_registration's service to perform a stereocamera depth-map to oct
-	//surface registration. Both are read from cache locations also known by Form
-	void requestRegistration();
+  // Sets the size 'n' of the accumulator for the depth image. The depth images
+  // written to cache by imageCallback are the result of a mean of the last 'n'
+  // of such depth images
+  void setDepthAccumulatorSize(unsigned int n);
 
-Q_SIGNALS: //Same as 'signals'
-	void rosMasterChanged(bool);
-	void finished();
-	void receivedOCTRawData(OCTinfo params);
-	void receivedOCTSurfData(OCTinfo params);
-	void receivedStereoData();
-	void receivedRegistration();
+  // Cleans the current accumulators and resets the counters for the number of
+  // images held by them, as well as fetching new right and disp images
+  void resetAccumulators();
 
-private:
-	ros::NodeHandle* m_nh;
-	ros::ServiceClient m_oct_tcp_client, m_segmentation_client,
-										 m_registration_client;
-	cv_bridge::CvImagePtr m_cv_image_ptr;
-	FileManager* m_file_manager;
+Q_SIGNALS:  // Same as 'signals'
+  void rosMasterChanged(bool);
+  void finished();
+  void receivedOCTRawData(OCTinfo params);
+  void receivedOCTSurfData(OCTinfo params);
+  void receivedLeftImage();
+  void receivedRightImage();
+  void receivedDispImage();
+  void receivedDepthImage();
+  void receivedRegistration();
 
-	//We don't use command line arguments, but ros::init needs something anyway
-	int no_argc;
-	char** no_argv;
+ private:
+  ros::NodeHandle* m_nh;
+  ros::ServiceClient m_oct_tcp_client, m_segmentation_client,
+      m_registration_client;
+  cv_bridge::CvImagePtr m_cv_image_ptr;
+  FileManager* m_file_manager;
 
-	//Turns true when its time to shutdown
-	bool m_shutdown;
+  // We don't use command line arguments, but ros::init needs something anyway
+  int no_argc;
+  char** no_argv;
 
-    //Placeholder variable to just grab 1 set of published images
-    bool m_grabbed;
+  // Turns true when its time to shutdown
+  bool m_shutdown;
 
-	boost::shared_ptr<message_filters::Subscriber<sensor_msgs::Image> >
-			m_left_image_sub;
-	boost::shared_ptr<message_filters::Subscriber<sensor_msgs::Image> >
-			m_right_image_sub;
-	boost::shared_ptr<message_filters::Subscriber<sensor_msgs::Image> >
-			m_disp_image_sub;
-	boost::shared_ptr<message_filters::Subscriber<sensor_msgs::Image> >
-			m_depth_image_sub;
-	boost::shared_ptr<message_filters::Synchronizer<myPolicyType> >
-			m_synchronizer;
+  unsigned long m_left_accu_count;
+  unsigned long m_depth_accu_count;
+  unsigned int m_right_img_count;
+  unsigned int m_disp_img_count;
+
+  unsigned int m_left_accu_size;
+  unsigned int m_depth_accu_size;
+
+  cv::Mat m_left_accu;
+  cv::Mat m_depth_accu;
+
+  boost::shared_ptr<message_filters::Subscriber<sensor_msgs::Image> >
+      m_left_image_sub;
+  boost::shared_ptr<message_filters::Subscriber<sensor_msgs::Image> >
+      m_right_image_sub;
+  boost::shared_ptr<message_filters::Subscriber<sensor_msgs::Image> >
+      m_disp_image_sub;
+  boost::shared_ptr<message_filters::Subscriber<sensor_msgs::Image> >
+      m_depth_image_sub;
+  boost::shared_ptr<message_filters::Synchronizer<myPolicyType> >
+      m_synchronizer;
 };
-
-
-
-
-
 
 #endif /* OCT_stereocamera_overlay_QNODE_HPP_ */

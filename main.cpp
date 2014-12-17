@@ -1,20 +1,17 @@
 /*  TODO:
 *
-* -Have things checked in Overlay tab -> Request new segmentation -> Go back to
-*  overlay tab and things are still checked
+* -Fix handling the displacement map image
 *
-* -Invert x and y coordinates correctly before sending to OCT_registration
+* -See how the inversion of x and y impacts the OCT registration
 *
 * */
 
 /* NEXT EXPERIMENT:
 * 
-* -Get the actual stereocamera node and look at the code for opening a window
-*  with live camera feed from left camera
 *
 * */
 
-/* CHANGES DONE:
+/* NOTES:
 * -Needed to install libvtk5.8-qt4 for the lib files of the QVTK widget
 *
 * -Needed to add the correct export tags on OCT_seg and reg's manifest files

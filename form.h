@@ -184,17 +184,29 @@ private Q_SLOTS:
   void on_over_oct_mass_checkbox_clicked();
   void on_over_depth_checkbox_clicked();
 
+  void on_left_accu_spinbox_editingFinished();
+  void on_depth_accu_spinbox_editingFinished();
+
+  void on_left_accu_reset_button_clicked();
+  void on_depth_accu_reset_button_clicked();
+
   //------------QNODE CALLBACKS-------------------------------------------------
 
   void receivedRawOCTData(OCTinfo params);
   void receivedOCTSurfData(OCTinfo params);
-  void receivedStereoData();
+  void receivedLeftImage();\
+  void receivedRightImage();
+  void receivedDispImage();
+  void receivedDepthImage();
   void receivedRegistration();
 
   Q_SIGNALS:
   void requestScan(OCTinfo);
   void requestSegmentation(OCTinfo);
   void requestRegistration();
+  void setLeftAccumulatorSize(unsigned int);
+  void setDepthAccumulatorSize(unsigned int);
+  void resetAccumulators();
 
 private:
   Ui::Form *m_ui;
@@ -213,7 +225,10 @@ private:
   bool m_waiting_response;
   bool m_has_oct_surf;
   bool m_has_oct_mass;
-  bool m_has_stereo_data;
+  bool m_has_left_img;
+  bool m_has_right_img;
+  bool m_has_disp_img;
+  bool m_has_depth_img;
   bool m_has_transform;
   bool m_viewing_overlay;
 

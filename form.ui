@@ -66,7 +66,7 @@
      <item row="0" column="0">
       <widget class="QTabWidget" name="tabWidget">
        <property name="currentIndex">
-        <number>2</number>
+        <number>1</number>
        </property>
        <widget class="QWidget" name="OCT">
         <attribute name="title">
@@ -1379,7 +1379,7 @@ QGroupBox::title {
            <property name="maximumSize">
             <size>
              <width>250</width>
-             <height>500</height>
+             <height>16777215</height>
             </size>
            </property>
            <property name="styleSheet">
@@ -1400,6 +1400,9 @@ QGroupBox::title {
             <string>Pipeline</string>
            </property>
            <layout class="QGridLayout" name="gridLayout_8">
+            <property name="verticalSpacing">
+             <number>50</number>
+            </property>
             <item row="0" column="0">
              <layout class="QVBoxLayout" name="verticalLayout_4">
               <property name="spacing">
@@ -1407,6 +1410,19 @@ QGroupBox::title {
               </property>
               <item>
                <layout class="QHBoxLayout" name="horizontalLayout_8">
+                <item>
+                 <spacer name="horizontalSpacer_9">
+                  <property name="orientation">
+                   <enum>Qt::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>40</width>
+                    <height>14</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
                 <item>
                  <widget class="QLabel" name="left_image_label">
                   <property name="minimumSize">
@@ -1426,8 +1442,12 @@ QGroupBox::title {
                   </property>
                  </widget>
                 </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_9">
                 <item>
-                 <spacer name="horizontalSpacer_9">
+                 <spacer name="horizontalSpacer_20">
                   <property name="orientation">
                    <enum>Qt::Horizontal</enum>
                   </property>
@@ -1439,10 +1459,75 @@ QGroupBox::title {
                   </property>
                  </spacer>
                 </item>
+                <item>
+                 <widget class="QLabel" name="left_accu_label">
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
+                  </property>
+                  <property name="text">
+                   <string>Left accumulator size:</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QSpinBox" name="left_accu_spinbox">
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
+                  </property>
+                  <property name="maximum">
+                   <number>255</number>
+                  </property>
+                  <property name="value">
+                   <number>1</number>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="left_accu_reset_button">
+                  <property name="sizePolicy">
+                   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                   </sizepolicy>
+                  </property>
+                  <property name="minimumSize">
+                   <size>
+                    <width>70</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>70</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string>Reset image</string>
+                  </property>
+                 </widget>
+                </item>
                </layout>
               </item>
               <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_9">
+               <layout class="QHBoxLayout" name="horizontalLayout_32">
+                <item>
+                 <spacer name="horizontalSpacer_19">
+                  <property name="orientation">
+                   <enum>Qt::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>40</width>
+                    <height>14</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
                 <item>
                  <widget class="QPushButton" name="view_left_image_button">
                   <property name="sizePolicy">
@@ -1468,19 +1553,6 @@ QGroupBox::title {
                   </property>
                  </widget>
                 </item>
-                <item>
-                 <spacer name="horizontalSpacer_10">
-                  <property name="orientation">
-                   <enum>Qt::Horizontal</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>40</width>
-                    <height>14</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
                </layout>
               </item>
              </layout>
@@ -1492,6 +1564,19 @@ QGroupBox::title {
               </property>
               <item>
                <layout class="QHBoxLayout" name="horizontalLayout_10">
+                <item>
+                 <spacer name="horizontalSpacer_11">
+                  <property name="orientation">
+                   <enum>Qt::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>40</width>
+                    <height>14</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
                 <item>
                  <widget class="QLabel" name="right_image_label">
                   <property name="minimumSize">
@@ -1511,8 +1596,12 @@ QGroupBox::title {
                   </property>
                  </widget>
                 </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_11">
                 <item>
-                 <spacer name="horizontalSpacer_11">
+                 <spacer name="horizontalSpacer_12">
                   <property name="orientation">
                    <enum>Qt::Horizontal</enum>
                   </property>
@@ -1524,10 +1613,6 @@ QGroupBox::title {
                   </property>
                  </spacer>
                 </item>
-               </layout>
-              </item>
-              <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_11">
                 <item>
                  <widget class="QPushButton" name="view_right_image_button">
                   <property name="sizePolicy">
@@ -1553,19 +1638,6 @@ QGroupBox::title {
                   </property>
                  </widget>
                 </item>
-                <item>
-                 <spacer name="horizontalSpacer_12">
-                  <property name="orientation">
-                   <enum>Qt::Horizontal</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>40</width>
-                    <height>14</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
                </layout>
               </item>
              </layout>
@@ -1577,6 +1649,19 @@ QGroupBox::title {
               </property>
               <item>
                <layout class="QHBoxLayout" name="horizontalLayout_14">
+                <item>
+                 <spacer name="horizontalSpacer_15">
+                  <property name="orientation">
+                   <enum>Qt::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>40</width>
+                    <height>14</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
                 <item>
                  <widget class="QLabel" name="disp_image_label">
                   <property name="minimumSize">
@@ -1596,8 +1681,12 @@ QGroupBox::title {
                   </property>
                  </widget>
                 </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_15">
                 <item>
-                 <spacer name="horizontalSpacer_15">
+                 <spacer name="horizontalSpacer_16">
                   <property name="orientation">
                    <enum>Qt::Horizontal</enum>
                   </property>
@@ -1609,10 +1698,6 @@ QGroupBox::title {
                   </property>
                  </spacer>
                 </item>
-               </layout>
-              </item>
-              <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_15">
                 <item>
                  <widget class="QPushButton" name="view_disp_image_button">
                   <property name="sizePolicy">
@@ -1638,19 +1723,6 @@ QGroupBox::title {
                   </property>
                  </widget>
                 </item>
-                <item>
-                 <spacer name="horizontalSpacer_16">
-                  <property name="orientation">
-                   <enum>Qt::Horizontal</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>40</width>
-                    <height>14</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
                </layout>
               </item>
              </layout>
@@ -1662,6 +1734,19 @@ QGroupBox::title {
               </property>
               <item>
                <layout class="QHBoxLayout" name="horizontalLayout_16">
+                <item>
+                 <spacer name="horizontalSpacer_17">
+                  <property name="orientation">
+                   <enum>Qt::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>40</width>
+                    <height>14</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
                 <item>
                  <widget class="QLabel" name="depth_map_label">
                   <property name="minimumSize">
@@ -1681,8 +1766,12 @@ QGroupBox::title {
                   </property>
                  </widget>
                 </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_33">
                 <item>
-                 <spacer name="horizontalSpacer_17">
+                 <spacer name="horizontalSpacer_21">
                   <property name="orientation">
                    <enum>Qt::Horizontal</enum>
                   </property>
@@ -1694,10 +1783,75 @@ QGroupBox::title {
                   </property>
                  </spacer>
                 </item>
+                <item>
+                 <widget class="QLabel" name="depth_accu_label">
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
+                  </property>
+                  <property name="text">
+                   <string>Depth accumulator size:</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QSpinBox" name="depth_accu_spinbox">
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
+                  </property>
+                  <property name="maximum">
+                   <number>255</number>
+                  </property>
+                  <property name="value">
+                   <number>1</number>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="depth_accu_reset_button">
+                  <property name="sizePolicy">
+                   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                   </sizepolicy>
+                  </property>
+                  <property name="minimumSize">
+                   <size>
+                    <width>70</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>70</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string>Reset image</string>
+                  </property>
+                 </widget>
+                </item>
                </layout>
               </item>
               <item>
                <layout class="QHBoxLayout" name="horizontalLayout_17">
+                <item>
+                 <spacer name="horizontalSpacer_18">
+                  <property name="orientation">
+                   <enum>Qt::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>40</width>
+                    <height>14</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
                 <item>
                  <widget class="QPushButton" name="view_depth_image_button">
                   <property name="sizePolicy">
@@ -1722,19 +1876,6 @@ QGroupBox::title {
                    <string>View</string>
                   </property>
                  </widget>
-                </item>
-                <item>
-                 <spacer name="horizontalSpacer_18">
-                  <property name="orientation">
-                   <enum>Qt::Horizontal</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>40</width>
-                    <height>14</height>
-                   </size>
-                  </property>
-                 </spacer>
                 </item>
                </layout>
               </item>
@@ -1893,7 +2034,6 @@ QGroupBox::title {
              </layout>
             </item>
            </layout>
-           <zorder>input_groupbox</zorder>
           </widget>
          </item>
          <item row="0" column="0">
@@ -2309,12 +2449,6 @@ QGroupBox::title {
             </item>
            </layout>
            <zorder></zorder>
-           <zorder>over_oct_surf_label</zorder>
-           <zorder>over_oct_surf_checkbox</zorder>
-           <zorder>horizontalSpacer_25</zorder>
-           <zorder>horizontalSpacer_26</zorder>
-           <zorder>layoutWidget</zorder>
-           <zorder>layoutWidget_2</zorder>
            <zorder></zorder>
           </widget>
          </item>
