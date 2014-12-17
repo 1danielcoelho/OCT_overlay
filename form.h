@@ -123,8 +123,10 @@ public:
 
   //-------------RENDERING------------------------------------------------------
 
-  //Adds an actor with x,y,z axes to m_renderer
-  void renderAxes();
+  //Adds an actor with x,y,z axes to m_renderer. Origin, scale, orientation set
+  //by a 4x4 matrix
+  void renderAxes(vtkSmartPointer<vtkAxesActor> actor,
+                  vtkSmartPointer<vtkTransform> trans);
 
   //Adds m_oct_vol_actor, containing points as individual vertices, to
   //m_renderer. Prunes points based on their scalar values, according to
@@ -183,6 +185,8 @@ private Q_SLOTS:
   void on_over_oct_surf_checkbox_clicked();
   void on_over_oct_mass_checkbox_clicked();
   void on_over_depth_checkbox_clicked();
+  void on_over_oct_axes_checkbox_clicked();
+  void on_over_trans_axes_checkbox_clicked();
 
   void on_left_accu_spinbox_editingFinished();
   void on_depth_accu_spinbox_editingFinished();
@@ -249,6 +253,8 @@ private:
   vtkSmartPointer<vtkActor> m_oct_mass_actor;
   vtkSmartPointer<vtkActor> m_stereo_depth_actor;
   vtkSmartPointer<vtkActor2D> m_stereo_2d_actor;
+  vtkSmartPointer<vtkAxesActor> m_oct_axes_actor;
+  vtkSmartPointer<vtkAxesActor> m_trans_axes_actor;
   //Others
   vtkSmartPointer<vtkRenderer> m_renderer;
 

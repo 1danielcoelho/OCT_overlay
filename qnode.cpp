@@ -458,7 +458,7 @@ void QNode::requestRegistration() {
       if (registrationMessage.response.success) {
         ROS_INFO("OCT surface to depth map registration completed");
 
-        // Lets the UI know that it can already pickup its transform
+
       } else {
         ROS_WARN("Registration algorithm failed!");
       }
@@ -470,7 +470,7 @@ void QNode::requestRegistration() {
   }
 
 #endif
-
+  // Lets the UI know that it can already pickup its transform
   // Even if the call failed, emit this signal. Form will fail to read the file
   // but at least it won't wait indefinitely
   Q_EMIT receivedRegistration();

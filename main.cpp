@@ -1,6 +1,11 @@
 /*  TODO:
 *
 * -Fix handling the displacement map image
+*  -Somehow save an example so we can look at it later
+*  -Ask Andreas for the image format
+*
+* -Try using delaunay with the stereo depth map and see if it colors it
+*  automagically
 *
 * -See how the inversion of x and y impacts the OCT registration
 *

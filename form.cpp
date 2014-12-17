@@ -99,12 +99,15 @@ Form::Form(int argc, char** argv, QWidget* parent)
   // Data structures
   m_oct_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_oct_stereo_trans = vtkSmartPointer<vtkTransform>::New();
+  m_oct_stereo_trans->Identity();
   // Actors
   m_oct_vol_actor = vtkSmartPointer<vtkActor>::New();
   m_oct_surf_actor = vtkSmartPointer<vtkActor>::New();
   m_oct_mass_actor = vtkSmartPointer<vtkActor>::New();
   m_stereo_2d_actor = vtkSmartPointer<vtkActor2D>::New();
   m_stereo_depth_actor = vtkSmartPointer<vtkActor>::New();
+  m_oct_axes_actor = vtkSmartPointer<vtkAxesActor>::New();
+  m_trans_axes_actor = vtkSmartPointer<vtkAxesActor>::New();
   // Others
   m_renderer = vtkSmartPointer<vtkRenderer>::New();
 
@@ -186,7 +189,11 @@ void Form::updateUIStates() {
                                            !m_waiting_response);
   m_ui->over_oct_mass_checkbox->setEnabled(m_has_oct_mass &&
                                            !m_waiting_response);
+  m_ui->over_oct_axes_checkbox->setEnabled(m_has_raw_oct &&
+                                           !m_waiting_response);
   m_ui->over_depth_checkbox->setEnabled(m_has_depth_img && !m_waiting_response);
+  m_ui->over_trans_axes_checkbox->setEnabled(m_has_transform &&
+                                             !m_waiting_response);
   m_ui->calc_transform_button->setEnabled(m_has_oct_surf && m_has_depth_img &&
                                           !m_waiting_response);
   m_ui->print_transform_button->setEnabled(m_has_transform &&
@@ -198,6 +205,8 @@ void Form::updateUIStates() {
     m_ui->over_oct_surf_checkbox->setChecked(false);
     m_ui->over_oct_mass_checkbox->setChecked(false);
     m_ui->over_depth_checkbox->setChecked(false);
+    m_ui->over_trans_axes_checkbox->setChecked(false);
+    m_ui->over_oct_axes_checkbox->setChecked(false);
   }
 }
 
@@ -650,46 +659,38 @@ void Form::normalize(std::vector<uint8_t>& input) {
 
 //------------RENDERING---------------------------------------------------------
 
-void Form::renderAxes() {
-  VTK_NEW(vtkAxesActor, axes_actor);
-  axes_actor->SetNormalizedShaftLength(1.0, 1.0, 1.0);
-  axes_actor->SetShaftTypeToCylinder();
-  axes_actor->SetCylinderRadius(0.02);
-  axes_actor->SetXAxisLabelText("length        ");
-  axes_actor->SetYAxisLabelText("width (B-Scan)");
-  axes_actor->SetZAxisLabelText("depth (A-Scan)");
-  axes_actor->GetXAxisCaptionActor2D()
-      ->GetTextActor()
-      ->SetTextScaleModeToNone();
-  axes_actor->GetYAxisCaptionActor2D()
-      ->GetTextActor()
-      ->SetTextScaleModeToNone();
-  axes_actor->GetZAxisCaptionActor2D()
-      ->GetTextActor()
-      ->SetTextScaleModeToNone();
-  axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->SetFontSize(
-      15);
-  axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->SetFontSize(
-      15);
-  axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->SetFontSize(
-      15);
-  axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->BoldOff();
-  axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->BoldOff();
-  axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->BoldOff();
-  axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->SetItalic(0);
-  axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->SetItalic(0);
-  axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->SetItalic(0);
-  axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->SetShadow(0);
-  axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->SetShadow(0);
-  axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->SetShadow(0);
-  axes_actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->SetColor(
-      1.0, 0.0, 0.0);
-  axes_actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->SetColor(
-      0.0, 1.0, 0.0);
-  axes_actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->SetColor(
-      0.0, 0.0, 1.0);
+void Form::renderAxes(vtkSmartPointer<vtkAxesActor> actor,
+                      vtkSmartPointer<vtkTransform> trans) {
+  actor->SetNormalizedShaftLength(1.0, 1.0, 1.0);
+  actor->SetShaftTypeToCylinder();
+  actor->SetCylinderRadius(0.02);
+  actor->SetXAxisLabelText("length        ");
+  actor->SetYAxisLabelText("width (B-Scan)");
+  actor->SetZAxisLabelText("depth (A-Scan)");
+  actor->GetXAxisCaptionActor2D()->GetTextActor()->SetTextScaleModeToNone();
+  actor->GetYAxisCaptionActor2D()->GetTextActor()->SetTextScaleModeToNone();
+  actor->GetZAxisCaptionActor2D()->GetTextActor()->SetTextScaleModeToNone();
+  actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->SetFontSize(15);
+  actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->SetFontSize(15);
+  actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->SetFontSize(15);
+  actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->BoldOff();
+  actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->BoldOff();
+  actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->BoldOff();
+  actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->SetItalic(0);
+  actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->SetItalic(0);
+  actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->SetItalic(0);
+  actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->SetShadow(0);
+  actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->SetShadow(0);
+  actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->SetShadow(0);
+  actor->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->SetColor(1.0, 0.0,
+                                                                      0.0);
+  actor->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->SetColor(0.0, 1.0,
+                                                                      0.0);
+  actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->SetColor(0.0, 0.0,
+                                                                      1.0);
+  actor->SetUserTransform(trans);
 
-  m_renderer->AddActor(axes_actor);
+  m_renderer->AddActor(actor);
 
   this->m_ui->qvtkWidget->update();
   QApplication::processEvents();
@@ -770,28 +771,52 @@ void Form::renderPolyDataSurface(vtkSmartPointer<vtkPolyData> cloud_poly_data,
     return;
   }
 
-  //  VTK_NEW(vtkDelaunay2D, delaunay_filter);
-  //  delaunay_filter->SetInput(cloud_poly_data);
-  //  delaunay_filter->SetTolerance(0.001);
+  if (actor == m_oct_surf_actor) {
+    VTK_NEW(vtkDelaunay2D, delaunay_filter);
+    delaunay_filter->SetInput(cloud_poly_data);
+    delaunay_filter->SetTolerance(0.001);
 
-  VTK_NEW(vtkVertexGlyphFilter, vert_filter);
-  vert_filter->SetInput(cloud_poly_data);
+    VTK_NEW(vtkTransformFilter, trans_filter)
+    trans_filter->SetInputConnection(delaunay_filter->GetOutputPort());
+    trans_filter->SetTransform(m_oct_stereo_trans);
 
-  VTK_NEW(vtkPolyDataMapper, mapper);
-  mapper->SetInputConnection(vert_filter->GetOutputPort());
+    VTK_NEW(vtkPolyDataMapper, mapper);
+    mapper->SetInputConnection(trans_filter->GetOutputPort());
 
-  actor->SetMapper(mapper);
+    actor->SetMapper(mapper);
 
-  m_renderer->AddActor(actor);
+    m_renderer->AddActor(actor);
 
-  this->statusBar()->showMessage("Rendering PolyData surface... ");
-  QApplication::processEvents();
+    this->statusBar()->showMessage("Rendering OCT surface... ");
+    QApplication::processEvents();
 
-  this->m_ui->qvtkWidget->update();
-  QApplication::processEvents();
+    this->m_ui->qvtkWidget->update();
+    QApplication::processEvents();
 
-  this->statusBar()->showMessage("Rendering PolyData surface... done!");
-  QApplication::processEvents();
+    this->statusBar()->showMessage("Rendering OCT surface... done!");
+    QApplication::processEvents();
+
+    return;
+  } else if (actor == m_stereo_depth_actor) {
+    VTK_NEW(vtkVertexGlyphFilter, vert_filter);
+    vert_filter->SetInput(cloud_poly_data);
+
+    VTK_NEW(vtkPolyDataMapper, mapper);
+    mapper->SetInputConnection(vert_filter->GetOutputPort());
+
+    actor->SetMapper(mapper);
+
+    m_renderer->AddActor(actor);
+
+    this->statusBar()->showMessage("Rendering depth map... ");
+    QApplication::processEvents();
+
+    this->m_ui->qvtkWidget->update();
+    QApplication::processEvents();
+
+    this->statusBar()->showMessage("Rendering depth map... done!");
+    QApplication::processEvents();
+  }
 }
 
 void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data) {
@@ -887,7 +912,10 @@ void Form::on_browse_button_clicked() {
     m_renderer->RemoveAllViewProps();
     renderOCTVolumePolyData();
     m_renderer->ResetCamera();
-    renderAxes();
+
+    VTK_NEW(vtkTransform, trans);
+    trans->Identity();
+    renderAxes(m_oct_axes_actor, trans);
 
     // Updates our UI param boxes
     on_reset_params_button_clicked();
@@ -1001,7 +1029,10 @@ void Form::on_view_raw_oct_button_clicked() {
 
   m_renderer->RemoveAllViewProps();
   renderOCTVolumePolyData();
-  renderAxes();
+
+  VTK_NEW(vtkTransform, trans);
+  trans->Identity();
+  renderAxes(m_oct_axes_actor, trans);
 
   this->m_ui->status_bar->showMessage("Rendering OCT volume data... done!");
   QApplication::processEvents();
@@ -1032,7 +1063,10 @@ void Form::on_view_oct_surf_button_clicked() {
   loadPCLCacheToPolyData(OCT_SURF_CACHE_PATH, surf_oct_poly_data);
   m_renderer->RemoveAllViewProps();
   renderPolyDataSurface(surf_oct_poly_data, m_oct_surf_actor);
-  renderAxes();
+
+  VTK_NEW(vtkTransform, trans);
+  trans->Identity();
+  renderAxes(m_oct_axes_actor, trans);
 
   this->m_ui->status_bar->showMessage("Rendering OCT surface... done!");
   QApplication::processEvents();
@@ -1112,7 +1146,10 @@ void Form::on_view_depth_image_button_clicked() {
   loadPCLCacheToPolyData(STEREO_DEPTH_CACHE_PATH, depth_image);
   m_renderer->RemoveAllViewProps();
   renderPolyDataSurface(depth_image, m_stereo_depth_actor);
-  renderAxes();
+
+  VTK_NEW(vtkTransform, trans);
+  trans->Identity();
+  renderAxes(m_trans_axes_actor, m_oct_stereo_trans);
 
   this->m_ui->status_bar->showMessage("Rendering depth map... done!");
   QApplication::processEvents();
@@ -1157,7 +1194,10 @@ void Form::on_raw_min_vis_spinbox_editingFinished() {
 
   m_renderer->RemoveAllViewProps();
   renderOCTVolumePolyData();
-  renderAxes();
+
+  VTK_NEW(vtkTransform, trans);
+  trans->Identity();
+  renderAxes(m_oct_axes_actor, trans);
 }
 
 void Form::on_raw_max_vis_spinbox_editingFinished() {
@@ -1169,7 +1209,10 @@ void Form::on_raw_max_vis_spinbox_editingFinished() {
 
   m_renderer->RemoveAllViewProps();
   renderOCTVolumePolyData();
-  renderAxes();
+
+  VTK_NEW(vtkTransform, trans);
+  trans->Identity();
+  renderAxes(m_oct_axes_actor, trans);
 }
 
 void Form::on_raw_min_vis_slider_valueChanged(int value) {
@@ -1197,13 +1240,19 @@ void Form::on_raw_max_vis_slider_valueChanged(int value) {
 void Form::on_raw_min_vis_slider_sliderReleased() {
   m_renderer->RemoveAllViewProps();
   renderOCTVolumePolyData();
-  renderAxes();
+
+  VTK_NEW(vtkTransform, trans);
+  trans->Identity();
+  renderAxes(m_oct_axes_actor, trans);
 }
 
 void Form::on_raw_max_vis_slider_sliderReleased() {
   m_renderer->RemoveAllViewProps();
   renderOCTVolumePolyData();
-  renderAxes();
+
+  VTK_NEW(vtkTransform, trans);
+  trans->Identity();
+  renderAxes(m_oct_axes_actor, trans);
 }
 
 void Form::on_over_min_vis_spinbox_editingFinished() {
@@ -1342,6 +1391,37 @@ void Form::on_over_oct_mass_checkbox_clicked() {
   updateUIStates();
 }
 
+void Form::on_over_oct_axes_checkbox_clicked() {
+  // If we started viewing overlay from another tab, then clear actors
+  if (!m_viewing_overlay) {
+    m_renderer->RemoveAllViewProps();
+    m_viewing_overlay = true;
+  }
+  m_waiting_response = true;
+  updateUIStates();
+
+  if (m_ui->over_oct_axes_checkbox->isChecked()) {
+    this->m_ui->status_bar->showMessage(
+        "Adding OCT axes actor to overlay "
+        "view...");
+    QApplication::processEvents();
+
+    VTK_NEW(vtkTransform, trans);
+    trans->Identity();
+    renderAxes(m_oct_axes_actor, trans);
+
+  } else {
+    this->m_ui->status_bar->showMessage(
+        "Removing OCT axes actor from overlay view...", 3000);
+    QApplication::processEvents();
+
+    m_renderer->RemoveActor(m_oct_axes_actor);
+  }
+
+  m_waiting_response = false;
+  updateUIStates();
+}
+
 void Form::on_over_depth_checkbox_clicked() {
   // If we started viewing overlay from another tab, then clear actors
   if (!m_viewing_overlay) {
@@ -1372,6 +1452,37 @@ void Form::on_over_depth_checkbox_clicked() {
   m_waiting_response = false;
   updateUIStates();
 }
+
+void Form::on_over_trans_axes_checkbox_clicked()
+{
+  // If we started viewing overlay from another tab, then clear actors
+  if (!m_viewing_overlay) {
+    m_renderer->RemoveAllViewProps();
+    m_viewing_overlay = true;
+  }
+  m_waiting_response = true;
+  updateUIStates();
+
+  if (m_ui->over_trans_axes_checkbox->isChecked()) {
+    this->m_ui->status_bar->showMessage(
+        "Adding transformed axes actor to overlay "
+        "view...");
+    QApplication::processEvents();
+
+    renderAxes(m_trans_axes_actor, m_oct_stereo_trans);
+
+  } else {
+    this->m_ui->status_bar->showMessage(
+        "Removing transformed axes actor from overlay view...", 3000);
+    QApplication::processEvents();
+
+    m_renderer->RemoveActor(m_trans_axes_actor);
+  }
+
+  m_waiting_response = false;
+  updateUIStates();
+}
+
 
 void Form::on_left_accu_spinbox_editingFinished() {
   Q_EMIT setLeftAccumulatorSize(m_ui->left_accu_spinbox->value());
@@ -1428,7 +1539,10 @@ void Form::receivedRawOCTData(OCTinfo params) {
   m_renderer->RemoveAllViewProps();
   renderOCTVolumePolyData();
   m_renderer->ResetCamera();
-  renderAxes();
+
+  VTK_NEW(vtkTransform, trans);
+  trans->Identity();
+  renderAxes(m_oct_axes_actor, trans);
 
   // In case we opened a file before, clear that filename from the box
   m_ui->file_name_lineedit->clear();
@@ -1451,7 +1565,10 @@ void Form::receivedOCTSurfData(OCTinfo params) {
   m_renderer->RemoveAllViewProps();
   renderPolyDataSurface(surf_oct_poly_data, m_oct_surf_actor);
   m_renderer->ResetCamera();
-  renderAxes();
+
+  VTK_NEW(vtkTransform, trans);
+  trans->Identity();
+  renderAxes(m_oct_axes_actor, trans);
 
   m_has_oct_surf = true;
   m_waiting_response = false;
@@ -1498,3 +1615,4 @@ void Form::receivedRegistration() {
   m_has_transform = true;
   updateUIStates();
 }
+

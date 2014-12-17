@@ -31,6 +31,7 @@
 #define STEREO_DISP_CACHE_PATH CACHE_PATH "stereo_disp.cache"
 #define STEREO_DEPTH_CACHE_PATH CACHE_PATH "stereo_depth.cache"
 #define VIS_TRANS_CACHE_PATH CACHE_PATH "vis_trans.cache"
+        //"/opt/imesLS_ROS/laser_interface_new/octCamRegistration.yaml"
 
 
 class FileManager

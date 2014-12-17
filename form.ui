@@ -66,7 +66,7 @@
      <item row="0" column="0">
       <widget class="QTabWidget" name="tabWidget">
        <property name="currentIndex">
-        <number>1</number>
+        <number>2</number>
        </property>
        <widget class="QWidget" name="OCT">
         <attribute name="title">
@@ -1891,8 +1891,8 @@ QGroupBox::title {
          <string>Overlay</string>
         </attribute>
         <layout class="QGridLayout" name="gridLayout_12">
-         <item row="1" column="0">
-          <widget class="QGroupBox" name="pipeline_groupbox_3">
+         <item row="0" column="0">
+          <widget class="QGroupBox" name="input_groupbox">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
              <horstretch>0</horstretch>
@@ -1926,18 +1926,18 @@ QGroupBox::title {
 }</string>
            </property>
            <property name="title">
-            <string>Pipeline</string>
+            <string>Inputs</string>
            </property>
-           <layout class="QGridLayout" name="gridLayout_11">
-            <item row="0" column="0">
-             <layout class="QVBoxLayout" name="verticalLayout_6">
+           <layout class="QGridLayout" name="gridLayout_10">
+            <item row="1" column="0">
+             <layout class="QVBoxLayout" name="verticalLayout_9">
               <property name="spacing">
                <number>0</number>
               </property>
               <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_12">
+               <layout class="QHBoxLayout" name="horizontalLayout_18">
                 <item>
-                 <spacer name="horizontalSpacer_13">
+                 <spacer name="horizontalSpacer_25">
                   <property name="orientation">
                    <enum>Qt::Horizontal</enum>
                   </property>
@@ -1950,7 +1950,7 @@ QGroupBox::title {
                  </spacer>
                 </item>
                 <item>
-                 <widget class="QLabel" name="surface_to_surface_label">
+                 <widget class="QLabel" name="over_oct_surf_label">
                   <property name="maximumSize">
                    <size>
                     <width>16777215</width>
@@ -1958,16 +1958,16 @@ QGroupBox::title {
                    </size>
                   </property>
                   <property name="text">
-                   <string>OCT-Depth map transform</string>
+                   <string>OCT surface</string>
                   </property>
                  </widget>
                 </item>
                </layout>
               </item>
               <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_13">
+               <layout class="QHBoxLayout" name="horizontalLayout_19">
                 <item>
-                 <spacer name="horizontalSpacer_14">
+                 <spacer name="horizontalSpacer_26">
                   <property name="orientation">
                    <enum>Qt::Horizontal</enum>
                   </property>
@@ -1980,52 +1980,17 @@ QGroupBox::title {
                  </spacer>
                 </item>
                 <item>
-                 <widget class="QPushButton" name="print_transform_button">
-                  <property name="sizePolicy">
-                   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                   </sizepolicy>
+                 <widget class="QCheckBox" name="over_oct_surf_checkbox">
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
                   </property>
-                  <property name="minimumSize">
-                   <size>
-                    <width>70</width>
-                    <height>20</height>
-                   </size>
-                  </property>
-                  <property name="maximumSize">
-                   <size>
-                    <width>70</width>
-                    <height>20</height>
-                   </size>
+                  <property name="layoutDirection">
+                   <enum>Qt::RightToLeft</enum>
                   </property>
                   <property name="text">
-                   <string>Print</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QPushButton" name="calc_transform_button">
-                  <property name="sizePolicy">
-                   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                   </sizepolicy>
-                  </property>
-                  <property name="minimumSize">
-                   <size>
-                    <width>70</width>
-                    <height>20</height>
-                   </size>
-                  </property>
-                  <property name="maximumSize">
-                   <size>
-                    <width>70</width>
-                    <height>20</height>
-                   </size>
-                  </property>
-                  <property name="text">
-                   <string>Request</string>
+                   <string>Visible</string>
                   </property>
                  </widget>
                 </item>
@@ -2033,47 +1998,75 @@ QGroupBox::title {
               </item>
              </layout>
             </item>
-           </layout>
-          </widget>
-         </item>
-         <item row="0" column="0">
-          <widget class="QGroupBox" name="input_groupbox">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="minimumSize">
-            <size>
-             <width>250</width>
-             <height>110</height>
-            </size>
-           </property>
-           <property name="maximumSize">
-            <size>
-             <width>250</width>
-             <height>400</height>
-            </size>
-           </property>
-           <property name="styleSheet">
-            <string notr="true">QGroupBox
-{
-border: 1px solid gray;
-border-radius: 2px;
-margin-top: 7px;
-}
-
-QGroupBox::title {
-    subcontrol-origin: margin;
-    left: 5px;
-    padding: 0 3px 0 3px;
-}</string>
-           </property>
-           <property name="title">
-            <string>Inputs</string>
-           </property>
-           <layout class="QGridLayout" name="gridLayout_10">
+            <item row="6" column="0">
+             <layout class="QVBoxLayout" name="verticalLayout_14">
+              <property name="spacing">
+               <number>0</number>
+              </property>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_36">
+                <item>
+                 <spacer name="horizontalSpacer_33">
+                  <property name="orientation">
+                   <enum>Qt::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>68</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+                <item>
+                 <widget class="QLabel" name="over_trans_axes_label">
+                  <property name="maximumSize">
+                   <size>
+                    <width>16777215</width>
+                    <height>14</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string>Transformed OCT coordinate system axes</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_37">
+                <item>
+                 <spacer name="horizontalSpacer_34">
+                  <property name="orientation">
+                   <enum>Qt::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>40</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="over_trans_axes_checkbox">
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
+                  </property>
+                  <property name="layoutDirection">
+                   <enum>Qt::RightToLeft</enum>
+                  </property>
+                  <property name="text">
+                   <string>Visible</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+             </layout>
+            </item>
             <item row="0" column="0">
              <layout class="QVBoxLayout" name="verticalLayout_11">
               <property name="spacing">
@@ -2240,15 +2233,15 @@ QGroupBox::title {
               </item>
              </layout>
             </item>
-            <item row="1" column="0">
-             <layout class="QVBoxLayout" name="verticalLayout_9">
+            <item row="4" column="0">
+             <layout class="QVBoxLayout" name="verticalLayout_12">
               <property name="spacing">
                <number>0</number>
               </property>
               <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_18">
+               <layout class="QHBoxLayout" name="horizontalLayout_30">
                 <item>
-                 <spacer name="horizontalSpacer_25">
+                 <spacer name="horizontalSpacer_29">
                   <property name="orientation">
                    <enum>Qt::Horizontal</enum>
                   </property>
@@ -2261,7 +2254,7 @@ QGroupBox::title {
                  </spacer>
                 </item>
                 <item>
-                 <widget class="QLabel" name="over_oct_surf_label">
+                 <widget class="QLabel" name="over_depth_label">
                   <property name="maximumSize">
                    <size>
                     <width>16777215</width>
@@ -2269,16 +2262,16 @@ QGroupBox::title {
                    </size>
                   </property>
                   <property name="text">
-                   <string>OCT surface</string>
+                   <string>Stereocamera depth map</string>
                   </property>
                  </widget>
                 </item>
                </layout>
               </item>
               <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_19">
+               <layout class="QHBoxLayout" name="horizontalLayout_31">
                 <item>
-                 <spacer name="horizontalSpacer_26">
+                 <spacer name="horizontalSpacer_30">
                   <property name="orientation">
                    <enum>Qt::Horizontal</enum>
                   </property>
@@ -2291,7 +2284,7 @@ QGroupBox::title {
                  </spacer>
                 </item>
                 <item>
-                 <widget class="QCheckBox" name="over_oct_surf_checkbox">
+                 <widget class="QCheckBox" name="over_depth_checkbox">
                   <property name="font">
                    <font>
                     <pointsize>8</pointsize>
@@ -2378,15 +2371,15 @@ QGroupBox::title {
               </item>
              </layout>
             </item>
-            <item row="3" column="0">
-             <layout class="QVBoxLayout" name="verticalLayout_12">
+            <item row="5" column="0">
+             <layout class="QVBoxLayout" name="verticalLayout_13">
               <property name="spacing">
                <number>0</number>
               </property>
               <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_30">
+               <layout class="QHBoxLayout" name="horizontalLayout_34">
                 <item>
-                 <spacer name="horizontalSpacer_29">
+                 <spacer name="horizontalSpacer_31">
                   <property name="orientation">
                    <enum>Qt::Horizontal</enum>
                   </property>
@@ -2399,7 +2392,7 @@ QGroupBox::title {
                  </spacer>
                 </item>
                 <item>
-                 <widget class="QLabel" name="over_depth_label">
+                 <widget class="QLabel" name="over_oct_axes_label">
                   <property name="maximumSize">
                    <size>
                     <width>16777215</width>
@@ -2407,16 +2400,16 @@ QGroupBox::title {
                    </size>
                   </property>
                   <property name="text">
-                   <string>Stereocamera depth map</string>
+                   <string>Original OCT coordinate system axes</string>
                   </property>
                  </widget>
                 </item>
                </layout>
               </item>
               <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_31">
+               <layout class="QHBoxLayout" name="horizontalLayout_35">
                 <item>
-                 <spacer name="horizontalSpacer_30">
+                 <spacer name="horizontalSpacer_32">
                   <property name="orientation">
                    <enum>Qt::Horizontal</enum>
                   </property>
@@ -2429,7 +2422,7 @@ QGroupBox::title {
                  </spacer>
                 </item>
                 <item>
-                 <widget class="QCheckBox" name="over_depth_checkbox">
+                 <widget class="QCheckBox" name="over_oct_axes_checkbox">
                   <property name="font">
                    <font>
                     <pointsize>8</pointsize>
@@ -2450,6 +2443,153 @@ QGroupBox::title {
            </layout>
            <zorder></zorder>
            <zorder></zorder>
+           <zorder>layoutWidget_2</zorder>
+           <zorder>layoutWidget</zorder>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QGroupBox" name="pipeline_groupbox_3">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>250</width>
+             <height>110</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>250</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <property name="styleSheet">
+            <string notr="true">QGroupBox
+{
+border: 1px solid gray;
+border-radius: 2px;
+margin-top: 7px;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 5px;
+    padding: 0 3px 0 3px;
+}</string>
+           </property>
+           <property name="title">
+            <string>Pipeline</string>
+           </property>
+           <layout class="QGridLayout" name="gridLayout_11">
+            <item row="0" column="0">
+             <layout class="QVBoxLayout" name="verticalLayout_6">
+              <property name="spacing">
+               <number>0</number>
+              </property>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_12">
+                <item>
+                 <spacer name="horizontalSpacer_13">
+                  <property name="orientation">
+                   <enum>Qt::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>68</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+                <item>
+                 <widget class="QLabel" name="surface_to_surface_label">
+                  <property name="maximumSize">
+                   <size>
+                    <width>16777215</width>
+                    <height>14</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string>OCT-Depth map transform</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_13">
+                <item>
+                 <spacer name="horizontalSpacer_14">
+                  <property name="orientation">
+                   <enum>Qt::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>40</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="print_transform_button">
+                  <property name="sizePolicy">
+                   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                   </sizepolicy>
+                  </property>
+                  <property name="minimumSize">
+                   <size>
+                    <width>70</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>70</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string>Print</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="calc_transform_button">
+                  <property name="sizePolicy">
+                   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                   </sizepolicy>
+                  </property>
+                  <property name="minimumSize">
+                   <size>
+                    <width>70</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>70</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string>Request</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+             </layout>
+            </item>
+           </layout>
           </widget>
          </item>
         </layout>
