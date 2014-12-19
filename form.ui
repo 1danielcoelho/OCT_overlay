@@ -16,7 +16,7 @@
   <widget class="QWidget" name="centralWidget">
    <layout class="QGridLayout" name="gridLayout_3">
     <item row="0" column="1">
-     <widget class="QVTKWidget" name="qvtkWidget"/>
+     <widget class="QVTKWidget" name="qvtkWidget" native="true"/>
     </item>
    </layout>
   </widget>
@@ -26,7 +26,7 @@
      <x>0</x>
      <y>0</y>
      <width>996</width>
-     <height>22</height>
+     <height>25</height>
     </rect>
    </property>
   </widget>
@@ -66,7 +66,7 @@
      <item row="0" column="0">
       <widget class="QTabWidget" name="tabWidget">
        <property name="currentIndex">
-        <number>2</number>
+        <number>1</number>
        </property>
        <widget class="QWidget" name="OCT">
         <attribute name="title">
@@ -1536,12 +1536,6 @@ QGroupBox::title {
                     <verstretch>0</verstretch>
                    </sizepolicy>
                   </property>
-                  <property name="minimumSize">
-                   <size>
-                    <width>70</width>
-                    <height>20</height>
-                   </size>
-                  </property>
                   <property name="maximumSize">
                    <size>
                     <width>70</width>
@@ -2443,8 +2437,6 @@ QGroupBox::title {
            </layout>
            <zorder></zorder>
            <zorder></zorder>
-           <zorder>layoutWidget_2</zorder>
-           <zorder>layoutWidget</zorder>
           </widget>
          </item>
          <item row="1" column="0">

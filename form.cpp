@@ -82,9 +82,6 @@ Form::Form(int argc, char** argv, QWidget* parent)
   connect(this, SIGNAL(setDepthAccumulatorSize(uint)), m_qnode,
           SLOT(setDepthAccumulatorSize(uint)), Qt::QueuedConnection);
 
-  connect(this, SIGNAL(resetAccumulators()), m_qnode, SLOT(resetAccumulators()),
-          Qt::QueuedConnection);
-
   // Wire up qnode and it's thread. Don't touch this unless absolutely necessary
   connect(m_qthread, SIGNAL(started()), m_qnode, SLOT(process()));
   connect(m_qnode, SIGNAL(finished()), m_qthread, SLOT(quit()));
@@ -1077,23 +1074,24 @@ void Form::on_view_oct_surf_button_clicked() {
 
 void Form::on_calc_oct_mass_button_clicked() { m_viewing_overlay = false; }
 
-void Form::on_view_left_image_button_clicked() {
-  this->m_ui->status_bar->showMessage("Rendering left image... done!");
-  QApplication::processEvents();
+void Form::on_view_left_image_button_clicked()
+{
+    this->m_ui->status_bar->showMessage("Rendering left image... done!");
+    QApplication::processEvents();
 
-  m_waiting_response = true;
-  m_viewing_overlay = false;
-  updateUIStates();
+    m_waiting_response = true;
+    m_viewing_overlay = false;
+    updateUIStates();
 
-  VTK_NEW(vtkImageData, left_image);
-  load2DVectorCacheToImageData(STEREO_LEFT_CACHE_PATH, left_image);
-  render2DImageData(left_image);
+    VTK_NEW(vtkImageData, left_image);
+    load2DVectorCacheToImageData(STEREO_LEFT_CACHE_PATH, left_image);
+    render2DImageData(left_image);
 
-  this->m_ui->status_bar->showMessage("Rendering left image... done!");
-  QApplication::processEvents();
+    this->m_ui->status_bar->showMessage("Rendering left image... done!");
+    QApplication::processEvents();
 
-  m_waiting_response = false;
-  updateUIStates();
+    m_waiting_response = false;
+    updateUIStates();
 }
 
 void Form::on_view_right_image_button_clicked() {
@@ -1483,19 +1481,12 @@ void Form::on_over_trans_axes_checkbox_clicked()
   updateUIStates();
 }
 
-
-void Form::on_left_accu_spinbox_editingFinished() {
-  Q_EMIT setLeftAccumulatorSize(m_ui->left_accu_spinbox->value());
-}
-
-void Form::on_depth_accu_spinbox_editingFinished() {
-  Q_EMIT setDepthAccumulatorSize(m_ui->depth_accu_spinbox->value());
-}
-
 void Form::on_left_accu_reset_button_clicked() {
   m_has_left_img = false;
   updateUIStates();
 
+  std::cout << "left accu reset called" << std::endl;
+  Q_EMIT setLeftAccumulatorSize(m_ui->left_accu_spinbox->value());
   Q_EMIT resetAccumulators();
 }
 
@@ -1503,7 +1494,8 @@ void Form::on_depth_accu_reset_button_clicked() {
   m_has_depth_img = false;
   updateUIStates();
 
-  Q_EMIT resetAccumulators();
+  std::cout << "depth accu reset called" << std::endl;
+  Q_EMIT setDepthAccumulatorSize(m_ui->depth_accu_spinbox->value());
 }
 
 //------------QNODE CALLBACKS---------------------------------------------------
@@ -1615,4 +1607,5 @@ void Form::receivedRegistration() {
   m_has_transform = true;
   updateUIStates();
 }
+
 

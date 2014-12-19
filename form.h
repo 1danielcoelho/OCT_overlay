@@ -188,9 +188,6 @@ private Q_SLOTS:
   void on_over_oct_axes_checkbox_clicked();
   void on_over_trans_axes_checkbox_clicked();
 
-  void on_left_accu_spinbox_editingFinished();
-  void on_depth_accu_spinbox_editingFinished();
-
   void on_left_accu_reset_button_clicked();
   void on_depth_accu_reset_button_clicked();
 
@@ -204,7 +201,8 @@ private Q_SLOTS:
   void receivedDepthImage();
   void receivedRegistration();
 
-  Q_SIGNALS:
+
+Q_SIGNALS:
   void requestScan(OCTinfo);
   void requestSegmentation(OCTinfo);
   void requestRegistration();

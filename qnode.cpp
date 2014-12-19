@@ -98,6 +98,7 @@ void QNode::setupSubscriptions() {
       boost::bind(&QNode::imageCallback, this, _1, _2, _3, _4));
 
   // Initialize the accumulator matrices with camera dimensions
+  std::cout << "setting up subs" << std::endl;
   resetAccumulators();
 
   ROS_INFO("Topic subscription and synchronization completed");
@@ -133,6 +134,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
 
   if (m_left_accu_count < m_left_accu_size) {
     cv::accumulate(image_left, m_left_accu);
+    ROS_INFO("\t\tACCUMULATING LEFT");
     m_left_accu_count++;
   }
 
@@ -142,9 +144,12 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
 
     m_left_accu /= m_left_accu_size;
 
-    // Populate header with information about the left image dimensions
     rows = m_left_accu.rows;
     cols = m_left_accu.cols;
+    cv::Mat result = cv::Mat(rows, cols, CV_8U);
+    m_left_accu.convertTo(result, CV_8U); //Cast our 32FC3 to a 8UC3
+
+    // Populate header with information about the left image dimensions
     header.clear();
     header.resize(2);
     memcpy(&header[0], &rows, 4);
@@ -154,9 +159,9 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
     left.reserve(rows * cols);
     for (uint32_t i = 0; i < rows; i++) {
       for (uint32_t j = 0; j < cols; j++) {
-        left.push_back(m_left_accu.at<cv::Vec3b>(i, j)[0] << 16 |
-                       m_left_accu.at<cv::Vec3b>(i, j)[1] << 8 |
-                       m_left_accu.at<cv::Vec3b>(i, j)[2]);
+        left.push_back(result.at<cv::Vec3b>(i, j)[0] << 16 |
+                       result.at<cv::Vec3b>(i, j)[1] << 8 |
+                       result.at<cv::Vec3b>(i, j)[2]);
       }
     }
 
@@ -229,7 +234,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
   }
 
   if (m_depth_accu_count < m_depth_accu_size) {
-    cv::accumulate(depth_map, m_depth_accu);
+    //cv::accumulate(depth_map, m_depth_accu);
     m_depth_accu_count++;
   }
 
@@ -491,8 +496,18 @@ void QNode::resetAccumulators()
   int rows, cols;
   m_nh->param<int>("imageHeight", rows, 480);
   m_nh->param<int>("imageWidth", cols, 640);
-  m_left_accu.zeros(rows, cols, CV_8U);
+
+  m_left_accu.create(rows, cols, CV_32FC3);
+  m_depth_accu.create(rows, cols, CV_32FC3);
+
+  m_left_accu.zeros(rows, cols, CV_32FC3);
   m_depth_accu.zeros(rows, cols, CV_32FC3);
+
+  std::cout << "accu size on reset: " << m_left_accu.rows << ", " << m_left_accu.cols <<
+               ", accu cn on reset: " <<
+               m_left_accu.channels() << std::endl;
+
+  std::cout << "Now, stack is size " << m_left_accu_size << std::endl;
 
   m_left_accu_count = 0;
   m_depth_accu_count = 0;
