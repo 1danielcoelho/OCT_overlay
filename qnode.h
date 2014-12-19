@@ -2,7 +2,7 @@
 #define OCT_stereocamera_overlay_QNODE_HPP_
 
 // Allows me to test the program at home only changing this line
-//#define AT_HOME
+#define AT_HOME
 
 // C, C++
 #include <iostream>
@@ -42,6 +42,8 @@
 // OpenCV
 #include <cv.h>
 #include <opencv2/opencv.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
 
 #include "octinfo.h"
 #include "filemanager.h"
@@ -138,8 +140,7 @@ Q_SIGNALS:  // Same as 'signals'
  private:
   ros::NodeHandle* m_nh;
   ros::ServiceClient m_oct_tcp_client, m_segmentation_client,
-      m_registration_client;
-  cv_bridge::CvImagePtr m_cv_image_ptr;
+      m_registration_client;  
   FileManager* m_file_manager;
 
   // We don't use command line arguments, but ros::init needs something anyway
@@ -149,13 +150,13 @@ Q_SIGNALS:  // Same as 'signals'
   // Turns true when its time to shutdown
   bool m_shutdown;
 
-  unsigned long m_left_accu_count;
-  unsigned long m_depth_accu_count;
-  unsigned int m_right_img_count;
-  unsigned int m_disp_img_count;
+  uint32_t m_left_accu_count;
+  uint32_t m_depth_accu_count;
+  uint32_t m_right_img_count;
+  uint32_t m_disp_img_count;
 
-  unsigned int m_left_accu_size;
-  unsigned int m_depth_accu_size;
+  uint32_t m_left_accu_size;
+  uint32_t m_depth_accu_size;
 
   cv::Mat m_left_accu;
   cv::Mat m_depth_accu;

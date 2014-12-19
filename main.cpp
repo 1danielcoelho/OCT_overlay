@@ -7,6 +7,7 @@
 * -Changing accu size should make the view buttons blank out
 *
 * -Fix handling the displacement map image
+*  -use cv::normalize
 *  -Somehow save an example so we can look at it later
 *  -Ask Andreas for the image format
 *

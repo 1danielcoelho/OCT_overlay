@@ -320,7 +320,7 @@ void Form::loadVectorToPolyData(std::vector<uint8_t>& oct_data) {
 void Form::loadPCLCacheToPolyData(
     const char* file_path, vtkSmartPointer<vtkPolyData> cloud_poly_data) {
   // Points have no color components
-  if (file_path == OCT_SURF_CACHE_PATH) {
+  if (std::strcmp(file_path, OCT_SURF_CACHE_PATH) == 0) {
     this->statusBar()->showMessage("Reading OCT surface PCL cache... ");
     QApplication::processEvents();
 
@@ -358,7 +358,7 @@ void Form::loadPCLCacheToPolyData(
   }
 
   // Points have color component
-  else if (file_path == STEREO_DEPTH_CACHE_PATH) {
+  else if (std::strcmp(file_path, STEREO_DEPTH_CACHE_PATH) == 0) {
     this->statusBar()->showMessage("Reading depth map PCL cache... ");
     QApplication::processEvents();
 
@@ -414,8 +414,8 @@ void Form::loadPCLCacheToPolyData(
 
 void Form::load2DVectorCacheToImageData(
     const char* file_path, vtkSmartPointer<vtkImageData> image_data) {
-  if (file_path == STEREO_DISP_CACHE_PATH) {
-    std::vector<uint32_t> data;
+  if (std::strcmp(file_path, STEREO_DISP_CACHE_PATH) == 0) {
+    std::vector<uint8_t> data;
 
     // Read the entire file
     m_file_manager->readVector(file_path, data);
@@ -430,7 +430,7 @@ void Form::load2DVectorCacheToImageData(
     image_data->SetScalarTypeToUnsignedChar();
     image_data->AllocateScalars();
 
-    uint32_t val;
+    uint8_t val;
     for (uint32_t y = 0; y < rows; y++) {
       for (uint32_t x = 0; x < cols; x++) {
         // We need to invert the vertical coordinate since we use different
@@ -439,8 +439,7 @@ void Form::load2DVectorCacheToImageData(
             image_data->GetScalarPointer(x, (rows - 1) - y, 0));
 
         // The two first uint32_t are the header
-        val = data[x + y * cols + 2] >> 24;  // Maps a 32 bit range to 8 bit
-        std::cout << (unsigned int)val << "\n";
+        val = data[x + y * cols + 8]; //Skip the two 32-bit values (header)
         memcpy(&pixel[0], &val, 1);
       }
     }
@@ -471,8 +470,8 @@ void Form::load2DVectorCacheToImageData(
             image_data->GetScalarPointer(x, (rows - 1) - y, 0));
 
         // The two first uint32_t are the header
-        val = data[x + y * cols + 2];
-        memcpy(&pixel[0], &val, 3 * sizeof(uint8_t));
+        val = data[x + y * cols + 2]; //Skip the two 32-bit values (header)
+        memcpy(&pixel[0], &val, 3);
       }
     }
 

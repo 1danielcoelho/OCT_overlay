@@ -102,60 +102,48 @@ void QNode::setupSubscriptions() {
   resetAccumulators();
 
   ROS_INFO("Topic subscription and synchronization completed");
-
 }
 
 void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
                           const sensor_msgs::ImageConstPtr &msg_right,
                           const sensor_msgs::ImageConstPtr &msg_disp,
                           const sensor_msgs::ImageConstPtr &msg_depth) {
-
   ROS_INFO("imageCallback called");
 
-  cv::Mat image_left, image_right, disp_map, depth_map;
-  std::vector<uint32_t> left, right, disp, header;
-  uint32_t rows, cols;
-
-  // cv_bridges convert between ROS image messages and opencv images.
-  // Here, we create cv images from ROS image messages by doing a deep
-  // copy of the ROS image data and returning a mutable object
-  m_cv_image_ptr = cv_bridge::toCvCopy(msg_left, enc::RGB8);
-  image_left = m_cv_image_ptr->image;
-  m_cv_image_ptr = cv_bridge::toCvCopy(msg_right, enc::RGB8);
-  image_right = m_cv_image_ptr->image;
-  m_cv_image_ptr = cv_bridge::toCvCopy(msg_disp, enc::TYPE_32FC1);
-  disp_map = m_cv_image_ptr->image;
-  m_cv_image_ptr = cv_bridge::toCvCopy(msg_depth, enc::TYPE_32FC3);
-  depth_map = m_cv_image_ptr->image;
-
-  m_cv_image_ptr.reset();
-
-  ROS_INFO("Image data fetched");
-
   if (m_left_accu_count < m_left_accu_size) {
+    cv::Mat image_left;
+
+    //Convert our image message to a cv::Mat
+    cv_bridge::CvImagePtr cv_image_ptr =
+        cv_bridge::toCvCopy(msg_left, enc::RGB8);
+    image_left = cv_image_ptr->image;
+
+    ROS_INFO("Accumulating to left image: %u of %u", m_left_accu_count,
+             m_left_accu_size);
+
     cv::accumulate(image_left, m_left_accu);
-    ROS_INFO("\t\tACCUMULATING LEFT");
     m_left_accu_count++;
   }
 
   if (m_left_accu_count == m_left_accu_size) {
     // Make sure we only come back here if we reset the accumulator
     m_left_accu_count++;
-
     m_left_accu /= m_left_accu_size;
 
-    rows = m_left_accu.rows;
-    cols = m_left_accu.cols;
-    cv::Mat result = cv::Mat(rows, cols, CV_8U);
-    m_left_accu.convertTo(result, CV_8U); //Cast our 32FC3 to a 8UC3
+    uint32_t rows = m_left_accu.rows;
+    uint32_t cols = m_left_accu.cols;
 
-    // Populate header with information about the left image dimensions
+    cv::Mat result = cv::Mat(rows, cols, CV_8U);
+    m_left_accu.convertTo(result, CV_8U);  // Cast our 32FC3 to a 8UC3
+
+    std::vector<uint32_t> header;
     header.clear();
     header.resize(2);
     memcpy(&header[0], &rows, 4);
     memcpy(&header[1], &cols, 4);
 
     // Populate the left vector with the raw data from the left image
+    std::vector<uint32_t> left;
     left.reserve(rows * cols);
     for (uint32_t i = 0; i < rows; i++) {
       for (uint32_t j = 0; j < cols; j++) {
@@ -177,15 +165,24 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
   if (m_right_img_count == 0) {
     m_right_img_count++;
 
-    // Populate header with information about the right image dimensions
-    rows = image_right.rows;
-    cols = image_left.cols;
+    cv::Mat image_right;
+
+    //Convert our image message to a cv::Mat
+    cv_bridge::CvImagePtr cv_image_ptr =
+        cv_bridge::toCvCopy(msg_right, enc::RGB8);
+    image_right = cv_image_ptr->image;
+
+    uint32_t rows = image_right.rows;
+    uint32_t cols = image_right.cols;
+
+    std::vector<uint32_t> header;
     header.clear();
     header.resize(2);
     memcpy(&header[0], &rows, 4);
     memcpy(&header[1], &cols, 4);
 
     // Populate the right vector with the raw data from the right image
+    std::vector<uint32_t> right;
     right.reserve(rows * cols);
     for (uint32_t i = 0; i < rows; i++) {
       for (uint32_t j = 0; j < cols; j++) {
@@ -208,19 +205,35 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
   if (m_disp_img_count == 0) {
     m_disp_img_count++;
 
-    // Populate header with information about the displacement image dimensions
-    rows = disp_map.rows;
-    cols = disp_map.cols;
+    cv::Mat disp_map;
+
+    //Convert our image message to a cv::Mat
+    cv_bridge::CvImagePtr cv_image_ptr =
+        cv_bridge::toCvCopy(msg_disp, enc::TYPE_32FC1);
+    disp_map = cv_image_ptr->image;
+
+    uint32_t rows = disp_map.rows;
+    uint32_t cols = disp_map.cols;
+
+    std::vector<uint32_t> header;
     header.clear();
     header.resize(2);
     memcpy(&header[0], &rows, 4);
     memcpy(&header[1], &cols, 4);
 
+    // Maps our 32FC1 displacement map to 8UC1, while stretching histogram to
+    // the range of [0, 255]
+    double min, max;
+    cv::minMaxIdx(disp_map, &min, &max);
+    cv::Mat result;
+    cv::convertScaleAbs(disp_map, result, 255 / max);
+
     // Populate displacement vector with the raw data from the disp map
+    std::vector<uint8_t> disp;
     disp.reserve(rows * cols);
     for (uint32_t i = 0; i < rows; i++) {
       for (uint32_t j = 0; j < cols; j++) {
-        disp.push_back(disp_map.at<uint32_t>(i, j));
+        disp.push_back(result.at<uint8_t>(i, j));
       }
     }
 
@@ -234,20 +247,31 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
   }
 
   if (m_depth_accu_count < m_depth_accu_size) {
-    //cv::accumulate(depth_map, m_depth_accu);
+    cv::Mat depth_map;
+
+    //Convert our image message to a cv::Mat
+    cv_bridge::CvImagePtr cv_image_ptr =
+        cv_bridge::toCvCopy(msg_depth, enc::TYPE_32FC3);
+    depth_map = cv_image_ptr->image;
+
+    ROS_INFO("Accumulating to depth image: %u of %u", m_depth_accu_count,
+             m_depth_accu_size);
+
+    cv::accumulate(depth_map, m_depth_accu);
     m_depth_accu_count++;
   }
 
   if (m_depth_accu_count == m_depth_accu_size &&
-      m_left_accu_count > m_left_accu_size) { //We need the left accu ready
+      m_left_accu_count > m_left_accu_size) {  // We need the left accu ready
+    m_depth_accu_count++;
     m_depth_accu /= m_depth_accu_size;
 
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr pts(
         new pcl::PointCloud<pcl::PointXYZRGB>);
 
     // Build a PCL cloud out of the depth map
-    rows = m_depth_accu.rows;
-    cols = m_depth_accu.cols;
+    uint32_t rows = m_depth_accu.rows;
+    uint32_t cols = m_depth_accu.cols;
     for (uint32_t idx = 0; idx < cols; idx++) {
       for (uint32_t idy = 0; idy < rows; idy++) {
         pcl::PointXYZRGB point;
@@ -463,7 +487,6 @@ void QNode::requestRegistration() {
       if (registrationMessage.response.success) {
         ROS_INFO("OCT surface to depth map registration completed");
 
-
       } else {
         ROS_WARN("Registration algorithm failed!");
       }
@@ -491,8 +514,7 @@ void QNode::setDepthAccumulatorSize(unsigned int n) {
   resetAccumulators();
 }
 
-void QNode::resetAccumulators()
-{
+void QNode::resetAccumulators() {
   int rows, cols;
   m_nh->param<int>("imageHeight", rows, 480);
   m_nh->param<int>("imageWidth", cols, 640);
@@ -503,9 +525,9 @@ void QNode::resetAccumulators()
   m_left_accu.zeros(rows, cols, CV_32FC3);
   m_depth_accu.zeros(rows, cols, CV_32FC3);
 
-  std::cout << "accu size on reset: " << m_left_accu.rows << ", " << m_left_accu.cols <<
-               ", accu cn on reset: " <<
-               m_left_accu.channels() << std::endl;
+  std::cout << "accu size on reset: " << m_left_accu.rows << ", "
+            << m_left_accu.cols
+            << ", accu cn on reset: " << m_left_accu.channels() << std::endl;
 
   std::cout << "Now, stack is size " << m_left_accu_size << std::endl;
 
@@ -514,28 +536,3 @@ void QNode::resetAccumulators()
   m_right_img_count = 0;
   m_disp_img_count = 0;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
