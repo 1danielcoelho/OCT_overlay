@@ -1,5 +1,7 @@
 /*  TODO:
 *
+* -Test if the other spinboxes are also going crazy
+*
 * -Find the correct way of intializing/zeroing the accs in resetAccumulators
 *
 * -Changing accu size should make the view buttons blank out
