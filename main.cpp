@@ -1,20 +1,23 @@
 /*  TODO:
 *
-* -Test if the other spinboxes are also going crazy
-*
 * -Find the correct way of intializing/zeroing the accs in resetAccumulators
 *
 * -Changing accu size should make the view buttons blank out
 *
 * -Fix handling the displacement map image
 *  -use cv::normalize
-*  -Somehow save an example so we can look at it later
-*  -Ask Andreas for the image format
+*
+* -Use CV_64FC3 for the depth map accumulator, then cast it to 32FC3 for writing
+*
+* -left accu has cast itself to another format so it can be used in the depth
+*  map write. That potentially doesn't work
 *
 * -Try using delaunay with the stereo depth map and see if it colors it
 *  automagically
 *
 * -See how the inversion of x and y impacts the OCT registration
+*
+* -Consider adding timers to the showmessage statements
 *
 * */
 

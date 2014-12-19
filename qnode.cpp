@@ -113,7 +113,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
   if (m_left_accu_count < m_left_accu_size) {
     cv::Mat image_left;
 
-    //Convert our image message to a cv::Mat
+    // Convert our image message to a cv::Mat
     cv_bridge::CvImagePtr cv_image_ptr =
         cv_bridge::toCvCopy(msg_left, enc::RGB8);
     image_left = cv_image_ptr->image;
@@ -133,8 +133,13 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
     uint32_t rows = m_left_accu.rows;
     uint32_t cols = m_left_accu.cols;
 
-    cv::Mat result = cv::Mat(rows, cols, CV_8U);
-    m_left_accu.convertTo(result, CV_8U);  // Cast our 32FC3 to a 8UC3
+    // Cast our 32FC3 to a 8UC3, for display
+    // Need to directly cast as opposed to cv::convertScaleAbs, since that would
+    // produce distorted brightness levels (a sequence of dark images would have
+    // been converted to a single brighter image)
+    //cv::Mat result = cv::Mat(rows, cols, CV_8U);
+    m_left_accu.convertTo(m_left_accu, CV_8U); //Cast itself to 8U, so we can
+                                               //use it at the depth map write
 
     std::vector<uint32_t> header;
     header.clear();
@@ -147,9 +152,9 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
     left.reserve(rows * cols);
     for (uint32_t i = 0; i < rows; i++) {
       for (uint32_t j = 0; j < cols; j++) {
-        left.push_back(result.at<cv::Vec3b>(i, j)[0] << 16 |
-                       result.at<cv::Vec3b>(i, j)[1] << 8 |
-                       result.at<cv::Vec3b>(i, j)[2]);
+        left.push_back(m_left_accu.at<cv::Vec3b>(i, j)[0] << 16 |
+                       m_left_accu.at<cv::Vec3b>(i, j)[1] << 8 |
+                       m_left_accu.at<cv::Vec3b>(i, j)[2]);
       }
     }
 
@@ -167,7 +172,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
 
     cv::Mat image_right;
 
-    //Convert our image message to a cv::Mat
+    // Convert our image message to a cv::Mat
     cv_bridge::CvImagePtr cv_image_ptr =
         cv_bridge::toCvCopy(msg_right, enc::RGB8);
     image_right = cv_image_ptr->image;
@@ -207,7 +212,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
 
     cv::Mat disp_map;
 
-    //Convert our image message to a cv::Mat
+    // Convert our image message to a cv::Mat
     cv_bridge::CvImagePtr cv_image_ptr =
         cv_bridge::toCvCopy(msg_disp, enc::TYPE_32FC1);
     disp_map = cv_image_ptr->image;
@@ -249,7 +254,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
   if (m_depth_accu_count < m_depth_accu_size) {
     cv::Mat depth_map;
 
-    //Convert our image message to a cv::Mat
+    // Convert our image message to a cv::Mat
     cv_bridge::CvImagePtr cv_image_ptr =
         cv_bridge::toCvCopy(msg_depth, enc::TYPE_32FC3);
     depth_map = cv_image_ptr->image;
@@ -263,21 +268,28 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
 
   if (m_depth_accu_count == m_depth_accu_size &&
       m_left_accu_count > m_left_accu_size) {  // We need the left accu ready
-    m_depth_accu_count++;
+    m_depth_accu_count++; //Only come back here once we reset the depth stack
     m_depth_accu /= m_depth_accu_size;
+
+    uint32_t rows = m_depth_accu.rows;
+    uint32_t cols = m_depth_accu.cols;
+
+    // Cast our 64FC3 to 32FC3
+    // Here its important to cast directly as opposed to using
+    // cv::convertScaleAbs, which would stretch the point cloud to the 32bit max
+    cv::Mat result = cv::Mat(rows, cols, CV_32FC3);
+    m_left_accu.convertTo(result, CV_32FC3);
 
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr pts(
         new pcl::PointCloud<pcl::PointXYZRGB>);
 
-    // Build a PCL cloud out of the depth map
-    uint32_t rows = m_depth_accu.rows;
-    uint32_t cols = m_depth_accu.cols;
+    // Build a PCL cloud out of the depth map    
     for (uint32_t idx = 0; idx < cols; idx++) {
       for (uint32_t idy = 0; idy < rows; idy++) {
         pcl::PointXYZRGB point;
-        point.x = m_depth_accu.at<cv::Vec3f>(idy, idx)[0];
-        point.y = m_depth_accu.at<cv::Vec3f>(idy, idx)[1];
-        point.z = m_depth_accu.at<cv::Vec3f>(idy, idx)[2];
+        point.x = result.at<cv::Vec3f>(idy, idx)[0];
+        point.y = result.at<cv::Vec3f>(idy, idx)[1];
+        point.z = result.at<cv::Vec3f>(idy, idx)[2];
         uint32_t rgb = (m_left_accu.at<cv::Vec3b>(idy, idx)[0] << 16 |
                         m_left_accu.at<cv::Vec3b>(idy, idx)[1] << 8 |
                         m_left_accu.at<cv::Vec3b>(idy, idx)[2]);
@@ -519,17 +531,13 @@ void QNode::resetAccumulators() {
   m_nh->param<int>("imageHeight", rows, 480);
   m_nh->param<int>("imageWidth", cols, 640);
 
+  // Only re-allocates if dimensions or type are different
   m_left_accu.create(rows, cols, CV_32FC3);
   m_depth_accu.create(rows, cols, CV_32FC3);
 
-  m_left_accu.zeros(rows, cols, CV_32FC3);
-  m_depth_accu.zeros(rows, cols, CV_32FC3);
-
-  std::cout << "accu size on reset: " << m_left_accu.rows << ", "
-            << m_left_accu.cols
-            << ", accu cn on reset: " << m_left_accu.channels() << std::endl;
-
-  std::cout << "Now, stack is size " << m_left_accu_size << std::endl;
+  // Reset, in case it hasn't re-allocated
+  m_left_accu = cv::Mat::zeros(rows, cols, CV_32FC3);
+  m_depth_accu = cv::Mat::zeros(rows, cols, CV_64FC3);
 
   m_left_accu_count = 0;
   m_depth_accu_count = 0;
