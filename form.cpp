@@ -159,7 +159,9 @@ void Form::updateUIStates() {
   m_ui->view_oct_mass_button->setEnabled(m_has_oct_mass && !m_waiting_response);
 
   m_ui->calc_oct_surf_button->setEnabled(m_has_raw_oct && !m_waiting_response);
-  m_ui->calc_oct_mass_button->setEnabled(m_has_oct_surf && !m_waiting_response);
+  // m_ui->calc_oct_mass_button->setEnabled(m_has_oct_surf &&
+  // !m_waiting_response);
+  m_ui->calc_oct_mass_button->setEnabled(!m_waiting_response);
 
   // Stereocamera page
   m_ui->view_left_image_button->setEnabled(m_has_left_img &&
@@ -439,7 +441,7 @@ void Form::load2DVectorCacheToImageData(
             image_data->GetScalarPointer(x, (rows - 1) - y, 0));
 
         // The two first uint32_t are the header
-        val = data[x + y * cols + 8]; //Skip the two 32-bit values (header)
+        val = data[x + y * cols + 8];  // Skip the two 32-bit values (header)
         memcpy(&pixel[0], &val, 1);
       }
     }
@@ -470,7 +472,7 @@ void Form::load2DVectorCacheToImageData(
             image_data->GetScalarPointer(x, (rows - 1) - y, 0));
 
         // The two first uint32_t are the header
-        val = data[x + y * cols + 2]; //Skip the two 32-bit values (header)
+        val = data[x + y * cols + 2];  // Skip the two 32-bit values (header)
         memcpy(&pixel[0], &val, 3);
       }
     }
@@ -867,6 +869,176 @@ void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data) {
   QApplication::processEvents();
 }
 
+void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
+                         vtkSmartPointer<vtkPolyData> surf) {
+  uint32_t num_pts = m_oct_poly_data->GetPointData()->GetNumberOfTuples();
+  uint32_t num_surf_pts = surf->GetNumberOfPoints();
+
+  if (num_pts == 0) {
+    qDebug() << "m_oct_poly_data is empty!";
+    return;
+  }
+
+  m_waiting_response = true;
+  updateUIStates();
+
+  // Determine increments
+  float length_incrm = 1;
+  float width_incrm = 1;
+  float depth_incrm = 2.762 / 1024.0;
+  if (m_current_params.length_range != 0)
+    length_incrm =
+        m_current_params.length_range / m_current_params.length_steps;
+  if (m_current_params.width_range != 0)
+    width_incrm = m_current_params.width_range / m_current_params.width_steps;
+  if (m_current_params.depth_range != 0)
+    depth_incrm = m_current_params.depth_range / m_current_params.depth_steps;
+
+  this->statusBar()->showMessage("Building height plane... ");
+  QApplication::processEvents();
+
+  double height_plane[m_current_params.length_steps]
+                     [m_current_params.width_steps];
+
+  for (int i = 0; i < num_surf_pts; ++i) {
+    double coords[3];
+    surf->GetPoint(i, coords);
+
+    height_plane[int(coords[0] / length_incrm)][int(coords[1] / width_incrm)] =
+        coords[2];
+  }
+
+  VTK_NEW(vtkPoints, under_pts);
+  VTK_NEW(vtkTypeUInt8Array, under_vals);
+
+  this->statusBar()->showMessage("Extracting volume under OCT surface... ");
+  QApplication::processEvents();
+
+  for (uint32_t i = 0; i < num_pts; ++i) {
+    // Grabs a point in the volume
+    double coords[3];
+    double val;
+    m_oct_poly_data->GetPoint(i, coords);
+    m_oct_poly_data->GetPointData()->GetScalars()->GetTuple(i, &val);
+
+    // The point is under the surface
+    if (height_plane[int(coords[0] / length_incrm)]
+                    [int(coords[1] / width_incrm)] < coords[2]) {
+      under_pts->InsertNextPoint(coords);
+      under_vals->InsertNextValue((uint8_t)val);
+    }
+  }
+
+  VTK_NEW(vtkImageData, image);
+  image->SetExtent(0, m_current_params.length_steps - 1, 0,
+                   m_current_params.width_steps - 1, 0,
+                   m_current_params.depth_steps - 1);
+  image->SetNumberOfScalarComponents(1);
+  image->SetScalarTypeToUnsignedChar();
+  image->SetSpacing(length_incrm, width_incrm, depth_incrm);
+
+  this->statusBar()->showMessage("Constructing imagedata... ");
+  QApplication::processEvents();
+
+  // Initializes the imagedata to null (filled with garbage otherwise)
+  for (int i = 0; i < m_current_params.length_steps; i++) {
+    for (int j = 0; j < m_current_params.width_steps; j++) {
+      for (int k = 0; k < m_current_params.depth_steps; k++) {
+
+        unsigned char* pixel =
+            static_cast<unsigned char*>(image->GetScalarPointer(i, j, k));
+
+        pixel[0] = 0;
+      }
+    }
+  }
+
+  // Adds the scalar values from the sub-surface oct volume to the imagedata
+  uint32_t num_under_pts = under_pts->GetNumberOfPoints();
+  uint8_t value;
+  for (uint32_t i = 0; i < num_under_pts; i++) {
+    value = under_vals->GetValue(i);
+
+    double point_coords[3];
+    under_pts->GetPoint(i, point_coords);
+
+    unsigned char* pixel = static_cast<unsigned char*>(
+        image->GetScalarPointer(int(point_coords[0] / (1.0 * length_incrm)),
+                                int(point_coords[1] / (1.0 * width_incrm)),
+                                int(point_coords[2] / (1.0 * depth_incrm))));
+    pixel[0] = value;
+  }
+
+  //  for (int x = 0; x < m_current_params.length_steps; ++x) {
+  //    for (int y = 0; y < m_current_params.width_steps; ++y) {
+  //      unsigned char* pixel =
+  //          static_cast<unsigned char*>(image->GetScalarPointer(x, y, 100));
+  //      std::cout << (unsigned int)pixel[0] << " ";
+  //    }
+  //    std::cout << std::endl;
+  //  }
+
+  this->statusBar()->showMessage("Applying convolution... ");
+  QApplication::processEvents();
+
+  VTK_NEW(vtkImageConvolve, conv_filt);
+  conv_filt->SetInput(image);
+  double kern[7 * 7 * 7];
+  for (int i = 0; i < 7 * 7 * 7; i++) {
+    kern[i] = 1.0 / 49.0;
+  }
+  conv_filt->SetKernel7x7x7(kern);
+  conv_filt->Update();
+
+  this->statusBar()->showMessage("Extracting contours... ");
+  QApplication::processEvents();
+
+  uint8_t num_contours = 3;
+
+  VTK_NEW(vtkContourFilter, cont_filt);
+  cont_filt->SetInputConnection(conv_filt->GetOutputPort());
+  cont_filt->GenerateValues(num_contours, 50, 127);
+  cont_filt->Update();
+
+  double contours[num_contours];
+  cont_filt->GetValues(contours);
+
+  this->statusBar()->showMessage("Building LUT... ");
+  QApplication::processEvents();
+
+  VTK_NEW(vtkLookupTable, lut);
+  lut->SetTableRange(1, num_contours);
+  lut->SetNumberOfColors(num_contours);
+  for (int i = 0; i < num_contours; ++i) {
+    lut->SetTableValue(i, (rand() % 101) / 100.0, (rand() % 101) / 100.0,
+                       (rand() % 101) / 100.0);
+  }
+  lut->Build();
+
+  VTK_NEW(vtkPolyDataMapper, mapper);
+  mapper->SetInputConnection(cont_filt->GetOutputPort());
+  mapper->SetLookupTable(lut);
+  mapper->SetScalarModeToUseCellData();
+  mapper->SetScalarRange(lut->GetTableRange());
+
+  actor->SetMapper(mapper);
+
+  m_renderer->AddActor(actor);
+
+  this->statusBar()->showMessage("Rendering... ");
+  QApplication::processEvents();
+
+  this->m_ui->qvtkWidget->update();
+  QApplication::processEvents();
+
+  this->statusBar()->showMessage("Rendering... done!");
+  QApplication::processEvents();
+
+  m_has_oct_mass = true;
+  m_waiting_response = false;
+  updateUIStates();
+}
+
 //--------------UI CALLBACKS----------------------------------------------------
 
 void Form::on_browse_button_clicked() {
@@ -1071,26 +1243,43 @@ void Form::on_view_oct_surf_button_clicked() {
   updateUIStates();
 }
 
-void Form::on_calc_oct_mass_button_clicked() { m_viewing_overlay = false; }
+void Form::on_calc_oct_mass_button_clicked() {
+  this->m_ui->status_bar->showMessage("Rendering OCT mass... ");
+  QApplication::processEvents();
 
-void Form::on_view_left_image_button_clicked()
-{
-    this->m_ui->status_bar->showMessage("Rendering left image... done!");
-    QApplication::processEvents();
+  m_waiting_response = true;
+  updateUIStates();
 
-    m_waiting_response = true;
-    m_viewing_overlay = false;
-    updateUIStates();
+  VTK_NEW(vtkPolyData, surf_oct_poly_data);
+  loadPCLCacheToPolyData(OCT_SURF_CACHE_PATH, surf_oct_poly_data);
 
-    VTK_NEW(vtkImageData, left_image);
-    load2DVectorCacheToImageData(STEREO_LEFT_CACHE_PATH, left_image);
-    render2DImageData(left_image);
+  m_renderer->RemoveAllViewProps();
+  renderOCTMass(m_oct_mass_actor, surf_oct_poly_data);
 
-    this->m_ui->status_bar->showMessage("Rendering left image... done!");
-    QApplication::processEvents();
+  this->m_ui->status_bar->showMessage("Rendering OCT mass... done!");
+  QApplication::processEvents();
 
-    m_waiting_response = false;
-    updateUIStates();
+  m_waiting_response = false;
+  updateUIStates();
+}
+
+void Form::on_view_left_image_button_clicked() {
+  this->m_ui->status_bar->showMessage("Rendering left image... done!");
+  QApplication::processEvents();
+
+  m_waiting_response = true;
+  m_viewing_overlay = false;
+  updateUIStates();
+
+  VTK_NEW(vtkImageData, left_image);
+  load2DVectorCacheToImageData(STEREO_LEFT_CACHE_PATH, left_image);
+  render2DImageData(left_image);
+
+  this->m_ui->status_bar->showMessage("Rendering left image... done!");
+  QApplication::processEvents();
+
+  m_waiting_response = false;
+  updateUIStates();
 }
 
 void Form::on_view_right_image_button_clicked() {
@@ -1375,7 +1564,11 @@ void Form::on_over_oct_mass_checkbox_clicked() {
     this->m_ui->status_bar->showMessage("Adding OCT mass to overlay view...");
     QApplication::processEvents();
 
-    // Render oct mass
+    VTK_NEW(vtkPolyData, surf_oct_poly_data);
+    loadPCLCacheToPolyData(OCT_SURF_CACHE_PATH, surf_oct_poly_data);
+
+    m_renderer->RemoveAllViewProps();
+    renderOCTMass(m_oct_mass_actor, surf_oct_poly_data);
   } else {
     this->m_ui->status_bar->showMessage(
         "Removing OCT mass from overlay view...", 3000);
@@ -1450,8 +1643,7 @@ void Form::on_over_depth_checkbox_clicked() {
   updateUIStates();
 }
 
-void Form::on_over_trans_axes_checkbox_clicked()
-{
+void Form::on_over_trans_axes_checkbox_clicked() {
   // If we started viewing overlay from another tab, then clear actors
   if (!m_viewing_overlay) {
     m_renderer->RemoveAllViewProps();
@@ -1606,5 +1798,3 @@ void Form::receivedRegistration() {
   m_has_transform = true;
   updateUIStates();
 }
-
-

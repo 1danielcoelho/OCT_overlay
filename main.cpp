@@ -1,5 +1,17 @@
 /*  TODO:
 *
+*	-over_oct_mass_checkbox_clicked possibly re-calculates the surface when that
+*  probably wasnt really necessary
+*
+* -Unchecking show axes doesn't update the view
+*
+*	-IDEA TO SEGMENT TUMOR: Average filter with a humongous kernel size, then
+	 create contours based on the voxel value of the average voxels. The tumor
+	 should have a significantly lower average value; resistance to noise an
+	 inhomogeneities due to a large kernel; Automatically gives "trust ranges"
+	 around the tumor; Automatically sets a lower bound on the tumor in case its
+	 hard to see where the bottom ends
+*
 * -Find the correct way of intializing/zeroing the accs in resetAccumulators
 *
 * -Changing accu size should make the view buttons blank out
