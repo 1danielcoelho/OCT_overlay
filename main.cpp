@@ -3,8 +3,6 @@
 *	-over_oct_mass_checkbox_clicked possibly re-calculates the surface when that
 *  probably wasnt really necessary
 *
-* -Unchecking show axes doesn't update the view
-*
 *	-IDEA TO SEGMENT TUMOR: Average filter with a humongous kernel size, then
 	 create contours based on the voxel value of the average voxels. The tumor
 	 should have a significantly lower average value; resistance to noise an
@@ -29,8 +27,7 @@
 *
 * -See how the inversion of x and y impacts the OCT registration
 *
-* -Consider adding timers to the showmessage statements
-*
+* -Consider adding timers to the showmessage statements*
 * */
 
 /* NEXT EXPERIMENT:

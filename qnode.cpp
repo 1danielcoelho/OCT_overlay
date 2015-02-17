@@ -455,7 +455,7 @@ void QNode::requestSegmentation(OCTinfo params) {
       pts->points[index].y = j * width_incrm;
       pts->points[index].z =
           0.001 * (rand() % 100) +
-          0.5 * sin(3 * 3.141592 * (1.0 * i) / params.length_steps) + 1.5;
+          0.1 * sin(3 * 3.141592 * (1.0 * i) / params.length_steps) + 1.5;
     }
   }
 

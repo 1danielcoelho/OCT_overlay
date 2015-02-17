@@ -272,6 +272,10 @@ void Form::loadVectorToPolyData(std::vector<uint8_t>& oct_data) {
   if (m_current_params.depth_range != 0)
     depth_incrm = m_current_params.depth_range / m_current_params.depth_steps;
 
+  // Clear the arays holding the current point data and scalars, to prevent
+  // memory spikes
+
+  // Setup arrays to hold point coordinates and the scalars
   VTK_NEW(vtkPoints, points);
   VTK_NEW(vtkTypeUInt8Array, dataArray);
   points->SetNumberOfPoints(m_current_params.length_steps *
@@ -280,6 +284,12 @@ void Form::loadVectorToPolyData(std::vector<uint8_t>& oct_data) {
   dataArray->SetNumberOfValues(m_current_params.length_steps *
                                m_current_params.width_steps *
                                m_current_params.depth_steps);
+
+  // Set them into our polydata early, to potentially drop (and gracefully
+  // delete) the arrays that previously were in those positions
+  m_oct_poly_data->Reset();
+  m_oct_poly_data->SetPoints(points);
+  m_oct_poly_data->GetPointData()->SetScalars(dataArray);
 
   this->statusBar()->showMessage("Building raw point data... ");
   QApplication::processEvents();
@@ -308,10 +318,6 @@ void Form::loadVectorToPolyData(std::vector<uint8_t>& oct_data) {
     QApplication::processEvents();
   }
 
-  m_oct_poly_data->Reset();
-  m_oct_poly_data->SetPoints(points);
-  m_oct_poly_data->GetPointData()->SetScalars(dataArray);
-
   m_has_raw_oct = true;
   updateUIStates();
 
@@ -334,7 +340,6 @@ void Form::loadPCLCacheToPolyData(
     int num_pts = pts->size();
 
     VTK_NEW(vtkPoints, points);
-    points->Reset();
     points->SetNumberOfPoints(num_pts);
 
     pcl::PointXYZ* cloud_point;
@@ -352,7 +357,6 @@ void Form::loadPCLCacheToPolyData(
       points->SetPoint(i, cloud_point->y, cloud_point->x, cloud_point->z);
     }
 
-    cloud_poly_data->Reset();
     cloud_poly_data->SetPoints(points);
 
     this->statusBar()->showMessage("Building OCT surface vtkPolyData... done!");
@@ -372,11 +376,9 @@ void Form::loadPCLCacheToPolyData(
     int num_pts = pts->size();
 
     VTK_NEW(vtkPoints, points);
-    points->Reset();
     points->SetNumberOfPoints(num_pts);
 
     VTK_NEW(vtkUnsignedCharArray, data_array);
-    data_array->Reset();
     data_array->SetNumberOfComponents(3);
     data_array->SetNumberOfTuples(num_pts);
     data_array->SetName("Colors");
@@ -398,7 +400,6 @@ void Form::loadPCLCacheToPolyData(
       data_array->SetTupleValue(i, color);
     }
 
-    cloud_poly_data->Reset();
     cloud_poly_data->SetPoints(points);
     cloud_poly_data->GetPointData()->SetScalars(data_array);
 
@@ -908,8 +909,12 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
         coords[2];
   }
 
-  VTK_NEW(vtkPoints, under_pts);
-  VTK_NEW(vtkTypeUInt8Array, under_vals);
+  // Lets release the surface since we don't need it anymore
+  surf = NULL;
+
+  // No smart pointers here since we force-delete these later to conserve RAM
+  vtkPoints* under_pts = vtkPoints::New();
+  vtkTypeUInt8Array* under_vals = vtkTypeUInt8Array::New();
 
   this->statusBar()->showMessage("Extracting volume under OCT surface... ");
   QApplication::processEvents();
@@ -929,9 +934,12 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
     }
   }
 
-  VTK_NEW(vtkImageData, image);
-  image->SetExtent(0, m_current_params.length_steps - 1, 0,
-                   m_current_params.width_steps - 1, 0,
+  m_oct_poly_data = NULL;
+
+  // No smart pointers here since we force-delete this later to conserve RAM
+  vtkImageData* image = vtkImageData::New();
+  image->SetExtent(0, m_current_params.length_steps / 2 - 1, 0,  // here
+                   m_current_params.width_steps / 2 - 1, 0,
                    m_current_params.depth_steps - 1);
   image->SetNumberOfScalarComponents(1);
   image->SetScalarTypeToUnsignedChar();
@@ -941,8 +949,8 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   QApplication::processEvents();
 
   // Initializes the imagedata to null (filled with garbage otherwise)
-  for (int i = 0; i < m_current_params.length_steps; i++) {
-    for (int j = 0; j < m_current_params.width_steps; j++) {
+  for (int i = 0; i < m_current_params.length_steps / 2; i++) {  // here
+    for (int j = 0; j < m_current_params.width_steps / 2; j++) {
       for (int k = 0; k < m_current_params.depth_steps; k++) {
 
         unsigned char* pixel =
@@ -962,12 +970,22 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
     double point_coords[3];
     under_pts->GetPoint(i, point_coords);
 
-    unsigned char* pixel = static_cast<unsigned char*>(
-        image->GetScalarPointer(int(point_coords[0] / (1.0 * length_incrm)),
-                                int(point_coords[1] / (1.0 * width_incrm)),
-                                int(point_coords[2] / (1.0 * depth_incrm))));
-    pixel[0] = value;
+    if (int(point_coords[0] / (1.0 * length_incrm)) <  // here
+            m_current_params.length_steps / 2 &&
+        int(point_coords[1] / (1.0 * width_incrm)) <
+            m_current_params.width_steps / 2) {
+
+      unsigned char* pixel = static_cast<unsigned char*>(
+          image->GetScalarPointer(int(point_coords[0] / (1.0 * length_incrm)),
+                                  int(point_coords[1] / (1.0 * width_incrm)),
+                                  int(point_coords[2] / (1.0 * depth_incrm))));
+      pixel[0] = value;
+    }
   }
+
+  // Now that we used our sub-volume points and scalars, we clear them up
+  under_pts->Delete();
+  under_vals->Delete();
 
   //  for (int x = 0; x < m_current_params.length_steps; ++x) {
   //    for (int y = 0; y < m_current_params.width_steps; ++y) {
@@ -981,27 +999,110 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   this->statusBar()->showMessage("Applying convolution... ");
   QApplication::processEvents();
 
-  VTK_NEW(vtkImageConvolve, conv_filt);
-  conv_filt->SetInput(image);
-  double kern[7 * 7 * 7];
-  for (int i = 0; i < 7 * 7 * 7; i++) {
-    kern[i] = 1.0 / 49.0;
-  }
-  conv_filt->SetKernel7x7x7(kern);
-  conv_filt->Update();
+  //  VTK_NEW(vtkImageConvolve, conv_filt);
+  //  conv_filt->SetInput(image);
+  //  double kern[7 * 7 * 7];
+  //  for (int i = 0; i < 7 * 7 * 7; i++) {
+  //    kern[i] = 1.0 / (7.0*7.0*7.0);
+  //  }
+  //  conv_filt->SetKernel7x7x7(kern);
+  //  conv_filt->Update();
+
+  VTK_NEW(vtkImageFFT, fft_filt);
+  fft_filt->SetInput(image);
+  fft_filt->Update();
+
+  this->statusBar()->showMessage("Applying low-pass filter... ");
+  QApplication::processEvents();
+
+  VTK_NEW(vtkImageIdealLowPass, lowpass_filt);
+  lowpass_filt->SetInputConnection(fft_filt->GetOutputPort());
+  lowpass_filt->SetCutOff(3, 3, 5);
+  lowpass_filt->Update();
+
+  VTK_NEW(vtkImageRFFT, rfft_filt);
+  rfft_filt->SetInputConnection(lowpass_filt->GetOutputPort());
+  rfft_filt->Update();
+
+  // Get rid of imaginary components generated by RFFT
+  VTK_NEW(vtkImageExtractComponents, extract_filt);
+  extract_filt->SetInputConnection(rfft_filt->GetOutputPort());
+  extract_filt->SetComponents(0);
+  extract_filt->Update();
+
+  this->statusBar()->showMessage("Calculating divergent... ");
+  QApplication::processEvents();
+
+  //  VTK_NEW(vtkImageDivergence, div_filt);
+  //  div_filt->SetInputConnection(rfft_filt->GetOutputPort());
+  //  div_filt->Update();
+
+  VTK_NEW(vtkImageGradient, grad_filt);
+  grad_filt->SetInputConnection(extract_filt->GetOutputPort());
+  grad_filt->SetDimensionality(3);
+  grad_filt->Update();
+  grad_filt->GetOutput()->Print(std::cout);
+
+  // Clear imagedata now that we have our filtered result
+  image->Delete();
 
   this->statusBar()->showMessage("Extracting contours... ");
   QApplication::processEvents();
 
-  uint8_t num_contours = 3;
+  uint8_t num_contours = 1;
+  //  VTK_NEW(vtkContourFilter, cont_filt);
+  //  cont_filt->SetInputConnection(rfft_filt->GetOutputPort());
+  //  // cont_filt->GenerateValues(num_contours, 0, 50);
+  //  cont_filt->SetValue(0, 40);
+  //  cont_filt->Update();
+  //  double contours[num_contours];
+  //  cont_filt->GetValues(contours);
 
-  VTK_NEW(vtkContourFilter, cont_filt);
-  cont_filt->SetInputConnection(conv_filt->GetOutputPort());
-  cont_filt->GenerateValues(num_contours, 50, 127);
-  cont_filt->Update();
+  // Grab X component of the gradient
+  VTK_NEW(vtkImageExtractComponents, extract_x_filt);
+  extract_x_filt->SetInputConnection(grad_filt->GetOutputPort());
+  extract_x_filt->SetComponents(0);
+  extract_x_filt->Update();
 
-  double contours[num_contours];
-  cont_filt->GetValues(contours);
+  //Grab Y component of the gradient
+  VTK_NEW(vtkImageExtractComponents, extract_y_filt);
+  extract_y_filt->SetInputConnection(grad_filt->GetOutputPort());
+  extract_y_filt->SetComponents(0);
+  extract_y_filt->Update();
+
+  // Gradient might be negative
+  VTK_NEW(vtkImageMathematics, abs_x_filt);
+  abs_x_filt->SetOperationToAbsoluteValue();
+  abs_x_filt->SetInputConnection(extract_x_filt->GetOutputPort());
+  abs_x_filt->Update();
+
+  // Gradient might be negative
+  VTK_NEW(vtkImageMathematics, abs_y_filt);
+  abs_y_filt->SetOperationToAbsoluteValue();
+  abs_y_filt->SetInputConnection(extract_y_filt->GetOutputPort());
+  abs_y_filt->Update();
+
+  // Add the two gradients
+  VTK_NEW(vtkImageMathematics, sum_filt);
+  sum_filt->SetOperationToAdd();
+  sum_filt->SetInput1(abs_x_filt->GetOutput());
+  sum_filt->SetInput2(abs_y_filt->GetOutput());
+  sum_filt->Update();
+
+  VTK_NEW(vtkImageMarchingCubes, cubes_filter);
+  cubes_filter->SetInputConnection(sum_filt->GetOutputPort());
+  cubes_filter->SetValue(0, 100);
+  //  cubes_filter->ComputeNormalsOn();
+  cubes_filter->Update();
+
+  this->statusBar()->showMessage("Decimating mesh... ");
+  QApplication::processEvents();
+
+  //  VTK_NEW(vtkDecimatePro, dec_filt);
+  //  dec_filt->SetInputConnection(cubes_filter->GetOutputPort());
+  //  dec_filt->SetTargetReduction(0.9);
+  //  dec_filt->PreserveTopologyOn();
+  //  dec_filt->Update();
 
   this->statusBar()->showMessage("Building LUT... ");
   QApplication::processEvents();
@@ -1010,16 +1111,20 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   lut->SetTableRange(1, num_contours);
   lut->SetNumberOfColors(num_contours);
   for (int i = 0; i < num_contours; ++i) {
-    lut->SetTableValue(i, (rand() % 101) / 100.0, (rand() % 101) / 100.0,
-                       (rand() % 101) / 100.0);
+    lut->SetTableValue(i, (rand() % 256) / 255.0, (rand() % 256) / 255.0,
+                       (rand() % 256) / 255.0);
   }
   lut->Build();
 
+  this->statusBar()->showMessage("Mapping... ");
+  QApplication::processEvents();
+
   VTK_NEW(vtkPolyDataMapper, mapper);
-  mapper->SetInputConnection(cont_filt->GetOutputPort());
+  mapper->SetInputConnection(cubes_filter->GetOutputPort());
   mapper->SetLookupTable(lut);
   mapper->SetScalarModeToUseCellData();
   mapper->SetScalarRange(lut->GetTableRange());
+  mapper->Update();
 
   actor->SetMapper(mapper);
 
@@ -1516,6 +1621,7 @@ void Form::on_over_raw_checkbox_clicked() {
     QApplication::processEvents();
 
     m_renderer->RemoveActor(m_oct_vol_actor);
+    this->m_ui->qvtkWidget->update();
   }
 
   m_waiting_response = false;
@@ -1545,6 +1651,7 @@ void Form::on_over_oct_surf_checkbox_clicked() {
     QApplication::processEvents();
 
     m_renderer->RemoveActor(m_oct_surf_actor);
+    this->m_ui->qvtkWidget->update();
   }
 
   m_waiting_response = false;
@@ -1575,6 +1682,7 @@ void Form::on_over_oct_mass_checkbox_clicked() {
     QApplication::processEvents();
 
     m_renderer->RemoveActor(m_oct_mass_actor);
+    this->m_ui->qvtkWidget->update();
   }
 
   m_waiting_response = false;
@@ -1606,6 +1714,7 @@ void Form::on_over_oct_axes_checkbox_clicked() {
     QApplication::processEvents();
 
     m_renderer->RemoveActor(m_oct_axes_actor);
+    this->m_ui->qvtkWidget->update();
   }
 
   m_waiting_response = false;
@@ -1637,6 +1746,7 @@ void Form::on_over_depth_checkbox_clicked() {
         3000);
     QApplication::processEvents();
     m_renderer->RemoveActor(m_stereo_depth_actor);
+    this->m_ui->qvtkWidget->update();
   }
 
   m_waiting_response = false;
@@ -1666,6 +1776,7 @@ void Form::on_over_trans_axes_checkbox_clicked() {
     QApplication::processEvents();
 
     m_renderer->RemoveActor(m_trans_axes_actor);
+    this->m_ui->qvtkWidget->update();
   }
 
   m_waiting_response = false;

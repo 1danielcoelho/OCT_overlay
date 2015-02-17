@@ -31,6 +31,7 @@
 #include <vtkPointData.h>
 #include <vtkTypeUInt8Array.h>
 #include <vtkDoubleArray.h>
+#include <vtkDecimatePro.h>
 #include <vtkUnsignedCharArray.h>
 #include <vtkTransform.h>
 // Filters
@@ -40,6 +41,14 @@
 #include <vtkTransformFilter.h>
 #include <vtkDelaunay2D.h>
 #include <vtkImageConvolve.h>
+#include <vtkImageFFT.h>
+#include <vtkImageIdealLowPass.h>
+#include <vtkImageRFFT.h>
+#include <vtkImageDivergence.h>
+#include <vtkImageGradient.h>
+#include <vtkImageMarchingCubes.h>
+#include <vtkImageExtractComponents.h>
+#include <vtkImageMathematics.h>
 // Mappers
 #include <vtkPolyDataMapper.h>
 #include <vtkImageMapper.h>
@@ -55,7 +64,7 @@
 #include <vtkProperty.h>
 #include <vtkLookupTable.h>
 #include <vtkTextProperty.h>
-#include <vtkPointLocator.h>
+#include <vtkGarbageCollector.h>
 // Project files
 #include "qnode.h"
 #include "filemanager.h"
