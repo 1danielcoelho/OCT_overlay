@@ -656,6 +656,47 @@ void Form::normalize(std::vector<uint8_t>& input) {
   }
 }
 
+void Form::discardImageSides(vtkSmartPointer<vtkImageData> input, float frac_x,
+                             float frac_y) {
+
+  // Makes sure the type is 'unsigned char'. This is lazy, but making this
+  // function generic would involve templating it and passing a type, which is
+  // not a necessary function at this time
+  int type = input->GetScalarType();
+  assert(type == 3);
+
+  int extents[6];
+  input->GetExtent(extents);
+
+  // For a 128x128x128 points image: Sizes = 128
+  int size_x = extents[1] - extents[0] + 1;
+  int size_y = extents[3] - extents[2] + 1;
+  int size_z = extents[5] - extents[4] + 1;
+
+  // Find the minimum and maximum indices that are valid
+  // For a 128x128x128 points image with fracs = 0: min_x = 0; max_x = 127
+  int min_x = extents[0] + frac_x * size_x;
+  int max_x = extents[1] - frac_x * size_x;
+  int min_y = extents[2] + frac_y * size_y;
+  int max_y = extents[3] - frac_y * size_y;
+
+  // Go over input, sets any sample that has an 'i' value lower than min_i or
+  // higher than max_i to zero
+  for (int i = 0; i < size_x; i++) {
+    for (int j = 0; j < size_y; j++) {
+      for (int k = 0; k < size_z; k++) {
+        if (i < min_x || i > max_x || j < min_y || j > max_y) {
+
+          unsigned char* pixel =
+              static_cast<unsigned char*>(input->GetScalarPointer(i, j, k));
+
+          pixel[0] = 0;
+        }
+      }
+    }
+  }
+}
+
 //------------RENDERING---------------------------------------------------------
 
 void Form::renderAxes(vtkSmartPointer<vtkAxesActor> actor,
@@ -934,12 +975,13 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
     }
   }
 
+  // Free up some resources
   m_oct_poly_data = NULL;
 
   // No smart pointers here since we force-delete this later to conserve RAM
   vtkImageData* image = vtkImageData::New();
-  image->SetExtent(0, m_current_params.length_steps / 2 - 1, 0,  // here
-                   m_current_params.width_steps / 2 - 1, 0,
+  image->SetExtent(0, m_current_params.length_steps - 1, 0,  // here
+                   m_current_params.width_steps - 1, 0,
                    m_current_params.depth_steps - 1);
   image->SetNumberOfScalarComponents(1);
   image->SetScalarTypeToUnsignedChar();
@@ -949,8 +991,8 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   QApplication::processEvents();
 
   // Initializes the imagedata to null (filled with garbage otherwise)
-  for (int i = 0; i < m_current_params.length_steps / 2; i++) {  // here
-    for (int j = 0; j < m_current_params.width_steps / 2; j++) {
+  for (int i = 0; i < m_current_params.length_steps; i++) {  // here
+    for (int j = 0; j < m_current_params.width_steps; j++) {
       for (int k = 0; k < m_current_params.depth_steps; k++) {
 
         unsigned char* pixel =
@@ -970,17 +1012,17 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
     double point_coords[3];
     under_pts->GetPoint(i, point_coords);
 
-    if (int(point_coords[0] / (1.0 * length_incrm)) <  // here
-            m_current_params.length_steps / 2 &&
-        int(point_coords[1] / (1.0 * width_incrm)) <
-            m_current_params.width_steps / 2) {
+    //    if (int(point_coords[0] / (1.0 * length_incrm)) <  // here
+    //            m_current_params.length_steps / 2 &&
+    //        int(point_coords[1] / (1.0 * width_incrm)) <
+    //            m_current_params.width_steps / 2) {
 
-      unsigned char* pixel = static_cast<unsigned char*>(
-          image->GetScalarPointer(int(point_coords[0] / (1.0 * length_incrm)),
-                                  int(point_coords[1] / (1.0 * width_incrm)),
-                                  int(point_coords[2] / (1.0 * depth_incrm))));
-      pixel[0] = value;
-    }
+    unsigned char* pixel = static_cast<unsigned char*>(
+        image->GetScalarPointer(int(point_coords[0] / (1.0 * length_incrm)),
+                                int(point_coords[1] / (1.0 * width_incrm)),
+                                int(point_coords[2] / (1.0 * depth_incrm))));
+    pixel[0] = value;
+    //    }
   }
 
   // Now that we used our sub-volume points and scalars, we clear them up
@@ -1011,40 +1053,51 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   VTK_NEW(vtkImageFFT, fft_filt);
   fft_filt->SetInput(image);
   fft_filt->Update();
+  fft_filt->GetOutput()->ReleaseDataFlagOn();
+
+  // Clear our imagedata since we will be using its FFT from now on
+  image->Delete();
 
   this->statusBar()->showMessage("Applying low-pass filter... ");
   QApplication::processEvents();
 
   VTK_NEW(vtkImageIdealLowPass, lowpass_filt);
   lowpass_filt->SetInputConnection(fft_filt->GetOutputPort());
-  lowpass_filt->SetCutOff(3, 3, 5);
+  lowpass_filt->SetCutOff(3, 3, 3);
   lowpass_filt->Update();
+  lowpass_filt->GetOutput()->ReleaseDataFlagOn();
 
   VTK_NEW(vtkImageRFFT, rfft_filt);
   rfft_filt->SetInputConnection(lowpass_filt->GetOutputPort());
   rfft_filt->Update();
+  rfft_filt->GetOutput()->ReleaseDataFlagOn();
 
   // Get rid of imaginary components generated by RFFT
   VTK_NEW(vtkImageExtractComponents, extract_filt);
   extract_filt->SetInputConnection(rfft_filt->GetOutputPort());
   extract_filt->SetComponents(0);
   extract_filt->Update();
+  extract_filt->GetOutput()->ReleaseDataFlagOn();
 
   this->statusBar()->showMessage("Calculating divergent... ");
   QApplication::processEvents();
+
+  VTK_NEW(vtkImageShiftScale, type_filt);
+  type_filt->SetInputConnection(extract_filt->GetOutputPort());
+  type_filt->SetOutputScalarTypeToUnsignedChar();
+  type_filt->Update();
+  type_filt->GetOutput()->ReleaseDataFlagOn();
+  type_filt->GetOutput()->Print(std::cout << "Type filter:");
 
   //  VTK_NEW(vtkImageDivergence, div_filt);
   //  div_filt->SetInputConnection(rfft_filt->GetOutputPort());
   //  div_filt->Update();
 
-  VTK_NEW(vtkImageGradient, grad_filt);
-  grad_filt->SetInputConnection(extract_filt->GetOutputPort());
-  grad_filt->SetDimensionality(3);
-  grad_filt->Update();
-  grad_filt->GetOutput()->Print(std::cout);
-
-  // Clear imagedata now that we have our filtered result
-  image->Delete();
+  //  VTK_NEW(vtkImageGradient, grad_filt);
+  //  grad_filt->SetInputConnection(extract_filt->GetOutputPort());
+  //  grad_filt->SetDimensionality(3);
+  //  grad_filt->Update();
+  //  grad_filt->GetOutput()->Print(std::cout);
 
   this->statusBar()->showMessage("Extracting contours... ");
   QApplication::processEvents();
@@ -1059,41 +1112,71 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   //  cont_filt->GetValues(contours);
 
   // Grab X component of the gradient
-  VTK_NEW(vtkImageExtractComponents, extract_x_filt);
-  extract_x_filt->SetInputConnection(grad_filt->GetOutputPort());
-  extract_x_filt->SetComponents(0);
-  extract_x_filt->Update();
+  //  VTK_NEW(vtkImageExtractComponents, extract_x_filt);
+  //  extract_x_filt->SetInputConnection(grad_filt->GetOutputPort());
+  //  extract_x_filt->SetComponents(0);
+  //  extract_x_filt->Update();
 
-  //Grab Y component of the gradient
-  VTK_NEW(vtkImageExtractComponents, extract_y_filt);
-  extract_y_filt->SetInputConnection(grad_filt->GetOutputPort());
-  extract_y_filt->SetComponents(0);
-  extract_y_filt->Update();
+  //  //Grab Y component of the gradient
+  //  VTK_NEW(vtkImageExtractComponents, extract_y_filt);
+  //  extract_y_filt->SetInputConnection(grad_filt->GetOutputPort());
+  //  extract_y_filt->SetComponents(0);
+  //  extract_y_filt->Update();
 
-  // Gradient might be negative
-  VTK_NEW(vtkImageMathematics, abs_x_filt);
-  abs_x_filt->SetOperationToAbsoluteValue();
-  abs_x_filt->SetInputConnection(extract_x_filt->GetOutputPort());
-  abs_x_filt->Update();
+  //  // Gradient might be negative
+  //  VTK_NEW(vtkImageMathematics, abs_x_filt);
+  //  abs_x_filt->SetOperationToAbsoluteValue();
+  //  abs_x_filt->SetInputConnection(extract_x_filt->GetOutputPort());
+  //  abs_x_filt->Update();
 
-  // Gradient might be negative
-  VTK_NEW(vtkImageMathematics, abs_y_filt);
-  abs_y_filt->SetOperationToAbsoluteValue();
-  abs_y_filt->SetInputConnection(extract_y_filt->GetOutputPort());
-  abs_y_filt->Update();
+  //  // Gradient might be negative
+  //  VTK_NEW(vtkImageMathematics, abs_y_filt);
+  //  abs_y_filt->SetOperationToAbsoluteValue();
+  //  abs_y_filt->SetInputConnection(extract_y_filt->GetOutputPort());
+  //  abs_y_filt->Update();
 
-  // Add the two gradients
-  VTK_NEW(vtkImageMathematics, sum_filt);
-  sum_filt->SetOperationToAdd();
-  sum_filt->SetInput1(abs_x_filt->GetOutput());
-  sum_filt->SetInput2(abs_y_filt->GetOutput());
-  sum_filt->Update();
+  //  // Add the two gradients
+  //  VTK_NEW(vtkImageMathematics, sum_filt);
+  //  sum_filt->SetOperationToAdd();
+  //  sum_filt->SetInput1(abs_x_filt->GetOutput());
+  //  sum_filt->SetInput2(abs_y_filt->GetOutput());
+  //  sum_filt->Update();
+
+  VTK_NEW(vtkImageGradientMagnitude, gradmag_filt);
+  gradmag_filt->SetInputConnection(type_filt->GetOutputPort());
+  gradmag_filt->Update();
+  gradmag_filt->GetOutput()->ReleaseDataFlagOn();
+  gradmag_filt->GetOutput()->Print(std::cout << "Grad filter:");
+
+  vtkSmartPointer<vtkImageData> grad_output = gradmag_filt->GetOutput();
+  discardImageSides(grad_output, 0.02, 0.02);
+
+  VTK_NEW(vtkImageContinuousErode3D, erode_filt);
+  erode_filt->SetInput(grad_output);
+  // erode_filt->SetInputConnection(gradmag_filt->GetOutputPort());
+  erode_filt->SetKernelSize(5, 5, 1);
+  erode_filt->Update();
+  //erode_filt->GetOutput()->ReleaseDataFlagOn();
+
+  VTK_NEW(vtkImageContinuousDilate3D, dilate_filt);
+  dilate_filt->SetInputConnection(erode_filt->GetOutputPort());
+  dilate_filt->SetKernelSize(10, 10, 2);
+  dilate_filt->Update();
+  //dilate_filt->GetOutput()->ReleaseDataFlagOn();
+
+  VTK_NEW(vtkImageContinuousErode3D, erode_filt2);
+  erode_filt2->SetInputConnection(dilate_filt->GetOutputPort());
+  erode_filt2->SetKernelSize(15, 15, 2);
+  erode_filt2->Update();
+  //erode_filt2->GetOutput()->ReleaseDataFlagOn();
 
   VTK_NEW(vtkImageMarchingCubes, cubes_filter);
-  cubes_filter->SetInputConnection(sum_filt->GetOutputPort());
-  cubes_filter->SetValue(0, 100);
-  //  cubes_filter->ComputeNormalsOn();
+  cubes_filter->SetInputConnection(dilate_filt->GetOutputPort());
+  cubes_filter->SetValue(0, 60);
+  // cubes_filter->ComputeGradientsOff();
+  // cubes_filter->ComputeNormalsOff();
   cubes_filter->Update();
+  // cubes_filter->GetOutput()->ReleaseDataFlagOn();
 
   this->statusBar()->showMessage("Decimating mesh... ");
   QApplication::processEvents();
@@ -1124,7 +1207,6 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   mapper->SetLookupTable(lut);
   mapper->SetScalarModeToUseCellData();
   mapper->SetScalarRange(lut->GetTableRange());
-  mapper->Update();
 
   actor->SetMapper(mapper);
 

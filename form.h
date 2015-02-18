@@ -49,6 +49,10 @@
 #include <vtkImageMarchingCubes.h>
 #include <vtkImageExtractComponents.h>
 #include <vtkImageMathematics.h>
+#include <vtkImageContinuousErode3D.h>
+#include <vtkImageContinuousDilate3D.h>
+#include <vtkImageGradientMagnitude.h>
+#include <vtkImageShiftScale.h>
 // Mappers
 #include <vtkPolyDataMapper.h>
 #include <vtkImageMapper.h>
@@ -129,6 +133,13 @@ class Form : public QMainWindow {
 
   // Finds the maximum, maps it to 255 and linearly maps the rest of the vector
   void normalize(std::vector<uint8_t>& input);
+
+  // Sets the vertical edges (not parallel to an horizontal plane) of an
+  // imageData to be zero. frac_i go from 0.0 to 1.0, and it indicate the
+  // fraction of the total extent to discard
+  // Only works if the inputdata is unsigned char. Will assert
+  void discardImageSides(vtkSmartPointer<vtkImageData> input, float frac_x,
+                         float frac_y);
 
   //-------------RENDERING------------------------------------------------------
 
