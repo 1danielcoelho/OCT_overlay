@@ -1183,18 +1183,19 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   clean_filter->SetTolerance(0.01);
   clean_filter->Update();
 
-  VTK_NEW(vtkPoints, just_pts);
-  just_pts->DeepCopy(clean_filter->GetOutput()->GetPoints());
+//  VTK_NEW(vtkPoints, just_pts);
+//  just_pts->DeepCopy(clean_filter->GetOutput()->GetPoints());
 
-  VTK_NEW(vtkPolyData, just_poly);
-  just_poly->SetPoints(just_pts);
+//  VTK_NEW(vtkPolyData, just_poly);
+//  just_poly->SetPoints(just_pts);
 
 //  VTK_NEW(vtkVertexGlyphFilter, vert_filt);
 //  vert_filt->SetInput(just_poly);
 //  vert_filt->Update();
 
   VTK_NEW(vtkDelaunay3D, del_filter);
-  del_filter->SetInput(just_poly);
+  //del_filter->SetInput(just_poly);
+  del_filter->SetInputConnection(clean_filter->GetOutputPort());
   del_filter->SetTolerance(0.001);
   del_filter->Update();
 
