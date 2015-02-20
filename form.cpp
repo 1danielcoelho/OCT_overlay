@@ -1056,7 +1056,7 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   fft_filt->GetOutput()->ReleaseDataFlagOn();
 
   // Clear our imagedata since we will be using its FFT from now on
-  image->Delete();
+  //image->Delete();
 
   this->statusBar()->showMessage("Applying low-pass filter... ");
   QApplication::processEvents();
@@ -1082,12 +1082,12 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   this->statusBar()->showMessage("Calculating divergent... ");
   QApplication::processEvents();
 
+  //Cast voxel depth from double to unsigned char
   VTK_NEW(vtkImageShiftScale, type_filt);
   type_filt->SetInputConnection(extract_filt->GetOutputPort());
   type_filt->SetOutputScalarTypeToUnsignedChar();
   type_filt->Update();
   type_filt->GetOutput()->ReleaseDataFlagOn();
-  type_filt->GetOutput()->Print(std::cout << "Type filter:");
 
   //  VTK_NEW(vtkImageDivergence, div_filt);
   //  div_filt->SetInputConnection(rfft_filt->GetOutputPort());
@@ -1145,8 +1145,15 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   VTK_NEW(vtkImageGradientMagnitude, gradmag_filt);
   gradmag_filt->SetInputConnection(type_filt->GetOutputPort());
   gradmag_filt->Update();
-  gradmag_filt->GetOutput()->ReleaseDataFlagOn();
-  gradmag_filt->GetOutput()->Print(std::cout << "Grad filter:");
+  //gradmag_filt->GetOutput()->ReleaseDataFlagOn();
+//  vtkImageData* output = gradmag_filt->GetOutput();
+//  output->Register(NULL);
+//  output->SetSource(NULL);
+  image->Register(NULL);
+  image->SetSource(NULL);
+
+  SliceViewer view = SliceViewer(image);
+  std::cout << "beep";
 
   vtkSmartPointer<vtkImageData> grad_output = gradmag_filt->GetOutput();
   discardImageSides(grad_output, 0.02, 0.02);
@@ -1156,19 +1163,19 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   // erode_filt->SetInputConnection(gradmag_filt->GetOutputPort());
   erode_filt->SetKernelSize(5, 5, 1);
   erode_filt->Update();
-  //erode_filt->GetOutput()->ReleaseDataFlagOn();
+  // erode_filt->GetOutput()->ReleaseDataFlagOn();
 
   VTK_NEW(vtkImageContinuousDilate3D, dilate_filt);
   dilate_filt->SetInputConnection(erode_filt->GetOutputPort());
-  dilate_filt->SetKernelSize(10, 10, 2);
+  dilate_filt->SetKernelSize(5, 5, 2);
   dilate_filt->Update();
-  //dilate_filt->GetOutput()->ReleaseDataFlagOn();
+  // dilate_filt->GetOutput()->ReleaseDataFlagOn();
 
   VTK_NEW(vtkImageContinuousErode3D, erode_filt2);
   erode_filt2->SetInputConnection(dilate_filt->GetOutputPort());
-  erode_filt2->SetKernelSize(15, 15, 2);
+  erode_filt2->SetKernelSize(5, 5, 2);
   erode_filt2->Update();
-  //erode_filt2->GetOutput()->ReleaseDataFlagOn();
+  // erode_filt2->GetOutput()->ReleaseDataFlagOn();
 
   VTK_NEW(vtkImageMarchingCubes, cubes_filter);
   cubes_filter->SetInputConnection(dilate_filt->GetOutputPort());
@@ -1181,21 +1188,67 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   this->statusBar()->showMessage("Decimating mesh... ");
   QApplication::processEvents();
 
-  //  VTK_NEW(vtkDecimatePro, dec_filt);
-  //  dec_filt->SetInputConnection(cubes_filter->GetOutputPort());
-  //  dec_filt->SetTargetReduction(0.9);
-  //  dec_filt->PreserveTopologyOn();
-  //  dec_filt->Update();
+  VTK_NEW(vtkPolyDataConnectivityFilter, con_filter);
+  con_filter->SetInputConnection(cubes_filter->GetOutputPort());
+  con_filter->ColorRegionsOn();
+  con_filter->SetScalarConnectivity(0);
+  con_filter->SetExtractionModeToAllRegions();
+  con_filter->Update();
+
+  int num_regions = con_filter->GetNumberOfExtractedRegions();
+  std::vector<int> regions_to_use;
+
+  con_filter->SetExtractionModeToSpecifiedRegions();
+  con_filter->Update();
+
+  VTK_NEW(vtkMassProperties, mass_filter);
+
+  //Go over each extracted region, check if they are big enough and add them to
+  //the input list of append_filter
+  for (int i = 0; i < num_regions; ++i) {
+    con_filter->InitializeSpecifiedRegionList();
+    con_filter->AddSpecifiedRegion(i);
+    con_filter->Update();
+
+    mass_filter->RemoveAllInputs();
+    mass_filter->SetInputConnection(con_filter->GetOutputPort());
+    mass_filter->Update();
+
+    double mass = mass_filter->GetVolume();
+    double proj_mass = mass_filter->GetVolumeProjected();
+
+    std::cout << "Mesh " << i << ", vol: " << mass << ", projvol: " << proj_mass
+              << std::endl;
+
+    if(mass > 0.02) regions_to_use.push_back(i);
+  }
+
+  //Now that we know which regions to select, run the filter one more time
+  con_filter->InitializeSpecifiedRegionList();
+  for (std::vector<int>::iterator iter = regions_to_use.begin();
+       iter != regions_to_use.end(); ++iter)
+  {
+    con_filter->AddSpecifiedRegion(*iter);
+  }
+  con_filter->Update();
+
+  //Append the selected regions into a single polydata
+  VTK_NEW(vtkAppendPolyData, append_filter);
+  append_filter->SetInputConnection(con_filter->GetOutputPort());
+  append_filter->Update();
 
   this->statusBar()->showMessage("Building LUT... ");
   QApplication::processEvents();
 
   VTK_NEW(vtkLookupTable, lut);
-  lut->SetTableRange(1, num_contours);
-  lut->SetNumberOfColors(num_contours);
-  for (int i = 0; i < num_contours; ++i) {
-    lut->SetTableValue(i, (rand() % 256) / 255.0, (rand() % 256) / 255.0,
-                       (rand() % 256) / 255.0);
+  lut->SetTableRange(0, num_regions);
+  lut->SetNumberOfColors(num_regions);
+  for (int i = 0; i < num_regions; ++i) {
+    double red = (rand()%256)/255.0;
+    double green = (rand()%256)/255.0;
+    double blue = (rand()%256)/255.0;
+
+    lut->SetTableValue(i, red, green, blue);
   }
   lut->Build();
 
@@ -1203,9 +1256,8 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   QApplication::processEvents();
 
   VTK_NEW(vtkPolyDataMapper, mapper);
-  mapper->SetInputConnection(cubes_filter->GetOutputPort());
+  mapper->SetInputConnection(append_filter->GetOutputPort());
   mapper->SetLookupTable(lut);
-  mapper->SetScalarModeToUseCellData();
   mapper->SetScalarRange(lut->GetTableRange());
 
   actor->SetMapper(mapper);

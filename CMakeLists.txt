@@ -62,6 +62,7 @@ SET(SOURCES
     qnode.cpp
     filemanager.cpp
     octinfo.cpp
+    sliceinteractor.cpp
     )
 
 SET(HEADERS

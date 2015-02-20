@@ -53,14 +53,20 @@
 #include <vtkImageContinuousDilate3D.h>
 #include <vtkImageGradientMagnitude.h>
 #include <vtkImageShiftScale.h>
+#include <vtkPolyDataConnectivityFilter.h>
+#include <vtkMassProperties.h>
+#include <vtkAppendPolyData.h>
+#include <vtkImageReslice.h>
 // Mappers
 #include <vtkPolyDataMapper.h>
 #include <vtkImageMapper.h>
+#include <vtkImageMapToColors.h>
 // Actors
 #include <vtkAxesActor.h>
 #include <vtkCaptionActor2D.h>
 #include <vtkTextActor.h>
 #include <vtkActor2D.h>
+#include <vtkImageActor.h>
 // Others
 #include <vtkRenderer.h>
 #include <vtkRenderWindow.h>
@@ -69,10 +75,12 @@
 #include <vtkLookupTable.h>
 #include <vtkTextProperty.h>
 #include <vtkGarbageCollector.h>
+#include <vtkInteractorStyleImage.h>
 // Project files
 #include "qnode.h"
 #include "filemanager.h"
 #include "octinfo.h"
+#include "sliceinteractor.cpp"
 
 #define VTK_NEW(type, instance) \
   ;                             \
