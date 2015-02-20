@@ -1012,43 +1012,19 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
     double point_coords[3];
     under_pts->GetPoint(i, point_coords);
 
-    //    if (int(point_coords[0] / (1.0 * length_incrm)) <  // here
-    //            m_current_params.length_steps / 2 &&
-    //        int(point_coords[1] / (1.0 * width_incrm)) <
-    //            m_current_params.width_steps / 2) {
-
     unsigned char* pixel = static_cast<unsigned char*>(
         image->GetScalarPointer(int(point_coords[0] / (1.0 * length_incrm)),
                                 int(point_coords[1] / (1.0 * width_incrm)),
                                 int(point_coords[2] / (1.0 * depth_incrm))));
     pixel[0] = value;
-    //    }
   }
 
   // Now that we used our sub-volume points and scalars, we clear them up
   under_pts->Delete();
   under_vals->Delete();
 
-  //  for (int x = 0; x < m_current_params.length_steps; ++x) {
-  //    for (int y = 0; y < m_current_params.width_steps; ++y) {
-  //      unsigned char* pixel =
-  //          static_cast<unsigned char*>(image->GetScalarPointer(x, y, 100));
-  //      std::cout << (unsigned int)pixel[0] << " ";
-  //    }
-  //    std::cout << std::endl;
-  //  }
-
-  this->statusBar()->showMessage("Applying convolution... ");
+  this->statusBar()->showMessage("Applying FFT... ");
   QApplication::processEvents();
-
-  //  VTK_NEW(vtkImageConvolve, conv_filt);
-  //  conv_filt->SetInput(image);
-  //  double kern[7 * 7 * 7];
-  //  for (int i = 0; i < 7 * 7 * 7; i++) {
-  //    kern[i] = 1.0 / (7.0*7.0*7.0);
-  //  }
-  //  conv_filt->SetKernel7x7x7(kern);
-  //  conv_filt->Update();
 
   VTK_NEW(vtkImageFFT, fft_filt);
   fft_filt->SetInput(image);
@@ -1063,9 +1039,12 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
 
   VTK_NEW(vtkImageIdealLowPass, lowpass_filt);
   lowpass_filt->SetInputConnection(fft_filt->GetOutputPort());
-  lowpass_filt->SetCutOff(3, 3, 3);
+  lowpass_filt->SetCutOff(2, 2, 2);
   lowpass_filt->Update();
   lowpass_filt->GetOutput()->ReleaseDataFlagOn();
+
+  this->statusBar()->showMessage("Applying RFFT... ");
+  QApplication::processEvents();
 
   VTK_NEW(vtkImageRFFT, rfft_filt);
   rfft_filt->SetInputConnection(lowpass_filt->GetOutputPort());
@@ -1079,7 +1058,7 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   extract_filt->Update();
   extract_filt->GetOutput()->ReleaseDataFlagOn();
 
-  this->statusBar()->showMessage("Calculating divergent... ");
+  this->statusBar()->showMessage("Converting to unsigned char... ");
   QApplication::processEvents();
 
   //Cast voxel depth from double to unsigned char
@@ -1087,76 +1066,28 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   type_filt->SetInputConnection(extract_filt->GetOutputPort());
   type_filt->SetOutputScalarTypeToUnsignedChar();
   type_filt->Update();
-  type_filt->GetOutput()->ReleaseDataFlagOn();
+  //type_filt->GetOutput()->ReleaseDataFlagOn();
 
-  //  VTK_NEW(vtkImageDivergence, div_filt);
-  //  div_filt->SetInputConnection(rfft_filt->GetOutputPort());
-  //  div_filt->Update();
-
-  //  VTK_NEW(vtkImageGradient, grad_filt);
-  //  grad_filt->SetInputConnection(extract_filt->GetOutputPort());
-  //  grad_filt->SetDimensionality(3);
-  //  grad_filt->Update();
-  //  grad_filt->GetOutput()->Print(std::cout);
-
-  this->statusBar()->showMessage("Extracting contours... ");
+  this->statusBar()->showMessage("Calculating gradient... ");
   QApplication::processEvents();
-
-  uint8_t num_contours = 1;
-  //  VTK_NEW(vtkContourFilter, cont_filt);
-  //  cont_filt->SetInputConnection(rfft_filt->GetOutputPort());
-  //  // cont_filt->GenerateValues(num_contours, 0, 50);
-  //  cont_filt->SetValue(0, 40);
-  //  cont_filt->Update();
-  //  double contours[num_contours];
-  //  cont_filt->GetValues(contours);
-
-  // Grab X component of the gradient
-  //  VTK_NEW(vtkImageExtractComponents, extract_x_filt);
-  //  extract_x_filt->SetInputConnection(grad_filt->GetOutputPort());
-  //  extract_x_filt->SetComponents(0);
-  //  extract_x_filt->Update();
-
-  //  //Grab Y component of the gradient
-  //  VTK_NEW(vtkImageExtractComponents, extract_y_filt);
-  //  extract_y_filt->SetInputConnection(grad_filt->GetOutputPort());
-  //  extract_y_filt->SetComponents(0);
-  //  extract_y_filt->Update();
-
-  //  // Gradient might be negative
-  //  VTK_NEW(vtkImageMathematics, abs_x_filt);
-  //  abs_x_filt->SetOperationToAbsoluteValue();
-  //  abs_x_filt->SetInputConnection(extract_x_filt->GetOutputPort());
-  //  abs_x_filt->Update();
-
-  //  // Gradient might be negative
-  //  VTK_NEW(vtkImageMathematics, abs_y_filt);
-  //  abs_y_filt->SetOperationToAbsoluteValue();
-  //  abs_y_filt->SetInputConnection(extract_y_filt->GetOutputPort());
-  //  abs_y_filt->Update();
-
-  //  // Add the two gradients
-  //  VTK_NEW(vtkImageMathematics, sum_filt);
-  //  sum_filt->SetOperationToAdd();
-  //  sum_filt->SetInput1(abs_x_filt->GetOutput());
-  //  sum_filt->SetInput2(abs_y_filt->GetOutput());
-  //  sum_filt->Update();
 
   VTK_NEW(vtkImageGradientMagnitude, gradmag_filt);
   gradmag_filt->SetInputConnection(type_filt->GetOutputPort());
   gradmag_filt->Update();
   //gradmag_filt->GetOutput()->ReleaseDataFlagOn();
-//  vtkImageData* output = gradmag_filt->GetOutput();
-//  output->Register(NULL);
-//  output->SetSource(NULL);
-  image->Register(NULL);
-  image->SetSource(NULL);
 
-  SliceViewer view = SliceViewer(image);
-  std::cout << "beep";
+  //  VTK_NEW(vtkImageDivergence, div_filt);
+  //  div_filt->SetInputConnection(rfft_filt->GetOutputPort());
+  //  div_filt->Update();
+
+  this->statusBar()->showMessage("Discarding gradient edges... ");
+  QApplication::processEvents();
 
   vtkSmartPointer<vtkImageData> grad_output = gradmag_filt->GetOutput();
   discardImageSides(grad_output, 0.02, 0.02);
+
+  this->statusBar()->showMessage("Eroding... ");
+  QApplication::processEvents();
 
   VTK_NEW(vtkImageContinuousErode3D, erode_filt);
   erode_filt->SetInput(grad_output);
@@ -1165,11 +1096,17 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   erode_filt->Update();
   // erode_filt->GetOutput()->ReleaseDataFlagOn();
 
+  this->statusBar()->showMessage("Dilating... ");
+  QApplication::processEvents();
+
   VTK_NEW(vtkImageContinuousDilate3D, dilate_filt);
   dilate_filt->SetInputConnection(erode_filt->GetOutputPort());
   dilate_filt->SetKernelSize(5, 5, 2);
   dilate_filt->Update();
   // dilate_filt->GetOutput()->ReleaseDataFlagOn();
+
+  this->statusBar()->showMessage("Eroding again... ");
+  QApplication::processEvents();
 
   VTK_NEW(vtkImageContinuousErode3D, erode_filt2);
   erode_filt2->SetInputConnection(dilate_filt->GetOutputPort());
@@ -1177,15 +1114,18 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   erode_filt2->Update();
   // erode_filt2->GetOutput()->ReleaseDataFlagOn();
 
+  this->statusBar()->showMessage("Applying marching cubes... ");
+  QApplication::processEvents();
+
   VTK_NEW(vtkImageMarchingCubes, cubes_filter);
   cubes_filter->SetInputConnection(dilate_filt->GetOutputPort());
-  cubes_filter->SetValue(0, 60);
+  cubes_filter->SetValue(0, 30);
   // cubes_filter->ComputeGradientsOff();
   // cubes_filter->ComputeNormalsOff();
   cubes_filter->Update();
   // cubes_filter->GetOutput()->ReleaseDataFlagOn();
 
-  this->statusBar()->showMessage("Decimating mesh... ");
+  this->statusBar()->showMessage("Removing noise mesh... ");
   QApplication::processEvents();
 
   VTK_NEW(vtkPolyDataConnectivityFilter, con_filter);
@@ -1220,7 +1160,8 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
     std::cout << "Mesh " << i << ", vol: " << mass << ", projvol: " << proj_mass
               << std::endl;
 
-    if(mass > 0.02) regions_to_use.push_back(i);
+    //0.02
+    if(mass > 0.3) regions_to_use.push_back(i);
   }
 
   //Now that we know which regions to select, run the filter one more time
@@ -1236,6 +1177,30 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   VTK_NEW(vtkAppendPolyData, append_filter);
   append_filter->SetInputConnection(con_filter->GetOutputPort());
   append_filter->Update();
+
+  VTK_NEW(vtkCleanPolyData, clean_filter);
+  clean_filter->SetInputConnection(append_filter->GetOutputPort());
+  clean_filter->SetTolerance(0.01);
+  clean_filter->Update();
+
+  VTK_NEW(vtkPoints, just_pts);
+  just_pts->DeepCopy(clean_filter->GetOutput()->GetPoints());
+
+  VTK_NEW(vtkPolyData, just_poly);
+  just_poly->SetPoints(just_pts);
+
+//  VTK_NEW(vtkVertexGlyphFilter, vert_filt);
+//  vert_filt->SetInput(just_poly);
+//  vert_filt->Update();
+
+  VTK_NEW(vtkDelaunay3D, del_filter);
+  del_filter->SetInput(just_poly);
+  del_filter->SetTolerance(0.001);
+  del_filter->Update();
+
+  VTK_NEW(vtkDataSetSurfaceFilter, surf_filter);
+  surf_filter->SetInputConnection(del_filter->GetOutputPort());
+  surf_filter->Update();
 
   this->statusBar()->showMessage("Building LUT... ");
   QApplication::processEvents();
@@ -1256,7 +1221,7 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   QApplication::processEvents();
 
   VTK_NEW(vtkPolyDataMapper, mapper);
-  mapper->SetInputConnection(append_filter->GetOutputPort());
+  mapper->SetInputConnection(surf_filter->GetOutputPort());
   mapper->SetLookupTable(lut);
   mapper->SetScalarRange(lut->GetTableRange());
 

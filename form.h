@@ -31,7 +31,6 @@
 #include <vtkPointData.h>
 #include <vtkTypeUInt8Array.h>
 #include <vtkDoubleArray.h>
-#include <vtkDecimatePro.h>
 #include <vtkUnsignedCharArray.h>
 #include <vtkTransform.h>
 // Filters
@@ -57,6 +56,11 @@
 #include <vtkMassProperties.h>
 #include <vtkAppendPolyData.h>
 #include <vtkImageReslice.h>
+#include <vtkSmoothPolyDataFilter.h>
+#include <vtkDelaunay3D.h>
+#include <vtkCleanPolyData.h>
+#include <vtkTriangleFilter.h>
+#include <vtkDataSetSurfaceFilter.h>
 // Mappers
 #include <vtkPolyDataMapper.h>
 #include <vtkImageMapper.h>

@@ -102,6 +102,14 @@ class vtkImageInteractionCallback : public vtkCommand {
 class SliceViewer {
  public:
   SliceViewer(vtkImageData* volume) {
+
+    // Disconnect the imagedata with its source, so updates don't propagate up
+    // the chain. Important so we can quickly update to get newer slices
+    vtkSource* original_source = volume->GetSource();
+    volume->Register(NULL); //Increment reference count: Make sure it doesn't
+                            //die while we're using it
+    volume->SetSource(NULL);
+
     // Calculate the center of the volume
     int extent[6];
     double spacing[3];
@@ -155,21 +163,6 @@ class SliceViewer {
     reslice->SetResliceAxes(resliceAxes);
     reslice->SetInterpolationModeToLinear();
 
-//    // Create a greyscale lookup table
-//    vtkSmartPointer<vtkLookupTable> table =
-//        vtkSmartPointer<vtkLookupTable>::New();
-//    table->SetRange(0, 2000);             // image intensity range
-//    table->SetValueRange(0.0, 1.0);       // from black to white
-//    table->SetSaturationRange(0.0, 0.0);  // no color saturation
-//    table->SetRampToLinear();
-//    table->Build();
-
-//    // Map the image through the lookup table
-//    vtkSmartPointer<vtkImageMapToColors> color =
-//        vtkSmartPointer<vtkImageMapToColors>::New();
-//    color->SetLookupTable(table);
-//    color->SetInputConnection(reslice->GetOutputPort());
-
     // Display the image
     vtkSmartPointer<vtkImageMapper> image_mapper =
         vtkSmartPointer<vtkImageMapper>::New();
@@ -208,5 +201,9 @@ class SliceViewer {
     // Start interaction
     // The Start() method doesn't return until the window is closed by the user
     interactor->Start();
+
+    //Restore original source
+    volume->SetSource(original_source);
+    volume->UnRegister(NULL);
   }
 };
