@@ -29,6 +29,7 @@
 #include <vtkPolyData.h>
 #include <vtkPoints.h>
 #include <vtkPointData.h>
+#include <vtkCellData.h>
 #include <vtkTypeUInt8Array.h>
 #include <vtkDoubleArray.h>
 #include <vtkUnsignedCharArray.h>
@@ -61,6 +62,7 @@
 #include <vtkCleanPolyData.h>
 #include <vtkTriangleFilter.h>
 #include <vtkDataSetSurfaceFilter.h>
+#include <vtkKMeansStatistics.h>
 // Mappers
 #include <vtkPolyDataMapper.h>
 #include <vtkImageMapper.h>
@@ -72,6 +74,7 @@
 #include <vtkActor2D.h>
 #include <vtkImageActor.h>
 // Others
+#include <vtkMath.h>
 #include <vtkRenderer.h>
 #include <vtkRenderWindow.h>
 #include <vtkSmartPointer.h>
@@ -93,6 +96,13 @@
 namespace Ui {
 class Form;
 }
+
+//Used for hierarquical clustering
+struct Cluster {
+  double com[3];
+  double cbrt;
+  std::vector<int> indices;
+};
 
 class Form : public QMainWindow {
   Q_OBJECT
@@ -152,6 +162,14 @@ class Form : public QMainWindow {
   // Only works if the inputdata is unsigned char. Will assert
   void discardImageSides(vtkSmartPointer<vtkImageData> input, float frac_x,
                          float frac_y);
+
+  // Averages all point coordinates and puts the center of mass at the passed
+  // three-dimensional vector
+  void getCenterOfMass(vtkSmartPointer<vtkPolyData> mesh, std::vector<double>&);
+
+  // Groups the passed regions in clusters based on the volumes and distances
+  // between them
+  void hierarchicalClustering(std::vector<Cluster>& regions);
 
   //-------------RENDERING------------------------------------------------------
 

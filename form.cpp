@@ -697,6 +697,57 @@ void Form::discardImageSides(vtkSmartPointer<vtkImageData> input, float frac_x,
   }
 }
 
+void Form::getCenterOfMass(vtkSmartPointer<vtkPolyData> mesh,
+                           std::vector<double>& com) {
+  int num_pts = mesh->GetNumberOfPoints();
+
+  assert("Mesh has zero points!" && num_pts > 0);
+
+  // Initializes center of mass to zero
+  com.clear();
+  com.resize(3);
+
+  vtkPoints* pts = mesh->GetPoints();
+
+  // Append the sum of all points into com
+  for (int i = 0; i < num_pts; i++) {
+    double point[3];
+    pts->GetPoint(i, point);
+
+    com[0] += point[0];
+    com[1] += point[1];
+    com[2] += point[2];
+  }
+
+  com[0] = com[0] * (1.0 / num_pts);
+  com[1] = com[1] * (1.0 / num_pts);
+  com[2] = com[2] * (1.0 / num_pts);
+
+  std::cout << "Num pts in mesh: " << num_pts << ", new COM: " << com[0] << ", "
+            << com[1] << ", " << com[2] << std::endl;
+}
+
+void Form::hierarchicalClustering(std::vector<Cluster>& regions)
+{
+  //While max similarity is larger than threshold and we have more than 1 region
+    //Build 2D array of similarity
+    //Find max similarity
+      //If its less than threshold: Break
+      //Else, fuse regions
+
+  std::vector<std::vector<Cluster> > table;
+
+
+
+
+  while(regions.size() > 1)
+  {
+    int num_regions = regions.size();
+
+
+  }
+}
+
 //------------RENDERING---------------------------------------------------------
 
 void Form::renderAxes(vtkSmartPointer<vtkAxesActor> actor,
@@ -1032,7 +1083,7 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   fft_filt->GetOutput()->ReleaseDataFlagOn();
 
   // Clear our imagedata since we will be using its FFT from now on
-  //image->Delete();
+  image->Delete();
 
   this->statusBar()->showMessage("Applying low-pass filter... ");
   QApplication::processEvents();
@@ -1061,12 +1112,12 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   this->statusBar()->showMessage("Converting to unsigned char... ");
   QApplication::processEvents();
 
-  //Cast voxel depth from double to unsigned char
+  // Cast voxel depth from double to unsigned char
   VTK_NEW(vtkImageShiftScale, type_filt);
   type_filt->SetInputConnection(extract_filt->GetOutputPort());
   type_filt->SetOutputScalarTypeToUnsignedChar();
   type_filt->Update();
-  //type_filt->GetOutput()->ReleaseDataFlagOn();
+  type_filt->GetOutput()->ReleaseDataFlagOn();
 
   this->statusBar()->showMessage("Calculating gradient... ");
   QApplication::processEvents();
@@ -1074,7 +1125,7 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   VTK_NEW(vtkImageGradientMagnitude, gradmag_filt);
   gradmag_filt->SetInputConnection(type_filt->GetOutputPort());
   gradmag_filt->Update();
-  //gradmag_filt->GetOutput()->ReleaseDataFlagOn();
+  gradmag_filt->GetOutput()->ReleaseDataFlagOn();
 
   //  VTK_NEW(vtkImageDivergence, div_filt);
   //  div_filt->SetInputConnection(rfft_filt->GetOutputPort());
@@ -1128,52 +1179,78 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   this->statusBar()->showMessage("Removing noise mesh... ");
   QApplication::processEvents();
 
+  // Initially we use this to get the total number of regions
   VTK_NEW(vtkPolyDataConnectivityFilter, con_filter);
   con_filter->SetInputConnection(cubes_filter->GetOutputPort());
   con_filter->ColorRegionsOn();
   con_filter->SetScalarConnectivity(0);
   con_filter->SetExtractionModeToAllRegions();
   con_filter->Update();
-
   int num_regions = con_filter->GetNumberOfExtractedRegions();
-  std::vector<int> regions_to_use;
 
+  std::vector<Cluster> regions;
+
+  // Now we'll use this to extract every single region, one at a time
   con_filter->SetExtractionModeToSpecifiedRegions();
-  con_filter->Update();
 
+  // Used to get the volume approximation of a mehs
   VTK_NEW(vtkMassProperties, mass_filter);
 
-  //Go over each extracted region, check if they are big enough and add them to
-  //the input list of append_filter
+  // Check inside the loop to understand the point of this
+  VTK_NEW(vtkPolyDataConnectivityFilter, clean_pts_filter);
+  clean_pts_filter->SetExtractionModeToLargestRegion();
+  clean_pts_filter->SetScalarConnectivity(0);
+
   for (int i = 0; i < num_regions; ++i) {
     con_filter->InitializeSpecifiedRegionList();
     con_filter->AddSpecifiedRegion(i);
     con_filter->Update();
 
-    mass_filter->RemoveAllInputs();
-    mass_filter->SetInputConnection(con_filter->GetOutputPort());
+    // At this point, the mesh resulting from con_filter still has the points
+    // from ALL meshes, even though it only has the cells (triangles) of the
+    // desired mesh. To fix this, we deep-copy this mesh, and run through
+    // another connectivity filter: This removes the extra points, and doesn't
+    // take too long
+    vtkPolyData* mesh = vtkPolyData::New();
+    mesh->DeepCopy(con_filter->GetOutput());
+    clean_pts_filter->SetInput(mesh);
+    clean_pts_filter->Update();
+
+    mass_filter->SetInputConnection(clean_pts_filter->GetOutputPort());
     mass_filter->Update();
 
-    double mass = mass_filter->GetVolume();
-    double proj_mass = mass_filter->GetVolumeProjected();
+    double volume = mass_filter->GetVolume();
+    std::cout << "Mesh " << i << ", vol: " << volume << std::endl;
 
-    std::cout << "Mesh " << i << ", vol: " << mass << ", projvol: " << proj_mass
-              << std::endl;
+    //0.02 is a reasonable size. Smaller than this would probably be noise
+    if (volume > 0.02) {
+      // Compute the region's center of mass
+      std::vector<double> com;
+      getCenterOfMass(clean_pts_filter->GetOutput(), com);
 
-    //0.02
-    if(mass > 0.3) regions_to_use.push_back(i);
+      Cluster region;
+      region.cbrt = std::pow(volume, 1.0/3.0);
+      region.com[0] = com[0];
+      region.com[1] = com[1];
+      region.com[2] = com[2];
+      region.indices.push_back(i);
+
+      regions.push_back(region);
+    }
   }
 
-  //Now that we know which regions to select, run the filter one more time
-  con_filter->InitializeSpecifiedRegionList();
-  for (std::vector<int>::iterator iter = regions_to_use.begin();
-       iter != regions_to_use.end(); ++iter)
-  {
-    con_filter->AddSpecifiedRegion(*iter);
-  }
-  con_filter->Update();
+  hierarchicalClustering(regions);
 
-  //Append the selected regions into a single polydata
+
+  // Now that we know which regions to select, run the filter one more time
+//  con_filter->InitializeSpecifiedRegionList();
+//  for (std::vector<int>::iterator iter = regions_to_use.begin();
+//       iter != regions_to_use.end(); ++iter) {
+//    con_filter->AddSpecifiedRegion(*iter);
+//  }
+//  con_filter->Update();
+
+  // Append the selected regions into a single polydata
   VTK_NEW(vtkAppendPolyData, append_filter);
   append_filter->SetInputConnection(con_filter->GetOutputPort());
   append_filter->Update();
@@ -1183,18 +1260,18 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   clean_filter->SetTolerance(0.01);
   clean_filter->Update();
 
-//  VTK_NEW(vtkPoints, just_pts);
-//  just_pts->DeepCopy(clean_filter->GetOutput()->GetPoints());
+  //  VTK_NEW(vtkPoints, just_pts);
+  //  just_pts->DeepCopy(clean_filter->GetOutput()->GetPoints());
 
-//  VTK_NEW(vtkPolyData, just_poly);
-//  just_poly->SetPoints(just_pts);
+  //  VTK_NEW(vtkPolyData, just_poly);
+  //  just_poly->SetPoints(just_pts);
 
-//  VTK_NEW(vtkVertexGlyphFilter, vert_filt);
-//  vert_filt->SetInput(just_poly);
-//  vert_filt->Update();
+  //  VTK_NEW(vtkVertexGlyphFilter, vert_filt);
+  //  vert_filt->SetInput(just_poly);
+  //  vert_filt->Update();
 
   VTK_NEW(vtkDelaunay3D, del_filter);
-  //del_filter->SetInput(just_poly);
+  // del_filter->SetInput(just_poly);
   del_filter->SetInputConnection(clean_filter->GetOutputPort());
   del_filter->SetTolerance(0.001);
   del_filter->Update();
@@ -1210,9 +1287,9 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   lut->SetTableRange(0, num_regions);
   lut->SetNumberOfColors(num_regions);
   for (int i = 0; i < num_regions; ++i) {
-    double red = (rand()%256)/255.0;
-    double green = (rand()%256)/255.0;
-    double blue = (rand()%256)/255.0;
+    double red = (rand() % 256) / 255.0;
+    double green = (rand() % 256) / 255.0;
+    double blue = (rand() % 256) / 255.0;
 
     lut->SetTableValue(i, red, green, blue);
   }
