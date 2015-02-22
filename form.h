@@ -34,6 +34,7 @@
 #include <vtkDoubleArray.h>
 #include <vtkUnsignedCharArray.h>
 #include <vtkTransform.h>
+#include <vtkUnstructuredGrid.h>
 // Filters
 #include <vtkContourFilter.h>
 #include <vtkVertexGlyphFilter.h>
@@ -62,7 +63,8 @@
 #include <vtkCleanPolyData.h>
 #include <vtkTriangleFilter.h>
 #include <vtkDataSetSurfaceFilter.h>
-#include <vtkKMeansStatistics.h>
+#include <vtkWarpScalar.h>
+#include <vtkPolyDataNormals.h>
 // Mappers
 #include <vtkPolyDataMapper.h>
 #include <vtkImageMapper.h>
@@ -87,7 +89,8 @@
 #include "qnode.h"
 #include "filemanager.h"
 #include "octinfo.h"
-#include "sliceinteractor.cpp"
+#include "sliceinteractor.h"
+#include "clustering.h"
 
 #define VTK_NEW(type, instance) \
   ;                             \
@@ -96,13 +99,6 @@
 namespace Ui {
 class Form;
 }
-
-//Used for hierarquical clustering
-struct Cluster {
-  double com[3];
-  double cbrt;
-  std::vector<int> indices;
-};
 
 class Form : public QMainWindow {
   Q_OBJECT
@@ -167,9 +163,8 @@ class Form : public QMainWindow {
   // three-dimensional vector
   void getCenterOfMass(vtkSmartPointer<vtkPolyData> mesh, std::vector<double>&);
 
-  // Groups the passed regions in clusters based on the volumes and distances
-  // between them
-  void hierarchicalClustering(std::vector<Cluster>& regions);
+  void segmentTumour(vtkSmartPointer<vtkActor> actor,
+                     vtkSmartPointer<vtkPolyData> surf);
 
   //-------------RENDERING------------------------------------------------------
 
@@ -191,8 +186,7 @@ class Form : public QMainWindow {
   // displacement map vtkImageData objects from by load2DVectorCacheToImageData
   void render2DImageData(vtkSmartPointer<vtkImageData> image_data);
 
-  void renderOCTMass(vtkSmartPointer<vtkActor> actor,
-                     vtkSmartPointer<vtkPolyData> surf);
+  void renderOCTMass();
 
   //--------------UI CALLBACKS--------------------------------------------------
 

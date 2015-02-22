@@ -62,14 +62,18 @@ SET(SOURCES
     qnode.cpp
     filemanager.cpp
     octinfo.cpp
-    sliceinteractor.cpp
     )
 
 SET(HEADERS
-    form.h
-    qnode.h
     filemanager.h
     octinfo.h
+    clustering.h
+    sliceinteractor.h
+    )
+
+SET(HEADERS_TO_MOC
+    form.h
+    qnode.h
     )
 
 SET(FORMS
@@ -80,7 +84,7 @@ SET(RESOURCES
     )
 
 # Processes all the included files correctly
-QT4_WRAP_CPP(HEADERS_MOC ${HEADERS})
+QT4_WRAP_CPP(HEADERS_MOC ${HEADERS_TO_MOC})
 QT4_WRAP_UI(FORMS_HEADERS ${FORMS})
 QT4_ADD_RESOURCES(RESOURCES_RCC ${RESOURCES})
 
@@ -88,6 +92,7 @@ QT4_ADD_RESOURCES(RESOURCES_RCC ${RESOURCES})
 rosbuild_add_executable(OCT_overlay
                       ${QT_SOURCES}
                       ${SOURCES}
+                      ${HEADERS}
                       ${HEADERS_MOC}
                       ${FORMS_HEADERS}
                       ${RESOURCES_RCC})

@@ -272,9 +272,6 @@ void Form::loadVectorToPolyData(std::vector<uint8_t>& oct_data) {
   if (m_current_params.depth_range != 0)
     depth_incrm = m_current_params.depth_range / m_current_params.depth_steps;
 
-  // Clear the arays holding the current point data and scalars, to prevent
-  // memory spikes
-
   // Setup arrays to hold point coordinates and the scalars
   VTK_NEW(vtkPoints, points);
   VTK_NEW(vtkTypeUInt8Array, dataArray);
@@ -287,7 +284,7 @@ void Form::loadVectorToPolyData(std::vector<uint8_t>& oct_data) {
 
   // Set them into our polydata early, to potentially drop (and gracefully
   // delete) the arrays that previously were in those positions
-  m_oct_poly_data->Reset();
+  m_oct_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_oct_poly_data->SetPoints(points);
   m_oct_poly_data->GetPointData()->SetScalars(dataArray);
 
@@ -727,25 +724,378 @@ void Form::getCenterOfMass(vtkSmartPointer<vtkPolyData> mesh,
             << com[1] << ", " << com[2] << std::endl;
 }
 
-void Form::hierarchicalClustering(std::vector<Cluster>& regions)
-{
-  //While max similarity is larger than threshold and we have more than 1 region
-    //Build 2D array of similarity
-    //Find max similarity
-      //If its less than threshold: Break
-      //Else, fuse regions
+void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
+                         vtkSmartPointer<vtkPolyData> surf) {
+  uint32_t num_pts = m_oct_poly_data->GetPointData()->GetNumberOfTuples();
+  uint32_t num_surf_pts = surf->GetNumberOfPoints();
 
-  std::vector<std::vector<Cluster> > table;
-
-
-
-
-  while(regions.size() > 1)
-  {
-    int num_regions = regions.size();
-
-
+  if (num_pts == 0) {
+    qDebug() << "m_oct_poly_data is empty!";
+    return;
   }
+
+  m_waiting_response = true;
+  updateUIStates();
+
+  // Determine increments
+  float length_incrm = 1;
+  float width_incrm = 1;
+  float depth_incrm = 2.762 / 1024.0;
+  if (m_current_params.length_range != 0)
+    length_incrm =
+        m_current_params.length_range / m_current_params.length_steps;
+  if (m_current_params.width_range != 0)
+    width_incrm = m_current_params.width_range / m_current_params.width_steps;
+  if (m_current_params.depth_range != 0)
+    depth_incrm = m_current_params.depth_range / m_current_params.depth_steps;
+
+  this->statusBar()->showMessage("Building height plane... ");
+  QApplication::processEvents();
+
+  double height_plane[m_current_params.length_steps]
+                     [m_current_params.width_steps];
+
+  for (uint32_t i = 0; i < num_surf_pts; ++i) {
+    double coords[3];
+    surf->GetPoint(i, coords);
+
+    height_plane[int(coords[0] / length_incrm)][int(coords[1] / width_incrm)] =
+        coords[2];
+  }
+
+  // Lets release the surface since we don't need it anymore
+  surf = NULL;
+
+  // No smart pointers here since we force-delete these later to conserve RAM
+  vtkPoints* under_pts = vtkPoints::New();
+  vtkTypeUInt8Array* under_vals = vtkTypeUInt8Array::New();
+
+  this->statusBar()->showMessage("Extracting volume under OCT surface... ");
+  QApplication::processEvents();
+
+  for (uint32_t i = 0; i < num_pts; ++i) {
+    // Grabs a point in the volume
+    double coords[3];
+    double val;
+    m_oct_poly_data->GetPoint(i, coords);
+    m_oct_poly_data->GetPointData()->GetScalars()->GetTuple(i, &val);
+
+    // The point is under the surface
+    if (height_plane[int(coords[0] / length_incrm)]
+                    [int(coords[1] / width_incrm)] < coords[2]) {
+      under_pts->InsertNextPoint(coords);
+      under_vals->InsertNextValue((uint8_t)val);
+    }
+  }
+
+#ifdef AT_HOME
+  // Free up some resources
+  m_oct_poly_data = NULL;
+#endif  // AT_HOME
+
+  // No smart pointers here since we force-delete this later to conserve RAM
+  vtkImageData* image = vtkImageData::New();
+  image->SetExtent(0, m_current_params.length_steps - 1, 0,  // here
+                   m_current_params.width_steps - 1, 0,
+                   m_current_params.depth_steps - 1);
+  image->SetNumberOfScalarComponents(1);
+  image->SetScalarTypeToUnsignedChar();
+  image->SetSpacing(length_incrm, width_incrm, depth_incrm);
+
+  this->statusBar()->showMessage("Constructing imagedata... ");
+  QApplication::processEvents();
+
+  // Initializes the imagedata to null (filled with garbage otherwise)
+  for (int i = 0; i < m_current_params.length_steps; i++) {  // here
+    for (int j = 0; j < m_current_params.width_steps; j++) {
+      for (int k = 0; k < m_current_params.depth_steps; k++) {
+
+        unsigned char* pixel =
+            static_cast<unsigned char*>(image->GetScalarPointer(i, j, k));
+
+        pixel[0] = 0;
+      }
+    }
+  }
+
+  // Adds the scalar values from the sub-surface oct volume to the imagedata
+  uint32_t num_under_pts = under_pts->GetNumberOfPoints();
+  uint8_t value;
+  for (uint32_t i = 0; i < num_under_pts; i++) {
+    value = under_vals->GetValue(i);
+
+    double point_coords[3];
+    under_pts->GetPoint(i, point_coords);
+
+    unsigned char* pixel = static_cast<unsigned char*>(
+        image->GetScalarPointer(int(point_coords[0] / (1.0 * length_incrm)),
+                                int(point_coords[1] / (1.0 * width_incrm)),
+                                int(point_coords[2] / (1.0 * depth_incrm))));
+    pixel[0] = value;
+  }
+
+  // Now that we used our sub-volume points and scalars, we clear them up
+  under_pts->Delete();
+  under_vals->Delete();
+
+  this->statusBar()->showMessage("Applying FFT... ");
+  QApplication::processEvents();
+
+  VTK_NEW(vtkImageFFT, fft_filt);
+  fft_filt->SetInput(image);
+  fft_filt->Update();
+  fft_filt->GetOutput()->ReleaseDataFlagOn();
+
+  // Clear our imagedata since we will be using its FFT from now on
+  image->Delete();
+
+  this->statusBar()->showMessage("Applying low-pass filter... ");
+  QApplication::processEvents();
+
+  VTK_NEW(vtkImageIdealLowPass, lowpass_filt);
+  lowpass_filt->SetInputConnection(fft_filt->GetOutputPort());
+  lowpass_filt->SetCutOff(2, 2, 2);
+  lowpass_filt->Update();
+  lowpass_filt->GetOutput()->ReleaseDataFlagOn();
+
+  this->statusBar()->showMessage("Applying RFFT... ");
+  QApplication::processEvents();
+
+  VTK_NEW(vtkImageRFFT, rfft_filt);
+  rfft_filt->SetInputConnection(lowpass_filt->GetOutputPort());
+  rfft_filt->Update();
+  rfft_filt->GetOutput()->ReleaseDataFlagOn();
+
+  // Get rid of imaginary components generated by RFFT
+  VTK_NEW(vtkImageExtractComponents, extract_filt);
+  extract_filt->SetInputConnection(rfft_filt->GetOutputPort());
+  extract_filt->SetComponents(0);
+  extract_filt->Update();
+  extract_filt->GetOutput()->ReleaseDataFlagOn();
+
+  this->statusBar()->showMessage("Converting to unsigned char... ");
+  QApplication::processEvents();
+
+  // Cast voxel depth from double to unsigned char
+  VTK_NEW(vtkImageShiftScale, type_filt);
+  type_filt->SetInputConnection(extract_filt->GetOutputPort());
+  type_filt->SetOutputScalarTypeToUnsignedChar();
+  type_filt->Update();
+  type_filt->GetOutput()->ReleaseDataFlagOn();
+
+  this->statusBar()->showMessage("Calculating gradient... ");
+  QApplication::processEvents();
+
+  // Get the magnitude of the gradient of the imagedata
+  VTK_NEW(vtkImageGradientMagnitude, gradmag_filt);
+  gradmag_filt->SetInputConnection(type_filt->GetOutputPort());
+  gradmag_filt->Update();
+  gradmag_filt->GetOutput()->ReleaseDataFlagOn();
+
+  this->statusBar()->showMessage("Discarding gradient edges... ");
+  QApplication::processEvents();
+
+  // Discard sides of the imagedata (harsh gradient)
+  vtkSmartPointer<vtkImageData> grad_output = gradmag_filt->GetOutput();
+  discardImageSides(grad_output, 0.02, 0.02);
+
+  this->statusBar()->showMessage("Eroding... ");
+  QApplication::processEvents();
+
+  // Eroding the sample gets rid of most of the noise, but fragments our contour
+  VTK_NEW(vtkImageContinuousErode3D, erode_filt);
+  erode_filt->SetInput(grad_output);
+  erode_filt->SetKernelSize(5, 5, 1);
+  erode_filt->Update();
+  // erode_filt->GetOutput()->ReleaseDataFlagOn();
+
+  this->statusBar()->showMessage("Dilating... ");
+  QApplication::processEvents();
+
+  // Enlarges our contour again
+  VTK_NEW(vtkImageContinuousDilate3D, dilate_filt);
+  dilate_filt->SetInputConnection(erode_filt->GetOutputPort());
+  dilate_filt->SetKernelSize(5, 5, 2);
+  dilate_filt->Update();
+  // dilate_filt->GetOutput()->ReleaseDataFlagOn();
+
+  this->statusBar()->showMessage("Eroding again... ");
+  QApplication::processEvents();
+
+  VTK_NEW(vtkImageContinuousErode3D, erode_filt2);
+  erode_filt2->SetInputConnection(dilate_filt->GetOutputPort());
+  erode_filt2->SetKernelSize(10, 10, 2);
+  erode_filt2->Update();
+  // erode_filt2->GetOutput()->ReleaseDataFlagOn();
+
+  this->statusBar()->showMessage("Applying marching cubes... ");
+  QApplication::processEvents();
+
+  VTK_NEW(vtkImageMarchingCubes, cubes_filter);
+  cubes_filter->SetInputConnection(dilate_filt->GetOutputPort());
+  cubes_filter->SetValue(0, 30);
+  cubes_filter->ComputeGradientsOff();
+  cubes_filter->ComputeNormalsOn();
+  cubes_filter->Update();
+  // cubes_filter->GetOutput()->ReleaseDataFlagOn();
+
+  this->statusBar()->showMessage("Removing noise mesh... ");
+  QApplication::processEvents();
+
+  // Initially we use this to get the total number of regions
+  VTK_NEW(vtkPolyDataConnectivityFilter, con_filter);
+  con_filter->SetInputConnection(cubes_filter->GetOutputPort());
+  con_filter->ColorRegionsOn();
+  con_filter->SetScalarConnectivity(0);
+  con_filter->SetExtractionModeToAllRegions();
+  con_filter->Update();
+  int num_regions = con_filter->GetNumberOfExtractedRegions();
+
+  // Each cluster holds a set of regions that should be melded together
+  std::vector<Cluster> clusters;
+
+  // Now we'll use this to extract every single region, one at a time
+  con_filter->SetExtractionModeToSpecifiedRegions();
+
+  // Used to get the volume approximation of a mehs
+  VTK_NEW(vtkMassProperties, mass_filter);
+
+  // Check inside the loop to understand the point of this
+  VTK_NEW(vtkPolyDataConnectivityFilter, clean_pts_filter);
+  clean_pts_filter->SetExtractionModeToLargestRegion();
+  clean_pts_filter->SetScalarConnectivity(0);
+
+  for (int i = 0; i < num_regions; ++i) {
+    con_filter->InitializeSpecifiedRegionList();
+    con_filter->AddSpecifiedRegion(i);
+    con_filter->Update();
+
+    // At this point, the mesh resulting from con_filter still has the points
+    // from ALL meshes, even though it only has the cells (triangles) of the
+    // desired mesh. To fix this, we deep-copy this mesh, and run through
+    // another connectivity filter: This removes the extra points, and doesn't
+    // take too long. This is sort of a glitch, but works perfectly and
+    // efficiently
+    vtkPolyData* mesh = vtkPolyData::New();
+    mesh->DeepCopy(con_filter->GetOutput());
+    clean_pts_filter->SetInput(mesh);
+    clean_pts_filter->Update();
+
+    mass_filter->SetInputConnection(clean_pts_filter->GetOutputPort());
+    mass_filter->Update();
+
+    double volume = mass_filter->GetVolume();
+
+    // 0.02 is a reasonable size. Smaller than this would probably be noise
+    if (volume > 0.02) {
+      // Compute the region's center of mass
+      std::vector<double> com;
+      getCenterOfMass(clean_pts_filter->GetOutput(), com);
+
+      Cluster cluster;
+      cluster.cbrt = std::pow(volume, 1.0 / 3.0);
+      cluster.com[0] = com[0];
+      cluster.com[1] = com[1];
+      cluster.com[2] = com[2];
+      cluster.indices.push_back(i);
+
+      clusters.push_back(cluster);
+    }
+  }
+
+  // Perform hierarchical clustering on the regions until the maximum similarity
+  // between two different regions is below a threshold
+  Clustering::hierarchicalClustering(clusters);
+  int num_clusters = clusters.size();
+
+  //  We need to hold the polydatas that will be created in the for loop below
+  std::vector<vtkPolyData*> blobs;
+  blobs.resize(num_clusters);
+
+  this->statusBar()->showMessage("Performing Delaunay 3D triangulation... ");
+  QApplication::processEvents();
+
+  for (int i = 0; i < num_clusters; i++) {
+    // Select all the meshes belonging to this region
+    con_filter->InitializeSpecifiedRegionList();
+    for (int j = 0; j < clusters[i].indices.size(); j++) {
+      con_filter->AddSpecifiedRegion(clusters[i].indices[j]);
+    }
+    con_filter->Update();
+
+    // Append the selected regions into a single polydata
+    VTK_NEW(vtkAppendPolyData, append_filter);
+    append_filter->SetInputConnection(con_filter->GetOutputPort());
+    append_filter->Update();
+
+    VTK_NEW(vtkCleanPolyData, clean_filter);
+    clean_filter->SetInputConnection(append_filter->GetOutputPort());
+    clean_filter->SetTolerance(0.01);
+    clean_filter->Update();
+
+    // Generates a single enveloping mesh that envelops all individual meshes in
+    // the polydata. Equivalent to wrapping the meshes in plastic
+    VTK_NEW(vtkDelaunay3D, del_filter);
+    del_filter->SetInputConnection(clean_filter->GetOutputPort());
+    del_filter->SetTolerance(0.001);
+    del_filter->Update();
+
+    // The generated mesh is tetrahedral. Here we extract the outer triangular
+    // mesh
+    VTK_NEW(vtkDataSetSurfaceFilter, surf_filter);
+    surf_filter->SetInputConnection(del_filter->GetOutputPort());
+    surf_filter->Update();
+
+    // Disconnect the output mesh from the pipeline
+    vtkPolyData* output = surf_filter->GetOutput();
+    output->Register(NULL);   // Prevent it from being garbage-collected
+    output->SetSource(NULL);  // Steal it from the VTK pipeline
+
+    output->Print(std::cout << "After surf filter");
+
+    // Takes ownership of the result polydata and add it to our vector
+    blobs[i] = output;
+  }
+
+  // Now that all clusters have run through delaunay3d individually, we can
+  // unite all meshes in a single polydata
+  VTK_NEW(vtkAppendPolyData, append_filter2);
+  for (int i = 0; i < blobs.size(); i++) {
+    append_filter2->AddInput(blobs[i]);
+  }
+  append_filter2->Update();
+
+  VTK_NEW(vtkPolyDataNormals, normals_filter);
+  normals_filter->SetInputConnection(append_filter2->GetOutputPort());
+  normals_filter->ComputePointNormalsOn();
+  normals_filter->ComputeCellNormalsOff();
+  normals_filter->Update();
+
+  VTK_NEW(vtkWarpScalar, warp_filter);
+  warp_filter->SetInputConnection(normals_filter->GetOutputPort());
+  warp_filter->SetScaleFactor(0);
+  warp_filter->Update();
+
+  // Take a reference to the output and store it in our class variable
+  m_oct_mass_poly_data = warp_filter->GetPolyDataOutput();
+
+  // Clean up our polydatas
+  for (int i = 0; i < blobs.size(); i++) {
+    blobs[i]->Delete();
+  }
+
+//We cleared our oct point cloud to conserve RAM. Let's load it again
+#ifdef AT_HOME
+  std::vector<uint8_t> data;
+  m_file_manager->readVector(OCT_RAW_CACHE_PATH, data);
+  loadVectorToPolyData(data);
+#endif  // AT_HOME
+
+  renderOCTMass();
+
+  m_has_oct_mass = true;
+  m_waiting_response = false;
+  updateUIStates();
 }
 
 //------------RENDERING---------------------------------------------------------
@@ -962,331 +1312,19 @@ void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data) {
   QApplication::processEvents();
 }
 
-void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
-                         vtkSmartPointer<vtkPolyData> surf) {
-  uint32_t num_pts = m_oct_poly_data->GetPointData()->GetNumberOfTuples();
-  uint32_t num_surf_pts = surf->GetNumberOfPoints();
-
-  if (num_pts == 0) {
-    qDebug() << "m_oct_poly_data is empty!";
-    return;
-  }
-
+void Form::renderOCTMass() {
   m_waiting_response = true;
   updateUIStates();
 
-  // Determine increments
-  float length_incrm = 1;
-  float width_incrm = 1;
-  float depth_incrm = 2.762 / 1024.0;
-  if (m_current_params.length_range != 0)
-    length_incrm =
-        m_current_params.length_range / m_current_params.length_steps;
-  if (m_current_params.width_range != 0)
-    width_incrm = m_current_params.width_range / m_current_params.width_steps;
-  if (m_current_params.depth_range != 0)
-    depth_incrm = m_current_params.depth_range / m_current_params.depth_steps;
-
-  this->statusBar()->showMessage("Building height plane... ");
-  QApplication::processEvents();
-
-  double height_plane[m_current_params.length_steps]
-                     [m_current_params.width_steps];
-
-  for (int i = 0; i < num_surf_pts; ++i) {
-    double coords[3];
-    surf->GetPoint(i, coords);
-
-    height_plane[int(coords[0] / length_incrm)][int(coords[1] / width_incrm)] =
-        coords[2];
-  }
-
-  // Lets release the surface since we don't need it anymore
-  surf = NULL;
-
-  // No smart pointers here since we force-delete these later to conserve RAM
-  vtkPoints* under_pts = vtkPoints::New();
-  vtkTypeUInt8Array* under_vals = vtkTypeUInt8Array::New();
-
-  this->statusBar()->showMessage("Extracting volume under OCT surface... ");
-  QApplication::processEvents();
-
-  for (uint32_t i = 0; i < num_pts; ++i) {
-    // Grabs a point in the volume
-    double coords[3];
-    double val;
-    m_oct_poly_data->GetPoint(i, coords);
-    m_oct_poly_data->GetPointData()->GetScalars()->GetTuple(i, &val);
-
-    // The point is under the surface
-    if (height_plane[int(coords[0] / length_incrm)]
-                    [int(coords[1] / width_incrm)] < coords[2]) {
-      under_pts->InsertNextPoint(coords);
-      under_vals->InsertNextValue((uint8_t)val);
-    }
-  }
-
-  // Free up some resources
-  m_oct_poly_data = NULL;
-
-  // No smart pointers here since we force-delete this later to conserve RAM
-  vtkImageData* image = vtkImageData::New();
-  image->SetExtent(0, m_current_params.length_steps - 1, 0,  // here
-                   m_current_params.width_steps - 1, 0,
-                   m_current_params.depth_steps - 1);
-  image->SetNumberOfScalarComponents(1);
-  image->SetScalarTypeToUnsignedChar();
-  image->SetSpacing(length_incrm, width_incrm, depth_incrm);
-
-  this->statusBar()->showMessage("Constructing imagedata... ");
-  QApplication::processEvents();
-
-  // Initializes the imagedata to null (filled with garbage otherwise)
-  for (int i = 0; i < m_current_params.length_steps; i++) {  // here
-    for (int j = 0; j < m_current_params.width_steps; j++) {
-      for (int k = 0; k < m_current_params.depth_steps; k++) {
-
-        unsigned char* pixel =
-            static_cast<unsigned char*>(image->GetScalarPointer(i, j, k));
-
-        pixel[0] = 0;
-      }
-    }
-  }
-
-  // Adds the scalar values from the sub-surface oct volume to the imagedata
-  uint32_t num_under_pts = under_pts->GetNumberOfPoints();
-  uint8_t value;
-  for (uint32_t i = 0; i < num_under_pts; i++) {
-    value = under_vals->GetValue(i);
-
-    double point_coords[3];
-    under_pts->GetPoint(i, point_coords);
-
-    unsigned char* pixel = static_cast<unsigned char*>(
-        image->GetScalarPointer(int(point_coords[0] / (1.0 * length_incrm)),
-                                int(point_coords[1] / (1.0 * width_incrm)),
-                                int(point_coords[2] / (1.0 * depth_incrm))));
-    pixel[0] = value;
-  }
-
-  // Now that we used our sub-volume points and scalars, we clear them up
-  under_pts->Delete();
-  under_vals->Delete();
-
-  this->statusBar()->showMessage("Applying FFT... ");
-  QApplication::processEvents();
-
-  VTK_NEW(vtkImageFFT, fft_filt);
-  fft_filt->SetInput(image);
-  fft_filt->Update();
-  fft_filt->GetOutput()->ReleaseDataFlagOn();
-
-  // Clear our imagedata since we will be using its FFT from now on
-  image->Delete();
-
-  this->statusBar()->showMessage("Applying low-pass filter... ");
-  QApplication::processEvents();
-
-  VTK_NEW(vtkImageIdealLowPass, lowpass_filt);
-  lowpass_filt->SetInputConnection(fft_filt->GetOutputPort());
-  lowpass_filt->SetCutOff(2, 2, 2);
-  lowpass_filt->Update();
-  lowpass_filt->GetOutput()->ReleaseDataFlagOn();
-
-  this->statusBar()->showMessage("Applying RFFT... ");
-  QApplication::processEvents();
-
-  VTK_NEW(vtkImageRFFT, rfft_filt);
-  rfft_filt->SetInputConnection(lowpass_filt->GetOutputPort());
-  rfft_filt->Update();
-  rfft_filt->GetOutput()->ReleaseDataFlagOn();
-
-  // Get rid of imaginary components generated by RFFT
-  VTK_NEW(vtkImageExtractComponents, extract_filt);
-  extract_filt->SetInputConnection(rfft_filt->GetOutputPort());
-  extract_filt->SetComponents(0);
-  extract_filt->Update();
-  extract_filt->GetOutput()->ReleaseDataFlagOn();
-
-  this->statusBar()->showMessage("Converting to unsigned char... ");
-  QApplication::processEvents();
-
-  // Cast voxel depth from double to unsigned char
-  VTK_NEW(vtkImageShiftScale, type_filt);
-  type_filt->SetInputConnection(extract_filt->GetOutputPort());
-  type_filt->SetOutputScalarTypeToUnsignedChar();
-  type_filt->Update();
-  type_filt->GetOutput()->ReleaseDataFlagOn();
-
-  this->statusBar()->showMessage("Calculating gradient... ");
-  QApplication::processEvents();
-
-  VTK_NEW(vtkImageGradientMagnitude, gradmag_filt);
-  gradmag_filt->SetInputConnection(type_filt->GetOutputPort());
-  gradmag_filt->Update();
-  gradmag_filt->GetOutput()->ReleaseDataFlagOn();
-
-  //  VTK_NEW(vtkImageDivergence, div_filt);
-  //  div_filt->SetInputConnection(rfft_filt->GetOutputPort());
-  //  div_filt->Update();
-
-  this->statusBar()->showMessage("Discarding gradient edges... ");
-  QApplication::processEvents();
-
-  vtkSmartPointer<vtkImageData> grad_output = gradmag_filt->GetOutput();
-  discardImageSides(grad_output, 0.02, 0.02);
-
-  this->statusBar()->showMessage("Eroding... ");
-  QApplication::processEvents();
-
-  VTK_NEW(vtkImageContinuousErode3D, erode_filt);
-  erode_filt->SetInput(grad_output);
-  // erode_filt->SetInputConnection(gradmag_filt->GetOutputPort());
-  erode_filt->SetKernelSize(5, 5, 1);
-  erode_filt->Update();
-  // erode_filt->GetOutput()->ReleaseDataFlagOn();
-
-  this->statusBar()->showMessage("Dilating... ");
-  QApplication::processEvents();
-
-  VTK_NEW(vtkImageContinuousDilate3D, dilate_filt);
-  dilate_filt->SetInputConnection(erode_filt->GetOutputPort());
-  dilate_filt->SetKernelSize(5, 5, 2);
-  dilate_filt->Update();
-  // dilate_filt->GetOutput()->ReleaseDataFlagOn();
-
-  this->statusBar()->showMessage("Eroding again... ");
-  QApplication::processEvents();
-
-  VTK_NEW(vtkImageContinuousErode3D, erode_filt2);
-  erode_filt2->SetInputConnection(dilate_filt->GetOutputPort());
-  erode_filt2->SetKernelSize(5, 5, 2);
-  erode_filt2->Update();
-  // erode_filt2->GetOutput()->ReleaseDataFlagOn();
-
-  this->statusBar()->showMessage("Applying marching cubes... ");
-  QApplication::processEvents();
-
-  VTK_NEW(vtkImageMarchingCubes, cubes_filter);
-  cubes_filter->SetInputConnection(dilate_filt->GetOutputPort());
-  cubes_filter->SetValue(0, 30);
-  // cubes_filter->ComputeGradientsOff();
-  // cubes_filter->ComputeNormalsOff();
-  cubes_filter->Update();
-  // cubes_filter->GetOutput()->ReleaseDataFlagOn();
-
-  this->statusBar()->showMessage("Removing noise mesh... ");
-  QApplication::processEvents();
-
-  // Initially we use this to get the total number of regions
-  VTK_NEW(vtkPolyDataConnectivityFilter, con_filter);
-  con_filter->SetInputConnection(cubes_filter->GetOutputPort());
-  con_filter->ColorRegionsOn();
-  con_filter->SetScalarConnectivity(0);
-  con_filter->SetExtractionModeToAllRegions();
-  con_filter->Update();
-  int num_regions = con_filter->GetNumberOfExtractedRegions();
-
-  std::vector<Cluster> regions;
-
-  // Now we'll use this to extract every single region, one at a time
-  con_filter->SetExtractionModeToSpecifiedRegions();
-
-  // Used to get the volume approximation of a mehs
-  VTK_NEW(vtkMassProperties, mass_filter);
-
-  // Check inside the loop to understand the point of this
-  VTK_NEW(vtkPolyDataConnectivityFilter, clean_pts_filter);
-  clean_pts_filter->SetExtractionModeToLargestRegion();
-  clean_pts_filter->SetScalarConnectivity(0);
-
-  for (int i = 0; i < num_regions; ++i) {
-    con_filter->InitializeSpecifiedRegionList();
-    con_filter->AddSpecifiedRegion(i);
-    con_filter->Update();
-
-    // At this point, the mesh resulting from con_filter still has the points
-    // from ALL meshes, even though it only has the cells (triangles) of the
-    // desired mesh. To fix this, we deep-copy this mesh, and run through
-    // another connectivity filter: This removes the extra points, and doesn't
-    // take too long
-    vtkPolyData* mesh = vtkPolyData::New();
-    mesh->DeepCopy(con_filter->GetOutput());
-    clean_pts_filter->SetInput(mesh);
-    clean_pts_filter->Update();
-
-    mass_filter->SetInputConnection(clean_pts_filter->GetOutputPort());
-    mass_filter->Update();
-
-    double volume = mass_filter->GetVolume();
-    std::cout << "Mesh " << i << ", vol: " << volume << std::endl;
-
-    //0.02 is a reasonable size. Smaller than this would probably be noise
-    if (volume > 0.02) {
-      // Compute the region's center of mass
-      std::vector<double> com;
-      getCenterOfMass(clean_pts_filter->GetOutput(), com);
-
-      Cluster region;
-      region.cbrt = std::pow(volume, 1.0/3.0);
-      region.com[0] = com[0];
-      region.com[1] = com[1];
-      region.com[2] = com[2];
-      region.indices.push_back(i);
-
-      regions.push_back(region);
-    }
-  }
-
-  hierarchicalClustering(regions);
-
-
-  // Now that we know which regions to select, run the filter one more time
-//  con_filter->InitializeSpecifiedRegionList();
-//  for (std::vector<int>::iterator iter = regions_to_use.begin();
-//       iter != regions_to_use.end(); ++iter) {
-//    con_filter->AddSpecifiedRegion(*iter);
-//  }
-//  con_filter->Update();
-
-  // Append the selected regions into a single polydata
-  VTK_NEW(vtkAppendPolyData, append_filter);
-  append_filter->SetInputConnection(con_filter->GetOutputPort());
-  append_filter->Update();
-
-  VTK_NEW(vtkCleanPolyData, clean_filter);
-  clean_filter->SetInputConnection(append_filter->GetOutputPort());
-  clean_filter->SetTolerance(0.01);
-  clean_filter->Update();
-
-  //  VTK_NEW(vtkPoints, just_pts);
-  //  just_pts->DeepCopy(clean_filter->GetOutput()->GetPoints());
-
-  //  VTK_NEW(vtkPolyData, just_poly);
-  //  just_poly->SetPoints(just_pts);
-
-  //  VTK_NEW(vtkVertexGlyphFilter, vert_filt);
-  //  vert_filt->SetInput(just_poly);
-  //  vert_filt->Update();
-
-  VTK_NEW(vtkDelaunay3D, del_filter);
-  // del_filter->SetInput(just_poly);
-  del_filter->SetInputConnection(clean_filter->GetOutputPort());
-  del_filter->SetTolerance(0.001);
-  del_filter->Update();
-
-  VTK_NEW(vtkDataSetSurfaceFilter, surf_filter);
-  surf_filter->SetInputConnection(del_filter->GetOutputPort());
-  surf_filter->Update();
+  assert("m_oct_mass_poly_data is empty!" &&
+         m_oct_mass_poly_data->GetNumberOfCells() > 0);
 
   this->statusBar()->showMessage("Building LUT... ");
   QApplication::processEvents();
-
   VTK_NEW(vtkLookupTable, lut);
-  lut->SetTableRange(0, num_regions);
-  lut->SetNumberOfColors(num_regions);
-  for (int i = 0; i < num_regions; ++i) {
+  lut->SetTableRange(0, 10);
+  lut->SetNumberOfColors(10);
+  for (int i = 0; i < 10; ++i) {
     double red = (rand() % 256) / 255.0;
     double green = (rand() % 256) / 255.0;
     double blue = (rand() % 256) / 255.0;
@@ -1295,17 +1333,14 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   }
   lut->Build();
 
-  this->statusBar()->showMessage("Mapping... ");
-  QApplication::processEvents();
-
   VTK_NEW(vtkPolyDataMapper, mapper);
-  mapper->SetInputConnection(surf_filter->GetOutputPort());
+  mapper->SetInput(m_oct_mass_poly_data);
   mapper->SetLookupTable(lut);
   mapper->SetScalarRange(lut->GetTableRange());
 
-  actor->SetMapper(mapper);
+  m_oct_mass_actor->SetMapper(mapper);
 
-  m_renderer->AddActor(actor);
+  m_renderer->AddActor(m_oct_mass_actor);
 
   this->statusBar()->showMessage("Rendering... ");
   QApplication::processEvents();
@@ -1316,7 +1351,6 @@ void Form::renderOCTMass(vtkSmartPointer<vtkActor> actor,
   this->statusBar()->showMessage("Rendering... done!");
   QApplication::processEvents();
 
-  m_has_oct_mass = true;
   m_waiting_response = false;
   updateUIStates();
 }
@@ -1536,7 +1570,7 @@ void Form::on_calc_oct_mass_button_clicked() {
   loadPCLCacheToPolyData(OCT_SURF_CACHE_PATH, surf_oct_poly_data);
 
   m_renderer->RemoveAllViewProps();
-  renderOCTMass(m_oct_mass_actor, surf_oct_poly_data);
+  segmentTumour(m_oct_mass_actor, surf_oct_poly_data);
 
   this->m_ui->status_bar->showMessage("Rendering OCT mass... done!");
   QApplication::processEvents();
@@ -1848,11 +1882,7 @@ void Form::on_over_oct_mass_checkbox_clicked() {
     this->m_ui->status_bar->showMessage("Adding OCT mass to overlay view...");
     QApplication::processEvents();
 
-    VTK_NEW(vtkPolyData, surf_oct_poly_data);
-    loadPCLCacheToPolyData(OCT_SURF_CACHE_PATH, surf_oct_poly_data);
-
-    m_renderer->RemoveAllViewProps();
-    renderOCTMass(m_oct_mass_actor, surf_oct_poly_data);
+    renderOCTMass();
   } else {
     this->m_ui->status_bar->showMessage(
         "Removing OCT mass from overlay view...", 3000);
