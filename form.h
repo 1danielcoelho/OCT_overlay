@@ -35,6 +35,7 @@
 #include <vtkUnsignedCharArray.h>
 #include <vtkTransform.h>
 #include <vtkUnstructuredGrid.h>
+#include <vtkTypeFloat32Array.h>
 // Filters
 #include <vtkContourFilter.h>
 #include <vtkVertexGlyphFilter.h>
@@ -65,6 +66,8 @@
 #include <vtkDataSetSurfaceFilter.h>
 #include <vtkWarpScalar.h>
 #include <vtkPolyDataNormals.h>
+#include <vtkReverseSense.h>
+#include <vtkGlyph3D.h>
 // Mappers
 #include <vtkPolyDataMapper.h>
 #include <vtkImageMapper.h>
@@ -85,6 +88,7 @@
 #include <vtkTextProperty.h>
 #include <vtkGarbageCollector.h>
 #include <vtkInteractorStyleImage.h>
+#include <vtkArrowSource.h>
 // Project files
 #include "qnode.h"
 #include "filemanager.h"

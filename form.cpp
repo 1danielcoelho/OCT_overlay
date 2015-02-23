@@ -919,15 +919,6 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
   dilate_filt->Update();
   // dilate_filt->GetOutput()->ReleaseDataFlagOn();
 
-  this->statusBar()->showMessage("Eroding again... ");
-  QApplication::processEvents();
-
-  VTK_NEW(vtkImageContinuousErode3D, erode_filt2);
-  erode_filt2->SetInputConnection(dilate_filt->GetOutputPort());
-  erode_filt2->SetKernelSize(10, 10, 2);
-  erode_filt2->Update();
-  // erode_filt2->GetOutput()->ReleaseDataFlagOn();
-
   this->statusBar()->showMessage("Applying marching cubes... ");
   QApplication::processEvents();
 
@@ -935,7 +926,8 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
   cubes_filter->SetInputConnection(dilate_filt->GetOutputPort());
   cubes_filter->SetValue(0, 30);
   cubes_filter->ComputeGradientsOff();
-  cubes_filter->ComputeNormalsOn();
+  cubes_filter->ComputeNormalsOff();
+  cubes_filter->ComputeScalarsOff();
   cubes_filter->Update();
   // cubes_filter->GetOutput()->ReleaseDataFlagOn();
 
@@ -945,7 +937,6 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
   // Initially we use this to get the total number of regions
   VTK_NEW(vtkPolyDataConnectivityFilter, con_filter);
   con_filter->SetInputConnection(cubes_filter->GetOutputPort());
-  con_filter->ColorRegionsOn();
   con_filter->SetScalarConnectivity(0);
   con_filter->SetExtractionModeToAllRegions();
   con_filter->Update();
@@ -1033,10 +1024,82 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
     clean_filter->SetTolerance(0.01);
     clean_filter->Update();
 
+    num_pts = clean_filter->GetOutput()->GetNumberOfPoints();
+    VTK_NEW(vtkTypeUInt8Array, scalars);
+    scalars->SetNumberOfValues(num_pts);
+    scalars->SetName("Scalars");
+    for (int k = 0; k < num_pts; k++) {
+      scalars->SetValue(k, 1);
+    }
+
+    vtkPolyData* clean_out = clean_filter->GetOutput();
+    clean_out->Register(NULL);
+    clean_out->SetSource(NULL);
+    clean_out->GetPointData()->RemoveArray(0);
+    clean_out->GetPointData()->SetScalars(scalars);
+    clean_out->GetPointData()->SetActiveScalars("Scalars");
+
+    VTK_NEW(vtkPolyDataNormals, normals_filter);
+    normals_filter->SetInput(clean_out);
+    normals_filter->ComputePointNormalsOn();
+    normals_filter->ComputeCellNormalsOff();
+    normals_filter->ConsistencyOff();
+    normals_filter->SplittingOff();
+    normals_filter->AutoOrientNormalsOff();
+    normals_filter->Update();
+
+    normals_filter->GetOutput()->Print(std::cout << "Normals filter\n");
+
+    for(int a = 0; a < 10; a++)
+    {
+      double pos[3];
+      double norm[3];
+      double* scalar;
+
+      normals_filter->GetOutput()->GetPoint(a, pos);
+      normals_filter->GetOutput()->GetPointData()->GetNormals()->GetTuple(a, norm);
+      normals_filter->GetOutput()->GetPointData()->GetScalars()->GetTuple(a, scalar);
+
+      std::cout << "Point: " << a << ", Scalar: " << scalar[0] <<
+                "\n\tPos: " << pos[0] << ", " << pos[1] << ", " << pos[2] << "\n\tNormals: " <<
+                norm[0] << ", " << norm[1] << ", " << norm[2] << std::endl;
+    }
+
+    VTK_NEW(vtkWarpScalar, warp_filter);
+    warp_filter->SetInputConnection(normals_filter->GetOutputPort());
+    warp_filter->SetScaleFactor(-0.3);
+    warp_filter->SetUseNormal(0);
+    warp_filter->SetXYPlane(0);
+    warp_filter->Update();
+
+    double scalefactor = warp_filter->GetScaleFactor();
+    std::cout << "Scale factor: " << scalefactor << std::endl;
+
+     for(int a = 0; a < 10; a++)
+    {
+      double pos[3];
+
+      normals_filter->GetOutput()->GetPoint(a, pos);
+
+      std::cout << "Point: " << a <<
+                "\n\tPos: " << pos[0] << ", " << pos[1] << ", " << pos[2] << std::endl;
+    }
+
+    // Delaunay3D will try to use our mesh to build the enveloping mesh. This is
+    // not ideal since it might find degenerate triangles. Here we build a new
+    // polydata with just point information, and let it generate an entirelly
+    // new mesh, as to avoid that problem
+    VTK_NEW(vtkPoints, just_pts);
+    just_pts->DeepCopy(warp_filter->GetOutput()->GetPoints());
+    VTK_NEW(vtkPolyData, just_poly);
+    just_poly->SetPoints(just_pts);
+
     // Generates a single enveloping mesh that envelops all individual meshes in
     // the polydata. Equivalent to wrapping the meshes in plastic
     VTK_NEW(vtkDelaunay3D, del_filter);
-    del_filter->SetInputConnection(clean_filter->GetOutputPort());
+    //del_filter->SetInputConnection(clean_filter->GetOutputPort());
+    //del_filter->SetInputConnection(warp_filter->GetOutputPort());
+    del_filter->SetInput(just_poly);
     del_filter->SetTolerance(0.001);
     del_filter->Update();
 
@@ -1051,8 +1114,6 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
     output->Register(NULL);   // Prevent it from being garbage-collected
     output->SetSource(NULL);  // Steal it from the VTK pipeline
 
-    output->Print(std::cout << "After surf filter");
-
     // Takes ownership of the result polydata and add it to our vector
     blobs[i] = output;
   }
@@ -1065,26 +1126,15 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
   }
   append_filter2->Update();
 
-  VTK_NEW(vtkPolyDataNormals, normals_filter);
-  normals_filter->SetInputConnection(append_filter2->GetOutputPort());
-  normals_filter->ComputePointNormalsOn();
-  normals_filter->ComputeCellNormalsOff();
-  normals_filter->Update();
-
-  VTK_NEW(vtkWarpScalar, warp_filter);
-  warp_filter->SetInputConnection(normals_filter->GetOutputPort());
-  warp_filter->SetScaleFactor(0);
-  warp_filter->Update();
-
   // Take a reference to the output and store it in our class variable
-  m_oct_mass_poly_data = warp_filter->GetPolyDataOutput();
+  m_oct_mass_poly_data = append_filter2->GetOutput();
 
   // Clean up our polydatas
   for (int i = 0; i < blobs.size(); i++) {
     blobs[i]->Delete();
   }
 
-//We cleared our oct point cloud to conserve RAM. Let's load it again
+// We cleared our oct point cloud to conserve RAM. Let's load it again
 #ifdef AT_HOME
   std::vector<uint8_t> data;
   m_file_manager->readVector(OCT_RAW_CACHE_PATH, data);
@@ -1319,26 +1369,13 @@ void Form::renderOCTMass() {
   assert("m_oct_mass_poly_data is empty!" &&
          m_oct_mass_poly_data->GetNumberOfCells() > 0);
 
-  this->statusBar()->showMessage("Building LUT... ");
-  QApplication::processEvents();
-  VTK_NEW(vtkLookupTable, lut);
-  lut->SetTableRange(0, 10);
-  lut->SetNumberOfColors(10);
-  for (int i = 0; i < 10; ++i) {
-    double red = (rand() % 256) / 255.0;
-    double green = (rand() % 256) / 255.0;
-    double blue = (rand() % 256) / 255.0;
-
-    lut->SetTableValue(i, red, green, blue);
-  }
-  lut->Build();
-
   VTK_NEW(vtkPolyDataMapper, mapper);
   mapper->SetInput(m_oct_mass_poly_data);
-  mapper->SetLookupTable(lut);
-  mapper->SetScalarRange(lut->GetTableRange());
+  mapper->SetScalarModeToDefault();
+  mapper->SetScalarVisibility(0);
 
   m_oct_mass_actor->SetMapper(mapper);
+  m_oct_mass_actor->GetProperty()->SetColor(0.8d, 0.8d, 1.0d);
 
   m_renderer->AddActor(m_oct_mass_actor);
 
