@@ -33,6 +33,15 @@ Usage:
 #include "vtkImageData.h"
 #include "vtkStreamingDemandDrivenPipeline.h"
 #include "vtkInformation.h"
+#include "vtkPolyData.h"
+#include "vtkPolyDataMapper.h"
+#include "vtkVertexGlyphFilter.h"
+#include "vtkActor.h"
+#include "vtkProperty.h"
+
+#define VTK_NEW(type, instance) \
+  ;                             \
+  vtkSmartPointer<type> instance = vtkSmartPointer<type>::New();
 
 // The mouse motion callback, to turn "Slicing" on and off
 class vtkImageInteractionCallback : public vtkCommand {
@@ -119,8 +128,41 @@ class vtkImageInteractionCallback : public vtkCommand {
 };
 
 class SliceViewer {
- public:
-  SliceViewer(vtkImageData *volume) {
+ public: 
+
+  static void viewPolyData(vtkPolyData* polydata)
+  {
+    VTK_NEW(vtkPoints, pts);
+    pts->DeepCopy(polydata->GetPoints());
+
+    VTK_NEW(vtkPolyData, new_polydata);
+    new_polydata->SetPoints(pts);
+
+    VTK_NEW(vtkVertexGlyphFilter, vert_filter);
+    vert_filter->SetInput(new_polydata);
+
+    VTK_NEW(vtkPolyDataMapper, mapper);
+    mapper->SetInputConnection(vert_filter->GetOutputPort());
+
+    VTK_NEW(vtkActor, actor);
+    actor->SetMapper(mapper);
+    actor->GetProperty()->SetColor(1.0, 0.8, 0.8);
+
+    VTK_NEW(vtkRenderer, renderer);
+    renderer->AddActor(actor);
+
+    VTK_NEW(vtkRenderWindowInteractor, interactor);
+
+    VTK_NEW(vtkRenderWindow, window);
+    window->AddRenderer(renderer);
+    window->SetInteractor(interactor);
+    window->SetSize(1024, 768);
+
+    renderer->Render();
+    interactor->Start(); //Will not return until window is closed
+  }
+
+  static void view3dImageData(vtkImageData *volume) {
 
     // Disconnect the imagedata with its source, so updates don't propagate up
     // the chain. Important so we can quickly update to get newer slices
@@ -219,6 +261,9 @@ class SliceViewer {
     volume->SetSource(original_source);
     volume->UnRegister(NULL);
   }
+
+  private:
+  SliceViewer();
 };
 
 #endif  // SLICEINTERACTOR_H

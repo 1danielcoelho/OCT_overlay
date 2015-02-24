@@ -1043,56 +1043,88 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
     normals_filter->SetInput(clean_out);
     normals_filter->ComputePointNormalsOn();
     normals_filter->ComputeCellNormalsOff();
-    normals_filter->ConsistencyOff();
+    normals_filter->ConsistencyOn();
     normals_filter->SplittingOff();
-    normals_filter->AutoOrientNormalsOff();
+    normals_filter->AutoOrientNormalsOn();
     normals_filter->Update();
 
-    normals_filter->GetOutput()->Print(std::cout << "Normals filter\n");
+//    normals_filter->GetOutput()->Print(std::cout << "After normals filter\n");
 
-    for(int a = 0; a < 10; a++)
+//    for(int a = 0; a < 10; a++)
+//    {
+//      double pos[3];
+//      double norm[3];
+//      double scalar;
+
+//      normals_filter->GetOutput()->GetPoint(a, pos);
+//      normals_filter->GetOutput()->GetPointData()->GetNormals()->GetTuple(a, norm);
+//      normals_filter->GetOutput()->GetPointData()->GetScalars()->GetTuple(a, &scalar);
+
+//      std::cout << "Point: " << a << ", Scalar: " << scalar <<
+//                "\n\tPos: " << pos[0] << ", " << pos[1] << ", " << pos[2] << "\n\tNormals: " <<
+//                norm[0] << ", " << norm[1] << ", " << norm[2] << std::endl;
+//    }
+
+//    VTK_NEW(vtkWarpScalar, warp_filter);
+//    warp_filter->SetInputConnection(normals_filter->GetOutputPort());
+//    warp_filter->SetScaleFactor(-0.3);
+//    warp_filter->SetUseNormal(0);
+//    warp_filter->SetXYPlane(0);
+//    warp_filter->Update();
+
+//    double scalefactor = warp_filter->GetScaleFactor();
+//    std::cout << "Scale factor: " << scalefactor << std::endl;
+
+//     for(int a = 0; a < 10; a++)
+//    {
+//      double pos[3];
+
+//      normals_filter->GetOutput()->GetPoint(a, pos);
+
+//      std::cout << "Point: " << a <<
+//                "\n\tPos: " << pos[0] << ", " << pos[1] << ", " << pos[2] << std::endl;
+//    }
+
+//    warp_filter->GetOutput()->Print(std::cout << "After warp filter\n");
+
+    vtkPolyData* normals_output = normals_filter->GetOutput();
+
+    SliceViewer::viewPolyData(normals_output);
+
+    int number_points = normals_output->GetNumberOfPoints();
+    vtkDataArray* normals = normals_output->GetPointData()->GetArray("Normals");
+
+    VTK_NEW(vtkPoints, new_pts);
+    new_pts->SetDataTypeToFloat();
+    new_pts->SetNumberOfPoints(number_points);
+
+    for(int i =0; i < number_points; i++)
     {
+      double norms[3];
       double pos[3];
-      double norm[3];
-      double* scalar;
 
-      normals_filter->GetOutput()->GetPoint(a, pos);
-      normals_filter->GetOutput()->GetPointData()->GetNormals()->GetTuple(a, norm);
-      normals_filter->GetOutput()->GetPointData()->GetScalars()->GetTuple(a, scalar);
+      normals_output->GetPoint(i, pos);
+      normals->GetTuple(i, norms);
 
-      std::cout << "Point: " << a << ", Scalar: " << scalar[0] <<
-                "\n\tPos: " << pos[0] << ", " << pos[1] << ", " << pos[2] << "\n\tNormals: " <<
-                norm[0] << ", " << norm[1] << ", " << norm[2] << std::endl;
+      double new_pt[3];
+      new_pt[0] = pos[0] + norms[0] * (-0.2);
+      new_pt[1] = pos[1] + norms[1] * (-0.2);
+      new_pt[2] = pos[2] + norms[2] * (-0.2);
+
+      new_pts->InsertPoint(i, new_pt);
     }
 
-    VTK_NEW(vtkWarpScalar, warp_filter);
-    warp_filter->SetInputConnection(normals_filter->GetOutputPort());
-    warp_filter->SetScaleFactor(-0.3);
-    warp_filter->SetUseNormal(0);
-    warp_filter->SetXYPlane(0);
-    warp_filter->Update();
-
-    double scalefactor = warp_filter->GetScaleFactor();
-    std::cout << "Scale factor: " << scalefactor << std::endl;
-
-     for(int a = 0; a < 10; a++)
-    {
-      double pos[3];
-
-      normals_filter->GetOutput()->GetPoint(a, pos);
-
-      std::cout << "Point: " << a <<
-                "\n\tPos: " << pos[0] << ", " << pos[1] << ", " << pos[2] << std::endl;
-    }
 
     // Delaunay3D will try to use our mesh to build the enveloping mesh. This is
     // not ideal since it might find degenerate triangles. Here we build a new
     // polydata with just point information, and let it generate an entirelly
     // new mesh, as to avoid that problem
-    VTK_NEW(vtkPoints, just_pts);
-    just_pts->DeepCopy(warp_filter->GetOutput()->GetPoints());
+//    VTK_NEW(vtkPoints, just_pts);
+//    just_pts->DeepCopy(warp_filter->GetOutput()->GetPoints());
     VTK_NEW(vtkPolyData, just_poly);
-    just_poly->SetPoints(just_pts);
+    just_poly->SetPoints(new_pts);
+
+    SliceViewer::viewPolyData(just_poly);
 
     // Generates a single enveloping mesh that envelops all individual meshes in
     // the polydata. Equivalent to wrapping the meshes in plastic
