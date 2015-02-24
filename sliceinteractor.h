@@ -38,6 +38,8 @@ Usage:
 #include "vtkVertexGlyphFilter.h"
 #include "vtkActor.h"
 #include "vtkProperty.h"
+#include "vtkGlyph3D.h"
+#include "vtkArrowSource.h"
 
 #define VTK_NEW(type, instance) \
   ;                             \
@@ -162,23 +164,65 @@ class SliceViewer {
     interactor->Start(); //Will not return until window is closed
   }
 
+  static void viewPolyDataWithNormals(vtkPolyData* polydata)
+  {
+    //Polydata
+    VTK_NEW(vtkPolyDataMapper, mapper);
+    mapper->SetInput(polydata);
+    mapper->SetScalarVisibility(0);
+
+    VTK_NEW(vtkActor, actor);
+    actor->SetMapper(mapper);
+    actor->GetProperty()->SetColor(1.0, 0.8, 0.8);
+
+
+    //Arrows
+    VTK_NEW(vtkArrowSource, arrow);
+
+    VTK_NEW(vtkGlyph3D, glyph);
+    glyph->SetInput(polydata);
+    glyph->SetSource(arrow->GetOutput());
+    glyph->SetVectorModeToUseNormal();
+    glyph->SetScaleFactor(0.05);
+
+    VTK_NEW(vtkPolyDataMapper, arrow_mapper);
+    arrow_mapper->SetInputConnection(glyph->GetOutputPort());
+
+    VTK_NEW(vtkActor, arrow_actor);
+    arrow_actor->SetMapper(arrow_mapper);
+    arrow_actor->GetProperty()->SetColor(0.8, 0.8, 0.2);
+
+
+    //Rendering
+    VTK_NEW(vtkRenderer, renderer);
+    renderer->AddActor(actor);
+    renderer->AddActor(arrow_actor);
+
+    VTK_NEW(vtkRenderWindowInteractor, interactor);
+
+    VTK_NEW(vtkRenderWindow, window);
+    window->AddRenderer(renderer);
+    window->SetInteractor(interactor);
+    window->SetSize(1024, 768);
+
+    renderer->Render();
+    interactor->Start(); //Will not return until window is closed
+  }
+
   static void view3dImageData(vtkImageData *volume) {
 
-    // Disconnect the imagedata with its source, so updates don't propagate up
-    // the chain. Important so we can quickly update to get newer slices
-    vtkSource *original_source = volume->GetSource();
-    volume->Register(NULL);  // Increment reference count: Make sure it doesn't
-    // die while we're using it
-    volume->SetSource(NULL);
+    // Easiest way of preventing modifications to trigger updates
+    VTK_NEW(vtkImageData, volume_copy);
+    volume_copy->DeepCopy(volume);
 
     // Calculate the center of the volume
     int extent[6];
     double spacing[3];
     double origin[3];
 
-    volume->GetExtent(extent);
-    volume->GetSpacing(spacing);
-    volume->GetOrigin(origin);
+    volume_copy->GetExtent(extent);
+    volume_copy->GetSpacing(spacing);
+    volume_copy->GetOrigin(origin);
 
     double center[3];
     center[0] = origin[0] + spacing[0] * 0.5 * (extent[0] + extent[1]);
@@ -213,7 +257,7 @@ class SliceViewer {
     // Extract a slice in the desired orientation
     vtkSmartPointer<vtkImageReslice> reslice =
         vtkSmartPointer<vtkImageReslice>::New();
-    reslice->SetInput(volume);
+    reslice->SetInput(volume_copy);
     reslice->SetOutputDimensionality(2);
     reslice->SetResliceAxes(resliceAxes);
     reslice->SetInterpolationModeToLinear();
@@ -256,10 +300,6 @@ class SliceViewer {
     // Start interaction
     // The Start() method doesn't return until the window is closed by the user
     interactor->Start();
-
-    // Restore original source
-    volume->SetSource(original_source);
-    volume->UnRegister(NULL);
   }
 
   private:

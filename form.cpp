@@ -159,9 +159,7 @@ void Form::updateUIStates() {
   m_ui->view_oct_mass_button->setEnabled(m_has_oct_mass && !m_waiting_response);
 
   m_ui->calc_oct_surf_button->setEnabled(m_has_raw_oct && !m_waiting_response);
-  // m_ui->calc_oct_mass_button->setEnabled(m_has_oct_surf &&
-  // !m_waiting_response);
-  m_ui->calc_oct_mass_button->setEnabled(!m_waiting_response);
+  m_ui->calc_oct_mass_button->setEnabled(m_has_oct_surf && !m_waiting_response);
 
   // Stereocamera page
   m_ui->view_left_image_button->setEnabled(m_has_left_img &&
@@ -854,7 +852,7 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
 
   VTK_NEW(vtkImageIdealLowPass, lowpass_filt);
   lowpass_filt->SetInputConnection(fft_filt->GetOutputPort());
-  lowpass_filt->SetCutOff(2, 2, 2);
+  lowpass_filt->SetCutOff(FFT_LOWPASS_CUTOFF_X, FFT_LOWPASS_CUTOFF_Y, FFT_LOWPASS_CUTOFF_Z);
   lowpass_filt->Update();
   lowpass_filt->GetOutput()->ReleaseDataFlagOn();
 
@@ -897,7 +895,7 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
 
   // Discard sides of the imagedata (harsh gradient)
   vtkSmartPointer<vtkImageData> grad_output = gradmag_filt->GetOutput();
-  discardImageSides(grad_output, 0.02, 0.02);
+  discardImageSides(grad_output, DISCARD_SIDES_PERCENT_X, DISCARD_SIDES_PERCENT_Y);
 
   this->statusBar()->showMessage("Eroding... ");
   QApplication::processEvents();
@@ -905,17 +903,18 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
   // Eroding the sample gets rid of most of the noise, but fragments our contour
   VTK_NEW(vtkImageContinuousErode3D, erode_filt);
   erode_filt->SetInput(grad_output);
-  erode_filt->SetKernelSize(5, 5, 1);
+  erode_filt->SetKernelSize(ERODE_KERNEL_X, ERODE_KERNEL_Y, ERODE_KERNEL_Z);
   erode_filt->Update();
   // erode_filt->GetOutput()->ReleaseDataFlagOn();
 
   this->statusBar()->showMessage("Dilating... ");
   QApplication::processEvents();
 
-  // Enlarges our contour again
+  // Enlarges our contour again, which helps to generate less meshes when using
+  // marching cubes
   VTK_NEW(vtkImageContinuousDilate3D, dilate_filt);
   dilate_filt->SetInputConnection(erode_filt->GetOutputPort());
-  dilate_filt->SetKernelSize(5, 5, 2);
+  dilate_filt->SetKernelSize(DILATE_KERNEL_X, DILATE_KERNEL_Y, DILATE_KERNEL_Z);
   dilate_filt->Update();
   // dilate_filt->GetOutput()->ReleaseDataFlagOn();
 
@@ -924,7 +923,7 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
 
   VTK_NEW(vtkImageMarchingCubes, cubes_filter);
   cubes_filter->SetInputConnection(dilate_filt->GetOutputPort());
-  cubes_filter->SetValue(0, 30);
+  cubes_filter->SetValue(0, CUBES_VALUE);
   cubes_filter->ComputeGradientsOff();
   cubes_filter->ComputeNormalsOff();
   cubes_filter->ComputeScalarsOff();
@@ -941,6 +940,8 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
   con_filter->SetExtractionModeToAllRegions();
   con_filter->Update();
   int num_regions = con_filter->GetNumberOfExtractedRegions();
+
+  std::cout << "Encountered " << num_regions << " regions.\n";
 
   // Each cluster holds a set of regions that should be melded together
   std::vector<Cluster> clusters;
@@ -967,8 +968,9 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
     // another connectivity filter: This removes the extra points, and doesn't
     // take too long. This is sort of a glitch, but works perfectly and
     // efficiently
-    vtkPolyData* mesh = vtkPolyData::New();
+    VTK_NEW(vtkPolyData, mesh);
     mesh->DeepCopy(con_filter->GetOutput());
+
     clean_pts_filter->SetInput(mesh);
     clean_pts_filter->Update();
 
@@ -978,7 +980,7 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
     double volume = mass_filter->GetVolume();
 
     // 0.02 is a reasonable size. Smaller than this would probably be noise
-    if (volume > 0.02) {
+    if (volume > MIN_VOLUME) {
       // Compute the region's center of mass
       std::vector<double> com;
       getCenterOfMass(clean_pts_filter->GetOutput(), com);
@@ -1024,114 +1026,15 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
     clean_filter->SetTolerance(0.01);
     clean_filter->Update();
 
-    num_pts = clean_filter->GetOutput()->GetNumberOfPoints();
-    VTK_NEW(vtkTypeUInt8Array, scalars);
-    scalars->SetNumberOfValues(num_pts);
-    scalars->SetName("Scalars");
-    for (int k = 0; k < num_pts; k++) {
-      scalars->SetValue(k, 1);
-    }
-
-    vtkPolyData* clean_out = clean_filter->GetOutput();
-    clean_out->Register(NULL);
-    clean_out->SetSource(NULL);
-    clean_out->GetPointData()->RemoveArray(0);
-    clean_out->GetPointData()->SetScalars(scalars);
-    clean_out->GetPointData()->SetActiveScalars("Scalars");
-
-    VTK_NEW(vtkPolyDataNormals, normals_filter);
-    normals_filter->SetInput(clean_out);
-    normals_filter->ComputePointNormalsOn();
-    normals_filter->ComputeCellNormalsOff();
-    normals_filter->ConsistencyOn();
-    normals_filter->SplittingOff();
-    normals_filter->AutoOrientNormalsOn();
-    normals_filter->Update();
-
-//    normals_filter->GetOutput()->Print(std::cout << "After normals filter\n");
-
-//    for(int a = 0; a < 10; a++)
-//    {
-//      double pos[3];
-//      double norm[3];
-//      double scalar;
-
-//      normals_filter->GetOutput()->GetPoint(a, pos);
-//      normals_filter->GetOutput()->GetPointData()->GetNormals()->GetTuple(a, norm);
-//      normals_filter->GetOutput()->GetPointData()->GetScalars()->GetTuple(a, &scalar);
-
-//      std::cout << "Point: " << a << ", Scalar: " << scalar <<
-//                "\n\tPos: " << pos[0] << ", " << pos[1] << ", " << pos[2] << "\n\tNormals: " <<
-//                norm[0] << ", " << norm[1] << ", " << norm[2] << std::endl;
-//    }
-
-//    VTK_NEW(vtkWarpScalar, warp_filter);
-//    warp_filter->SetInputConnection(normals_filter->GetOutputPort());
-//    warp_filter->SetScaleFactor(-0.3);
-//    warp_filter->SetUseNormal(0);
-//    warp_filter->SetXYPlane(0);
-//    warp_filter->Update();
-
-//    double scalefactor = warp_filter->GetScaleFactor();
-//    std::cout << "Scale factor: " << scalefactor << std::endl;
-
-//     for(int a = 0; a < 10; a++)
-//    {
-//      double pos[3];
-
-//      normals_filter->GetOutput()->GetPoint(a, pos);
-
-//      std::cout << "Point: " << a <<
-//                "\n\tPos: " << pos[0] << ", " << pos[1] << ", " << pos[2] << std::endl;
-//    }
-
-//    warp_filter->GetOutput()->Print(std::cout << "After warp filter\n");
-
-    vtkPolyData* normals_output = normals_filter->GetOutput();
-
-    SliceViewer::viewPolyData(normals_output);
-
-    int number_points = normals_output->GetNumberOfPoints();
-    vtkDataArray* normals = normals_output->GetPointData()->GetArray("Normals");
-
-    VTK_NEW(vtkPoints, new_pts);
-    new_pts->SetDataTypeToFloat();
-    new_pts->SetNumberOfPoints(number_points);
-
-    for(int i =0; i < number_points; i++)
-    {
-      double norms[3];
-      double pos[3];
-
-      normals_output->GetPoint(i, pos);
-      normals->GetTuple(i, norms);
-
-      double new_pt[3];
-      new_pt[0] = pos[0] + norms[0] * (-0.2);
-      new_pt[1] = pos[1] + norms[1] * (-0.2);
-      new_pt[2] = pos[2] + norms[2] * (-0.2);
-
-      new_pts->InsertPoint(i, new_pt);
-    }
-
-
-    // Delaunay3D will try to use our mesh to build the enveloping mesh. This is
-    // not ideal since it might find degenerate triangles. Here we build a new
-    // polydata with just point information, and let it generate an entirelly
-    // new mesh, as to avoid that problem
-//    VTK_NEW(vtkPoints, just_pts);
-//    just_pts->DeepCopy(warp_filter->GetOutput()->GetPoints());
-    VTK_NEW(vtkPolyData, just_poly);
-    just_poly->SetPoints(new_pts);
-
-    SliceViewer::viewPolyData(just_poly);
+    // Disconnect the clean filter's output from the pipeline
+    vtkSmartPointer<vtkPolyData> clean_output = clean_filter->GetOutput();
+    //clean_output->SetSource(NULL);
+    clean_output->DeleteCells();  // Deletes cells and links
 
     // Generates a single enveloping mesh that envelops all individual meshes in
     // the polydata. Equivalent to wrapping the meshes in plastic
     VTK_NEW(vtkDelaunay3D, del_filter);
-    //del_filter->SetInputConnection(clean_filter->GetOutputPort());
-    //del_filter->SetInputConnection(warp_filter->GetOutputPort());
-    del_filter->SetInput(just_poly);
+    del_filter->SetInput(clean_output);
     del_filter->SetTolerance(0.001);
     del_filter->Update();
 
@@ -1141,13 +1044,67 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
     surf_filter->SetInputConnection(del_filter->GetOutputPort());
     surf_filter->Update();
 
-    // Disconnect the output mesh from the pipeline
-    vtkPolyData* output = surf_filter->GetOutput();
-    output->Register(NULL);   // Prevent it from being garbage-collected
-    output->SetSource(NULL);  // Steal it from the VTK pipeline
+    // Center of mass is based on the number of points. Since Delaunay3D
+    // might have changed that, we get new centers
+    std::vector<double> center;
+    getCenterOfMass(surf_filter->GetOutput(), center);
 
-    // Takes ownership of the result polydata and add it to our vector
-    blobs[i] = output;
+    VTK_NEW(vtkTransform, trans);
+    trans->PostMultiply();  // Makes it so the transforms are concatenated on
+                            // the right side
+    trans->Translate(-center[0], -center[1], -center[2]);
+    trans->Scale(FIT_SCALING_X, FIT_SCALING_Y, FIT_SCALING_Z);
+    trans->Translate(center[0], center[1], center[2]);
+
+    VTK_NEW(vtkTransformPolyDataFilter, transform_filter);
+    transform_filter->SetInputConnection(surf_filter->GetOutputPort());
+    transform_filter->SetTransform(trans);
+    transform_filter->Update();
+
+    VTK_NEW(vtkPPolyDataNormals, normals_filter);
+    normals_filter->SetInputConnection(transform_filter->GetOutputPort());
+    normals_filter->ComputePointNormalsOn();
+    normals_filter->ComputeCellNormalsOff();
+    normals_filter->ConsistencyOn();
+    normals_filter->SplittingOff();
+    normals_filter->FlipNormalsOff();
+    normals_filter->AutoOrientNormalsOn();
+    normals_filter->PieceInvariantOn();
+    normals_filter->Update();
+
+    //We'll be modifying the output of the normals filter, so its important to
+    //disconnect it or it will update the filter itself whenever modified
+    vtkPolyData* normals_output = normals_filter->GetOutput();
+    normals_output->Register(NULL);
+    normals_output->SetSource(NULL);
+
+    int number_points = normals_output->GetNumberOfPoints();
+    vtkDataArray* normals = normals_output->GetPointData()->GetArray("Normals");
+
+    VTK_NEW(vtkPoints, new_pts);
+    new_pts->SetDataTypeToFloat();
+    new_pts->SetNumberOfPoints(number_points);
+
+    for (int i = 0; i < number_points; i++) {
+      double norms[3];
+      double pos[3];
+
+      normals_output->GetPoint(i, pos);
+      normals->GetTuple(i, norms);
+
+      double new_pt[3];
+      new_pt[0] = pos[0] + norms[0] * (WARP_FACTOR_X);
+      new_pt[1] = pos[1] + norms[1] * (WARP_FACTOR_Y);
+      new_pt[2] = pos[2] + norms[2] * (WARP_FACTOR_Z);
+
+      new_pts->InsertPoint(i, new_pt);
+    }
+
+    // Update the mesh with our shifted points
+    normals_output->SetPoints(new_pts);
+
+    //  Add the result to our vector
+    blobs[i] = normals_output;
   }
 
   // Now that all clusters have run through delaunay3d individually, we can
@@ -1158,10 +1115,10 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
   }
   append_filter2->Update();
 
-  // Take a reference to the output and store it in our class variable
+  // Store the result in our class variable
   m_oct_mass_poly_data = append_filter2->GetOutput();
 
-  // Clean up our polydatas
+  // Clean up our polydatas now that a copy of them has been fused and stored
   for (int i = 0; i < blobs.size(); i++) {
     blobs[i]->Delete();
   }

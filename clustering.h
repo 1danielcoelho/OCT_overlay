@@ -1,10 +1,12 @@
 #ifndef CLUSTERING_H
 #define CLUSTERING_H
 
-// Minimum ammount of similarity necessary for classes to be fused together
-#define SIMILAR_THRESHOLD 0.3
+// Minimum ammount of similarity necessary for classes to be fused together.
+// 0.25 seems to be a good default
+#define SIMILAR_THRESHOLD 0.25
 
 #include <vector>
+#include "defines.h"
 
 // Used for hierarquical clustering
 struct Cluster {
@@ -30,7 +32,7 @@ class Clustering {
       updateSimilarityTable(regions, table);
       double similarity = updateRegions(regions, table);
 
-      //The max similarity we found is below the threshold, stop clustering
+      // The max similarity we found is below the threshold, stop clustering
       if (similarity == -1.0) {
         break;
       }

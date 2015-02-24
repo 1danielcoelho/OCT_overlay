@@ -69,6 +69,7 @@ SET(HEADERS
     octinfo.h
     clustering.h
     sliceinteractor.h
+    defines.h
     )
 
 SET(HEADERS_TO_MOC

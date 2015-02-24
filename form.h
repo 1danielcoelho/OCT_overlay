@@ -66,8 +66,12 @@
 #include <vtkDataSetSurfaceFilter.h>
 #include <vtkWarpScalar.h>
 #include <vtkPolyDataNormals.h>
+#include <vtkPPolyDataNormals.h>
 #include <vtkReverseSense.h>
 #include <vtkGlyph3D.h>
+#include <vtkTransformPolyDataFilter.h>
+#include <vtkWindowedSincPolyDataFilter.h>
+#include <vtkDecimatePro.h>
 // Mappers
 #include <vtkPolyDataMapper.h>
 #include <vtkImageMapper.h>
@@ -95,6 +99,7 @@
 #include "octinfo.h"
 #include "sliceinteractor.h"
 #include "clustering.h"
+#include "defines.h"
 
 #define VTK_NEW(type, instance) \
   ;                             \
