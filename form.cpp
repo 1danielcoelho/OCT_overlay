@@ -852,7 +852,8 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
 
   VTK_NEW(vtkImageIdealLowPass, lowpass_filt);
   lowpass_filt->SetInputConnection(fft_filt->GetOutputPort());
-  lowpass_filt->SetCutOff(FFT_LOWPASS_CUTOFF_X, FFT_LOWPASS_CUTOFF_Y, FFT_LOWPASS_CUTOFF_Z);
+  lowpass_filt->SetCutOff(FFT_LOWPASS_CUTOFF_X, FFT_LOWPASS_CUTOFF_Y,
+                          FFT_LOWPASS_CUTOFF_Z);
   lowpass_filt->Update();
   lowpass_filt->GetOutput()->ReleaseDataFlagOn();
 
@@ -895,7 +896,8 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
 
   // Discard sides of the imagedata (harsh gradient)
   vtkSmartPointer<vtkImageData> grad_output = gradmag_filt->GetOutput();
-  discardImageSides(grad_output, DISCARD_SIDES_PERCENT_X, DISCARD_SIDES_PERCENT_Y);
+  discardImageSides(grad_output, DISCARD_SIDES_PERCENT_X,
+                    DISCARD_SIDES_PERCENT_Y);
 
   this->statusBar()->showMessage("Eroding... ");
   QApplication::processEvents();
@@ -1028,7 +1030,7 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
 
     // Disconnect the clean filter's output from the pipeline
     vtkSmartPointer<vtkPolyData> clean_output = clean_filter->GetOutput();
-    //clean_output->SetSource(NULL);
+    // clean_output->SetSource(NULL);
     clean_output->DeleteCells();  // Deletes cells and links
 
     // Generates a single enveloping mesh that envelops all individual meshes in
@@ -1072,8 +1074,8 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
     normals_filter->PieceInvariantOn();
     normals_filter->Update();
 
-    //We'll be modifying the output of the normals filter, so its important to
-    //disconnect it or it will update the filter itself whenever modified
+    // We'll be modifying the output of the normals filter, so its important to
+    // disconnect it or it will update the filter itself whenever modified
     vtkPolyData* normals_output = normals_filter->GetOutput();
     normals_output->Register(NULL);
     normals_output->SetSource(NULL);
