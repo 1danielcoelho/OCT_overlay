@@ -134,8 +134,9 @@ class SliceViewer {
 
   static void viewPolyData(vtkPolyData* polydata)
   {
+    //Simple way of dropping cell data without changing input
     VTK_NEW(vtkPoints, pts);
-    pts->DeepCopy(polydata->GetPoints());
+    pts->ShallowCopy(polydata->GetPoints());
 
     VTK_NEW(vtkPolyData, new_polydata);
     new_polydata->SetPoints(pts);
@@ -213,7 +214,7 @@ class SliceViewer {
 
     // Easiest way of preventing modifications to trigger updates
     VTK_NEW(vtkImageData, volume_copy);
-    volume_copy->DeepCopy(volume);
+    volume_copy->ShallowCopy(volume);
 
     // Calculate the center of the volume
     int extent[6];
@@ -230,72 +231,66 @@ class SliceViewer {
     center[2] = origin[2] + spacing[2] * 0.5 * (extent[4] + extent[5]);
 
     // Matrices for axial, coronal, sagittal, oblique view orientations
-    static double axialElements[16] = {1, 0, 0, 0, 0, 1, 0, 0,
+    static double axial_elements[16] = {1, 0, 0, 0, 0, 1, 0, 0,
                                        0, 0, 1, 0, 0, 0, 0, 1};
 
-//    static double coronalElements[16] = {1, 0,  0, 0, 0, 0, 1, 0,
+//    static double coronal_elements[16] = {1, 0,  0, 0, 0, 0, 1, 0,
 //                                         0, -1, 0, 0, 0, 0, 0, 1};
 
-//    static double sagittalElements[16] = {0, 0,  -1, 0, 1, 0, 0, 0,
+//    static double sagittal_elements[16] = {0, 0,  -1, 0, 1, 0, 0, 0,
 //                                          0, -1, 0,  0, 0, 0, 0, 1};
 
-    // static double obliqueElements[16] = {
+    // static double oblique_elements[16] = {
     //         1, 0, 0, 0,
     //         0, 0.866025, -0.5, 0,
     //         0, 0.5, 0.866025, 0,
     //         0, 0, 0, 1 };
 
     // Set the slice orientation
-    vtkSmartPointer<vtkMatrix4x4> resliceAxes =
-        vtkSmartPointer<vtkMatrix4x4>::New();
-    resliceAxes->DeepCopy(axialElements);
+    VTK_NEW(vtkMatrix4x4, reslice_axes);
+    reslice_axes->DeepCopy(axial_elements);
     // Set the point through which to slice
-    resliceAxes->SetElement(0, 3, center[0]);
-    resliceAxes->SetElement(1, 3, center[1]);
-    resliceAxes->SetElement(2, 3, center[2]);
+    reslice_axes->SetElement(0, 3, center[0]);
+    reslice_axes->SetElement(1, 3, center[1]);
+    reslice_axes->SetElement(2, 3, center[2]);
 
     // Extract a slice in the desired orientation
-    vtkSmartPointer<vtkImageReslice> reslice =
-        vtkSmartPointer<vtkImageReslice>::New();
+    VTK_NEW(vtkImageReslice, reslice);
     reslice->SetInput(volume_copy);
     reslice->SetOutputDimensionality(2);
-    reslice->SetResliceAxes(resliceAxes);
+    reslice->SetResliceAxes(reslice_axes);
     reslice->SetInterpolationModeToLinear();
 
     // Display the image
-    vtkSmartPointer<vtkImageMapper> image_mapper =
-        vtkSmartPointer<vtkImageMapper>::New();
-    image_mapper->SetInputConnection(reslice->GetOutputPort());
+    VTK_NEW(vtkImageMapper, image_mapper);
+    //image_mapper->SetInputConnection(reslice->GetOutputPort());
+    image_mapper->SetInput(reslice->GetOutput());
     image_mapper->SetColorWindow(255.0);
     image_mapper->SetColorLevel(127.5);
 
-    vtkSmartPointer<vtkActor2D> actor = vtkSmartPointer<vtkActor2D>::New();
+    VTK_NEW(vtkActor2D, actor);
     actor->SetMapper(image_mapper);
 
-    vtkSmartPointer<vtkRenderer> renderer = vtkSmartPointer<vtkRenderer>::New();
+    VTK_NEW(vtkRenderer, renderer);
     renderer->AddActor(actor);
 
-    vtkSmartPointer<vtkRenderWindow> window =
-        vtkSmartPointer<vtkRenderWindow>::New();
-    window->AddRenderer(renderer);
-
     // Set up the interaction
-    vtkSmartPointer<vtkInteractorStyleImage> imageStyle =
-        vtkSmartPointer<vtkInteractorStyleImage>::New();
-    vtkSmartPointer<vtkRenderWindowInteractor> interactor =
-        vtkSmartPointer<vtkRenderWindowInteractor>::New();
-    interactor->SetInteractorStyle(imageStyle);
+    VTK_NEW(vtkInteractorStyleImage, image_style);
+    VTK_NEW(vtkRenderWindowInteractor, interactor);
+    interactor->SetInteractorStyle(image_style);
+
+    VTK_NEW(vtkRenderWindow, window);
+    window->AddRenderer(renderer);
     window->SetInteractor(interactor);
     window->Render();
 
-    vtkSmartPointer<vtkImageInteractionCallback> callback =
-        vtkSmartPointer<vtkImageInteractionCallback>::New();
+    VTK_NEW(vtkImageInteractionCallback, callback);
     callback->SetImageReslice(reslice);
     callback->SetInteractor(interactor);
 
-    imageStyle->AddObserver(vtkCommand::MouseMoveEvent, callback);
-    imageStyle->AddObserver(vtkCommand::LeftButtonPressEvent, callback);
-    imageStyle->AddObserver(vtkCommand::LeftButtonReleaseEvent, callback);
+    image_style->AddObserver(vtkCommand::MouseMoveEvent, callback);
+    image_style->AddObserver(vtkCommand::LeftButtonPressEvent, callback);
+    image_style->AddObserver(vtkCommand::LeftButtonReleaseEvent, callback);
 
     // Start interaction
     // The Start() method doesn't return until the window is closed by the user

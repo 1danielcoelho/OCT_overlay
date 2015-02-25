@@ -1,14 +1,6 @@
 /*  TODO:
 *
-*	-over_oct_mass_checkbox_clicked possibly re-calculates the surface when that
-*  probably wasnt really necessary
-*
-*	-IDEA TO SEGMENT TUMOR: Average filter with a humongous kernel size, then
-	 create contours based on the voxel value of the average voxels. The tumor
-	 should have a significantly lower average value; resistance to noise an
-	 inhomogeneities due to a large kernel; Automatically gives "trust ranges"
-	 around the tumor; Automatically sets a lower bound on the tumor in case its
-	 hard to see where the bottom ends
+* -Test releasing data flags for erode and dilate
 *
 * -Find the correct way of intializing/zeroing the accs in resetAccumulators
 *
@@ -31,11 +23,25 @@
 * */
 
 /* NEXT EXPERIMENT:
-* 
+*
+* -Test and setup registration
 *
 * */
 
-/* NOTES:
+/*  POSSIBLE BUGS / THINGS TO CHECK:
+ *
+ * -Generated OCT surface does not have a point corresponding to every x,y
+ *  coordinate of the volume
+ *
+ * -Registration transform not written/read from the correct location
+ *
+ *
+ *
+ *
+ *
+ * */
+
+/*NOTES:
 * -Needed to install libvtk5.8-qt4 for the lib files of the QVTK widget
 *
 * -Needed to add the correct export tags on OCT_seg and reg's manifest files
@@ -49,7 +55,7 @@
 * -Use Smaract_Jog_Mode/Jog_Mode/Jog_Mode.pro -> run executable -> Connect ->
 *  -> Enc. nullen -> 34 mm -> GO !
 *
-*/
+* */
 
 #include <QtGui>
 #include <QApplication>
@@ -57,10 +63,9 @@
 #include "form.h"
 #include "qnode.h"
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
   QApplication app(argc, argv);
-  Form w(argc,argv);
+  Form w(argc, argv);
   w.show();
   app.connect(&app, SIGNAL(lastWindowClosed()), &app, SLOT(quit()));
   int result = app.exec();

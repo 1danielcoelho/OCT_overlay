@@ -28,7 +28,6 @@
 #include <vtkCellArray.h>
 #include <vtkImageData.h>
 #include <vtkPolyData.h>
-#include <vtkPoints.h>
 #include <vtkPointData.h>
 #include <vtkCellData.h>
 #include <vtkTypeUInt8Array.h>
@@ -43,7 +42,7 @@
 #include <vtkImageReslice.h>
 #include <vtkTransformFilter.h>
 #include <vtkDelaunay2D.h>
-#include <vtkImageConvolve.h>
+//#include <vtkImageConvolve.h>
 #include <vtkImageFFT.h>
 #include <vtkImageIdealLowPass.h>
 #include <vtkImageRFFT.h>
@@ -63,16 +62,16 @@
 #include <vtkSmoothPolyDataFilter.h>
 #include <vtkDelaunay3D.h>
 #include <vtkCleanPolyData.h>
-#include <vtkTriangleFilter.h>
+//#include <vtkTriangleFilter.h>
 #include <vtkDataSetSurfaceFilter.h>
 #include <vtkWarpScalar.h>
-#include <vtkPolyDataNormals.h>
+//#include <vtkPolyDataNormals.h>
 #include <vtkPPolyDataNormals.h>
-#include <vtkReverseSense.h>
+//#include <vtkReverseSense.h>
 #include <vtkGlyph3D.h>
 #include <vtkTransformPolyDataFilter.h>
-#include <vtkWindowedSincPolyDataFilter.h>
-#include <vtkDecimatePro.h>
+//#include <vtkWindowedSincPolyDataFilter.h>
+//#include <vtkDecimatePro.h>
 // Mappers
 #include <vtkPolyDataMapper.h>
 #include <vtkImageMapper.h>
@@ -94,14 +93,13 @@
 #include <vtkGarbageCollector.h>
 #include <vtkInteractorStyleImage.h>
 #include <vtkArrowSource.h>
+
 // Project files
 #include "qnode.h"
 #include "filemanager.h"
 #include "octinfo.h"
 #include "sliceinteractor.h"
 #include "clustering.h"
-
-
 
 namespace Ui {
 class Form;
@@ -170,6 +168,9 @@ class Form : public QMainWindow {
   // three-dimensional vector
   void getCenterOfMass(vtkSmartPointer<vtkPolyData> mesh, std::vector<double>&);
 
+  // Uses the passed in vtkPolyData with the surface information, as well as
+  // m_oct_poly_data, to extract meshes of the tumor masses. The result is then
+  // stored in m_oct_mass_poly_data
   void segmentTumour(vtkSmartPointer<vtkActor> actor,
                      vtkSmartPointer<vtkPolyData> surf);
 
@@ -193,6 +194,7 @@ class Form : public QMainWindow {
   // displacement map vtkImageData objects from by load2DVectorCacheToImageData
   void render2DImageData(vtkSmartPointer<vtkImageData> image_data);
 
+  // Renders the mesh stored in m_oct_mass_poly_data as a triangular mesh
   void renderOCTMass();
 
   //--------------UI CALLBACKS--------------------------------------------------
