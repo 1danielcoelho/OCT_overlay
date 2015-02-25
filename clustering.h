@@ -1,12 +1,12 @@
 #ifndef CLUSTERING_H
 #define CLUSTERING_H
+#include "defines.h"
 
 // Minimum ammount of similarity necessary for classes to be fused together.
 // 0.25 seems to be a good default
 #define SIMILAR_THRESHOLD 0.25
 
 #include <vector>
-#include "defines.h"
 
 // Used for hierarquical clustering
 struct Cluster {

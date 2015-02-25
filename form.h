@@ -1,5 +1,6 @@
 #ifndef FORM_H
 #define FORM_H
+#include "defines.h"
 
 // C, C++
 #include <stdint.h>
@@ -99,11 +100,8 @@
 #include "octinfo.h"
 #include "sliceinteractor.h"
 #include "clustering.h"
-#include "defines.h"
 
-#define VTK_NEW(type, instance) \
-  ;                             \
-  vtkSmartPointer<type> instance = vtkSmartPointer<type>::New();
+
 
 namespace Ui {
 class Form;

@@ -98,7 +98,6 @@ void QNode::setupSubscriptions() {
       boost::bind(&QNode::imageCallback, this, _1, _2, _3, _4));
 
   // Initialize the accumulator matrices with camera dimensions
-  std::cout << "setting up subs" << std::endl;
   resetAccumulators();
 
   ROS_INFO("Topic subscription and synchronization completed");
@@ -427,6 +426,7 @@ void QNode::requestSegmentation(OCTinfo params) {
 
       pcl::fromROSMsg(pclMessage, *pts);
 
+      //Store our surface to disk so we can use it for registration
       m_file_manager->writePCL(pts, OCT_SURF_CACHE_PATH);
 
       ROS_INFO("OCT surface segmentation completed");

@@ -1,8 +1,6 @@
 #ifndef OCT_stereocamera_overlay_QNODE_HPP_
 #define OCT_stereocamera_overlay_QNODE_HPP_
-
-// Allows me to test the program at home only changing this line
-#define AT_HOME
+#include "defines.h"
 
 // C, C++
 #include <iostream>
