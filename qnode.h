@@ -44,7 +44,7 @@
 #include <opencv2/highgui/highgui.hpp>
 
 #include "octinfo.h"
-#include "filemanager.h"
+#include "crossbar.h"
 
 // Create a synchronization policy used to match messages based on their
 // approximate timestamp. Permits a single callback for multiple,
@@ -110,15 +110,8 @@ Q_SLOTS:
   // surface registration. Both are read from cache locations also known by Form
   void requestRegistration();
 
-  // Sets the size 'n' of the accumulator for the left image. The 'left' images
-  // written to cache by imageCallback are the result of a mean of the last 'n'
-  // of such 'left' images
-  void setLeftAccumulatorSize(unsigned int n);
-
-  // Sets the size 'n' of the accumulator for the depth image. The depth images
-  // written to cache by imageCallback are the result of a mean of the last 'n'
-  // of such depth images
-  void setDepthAccumulatorSize(unsigned int n);
+  // Sets the size of the accumulator for the four images
+  void setAccumulatorSize(unsigned int number_of_images);
 
   // Cleans the current accumulators and resets the counters for the number of
   // images held by them, as well as fetching new right and disp images
@@ -129,17 +122,16 @@ Q_SIGNALS:  // Same as 'signals'
   void finished();
   void receivedOCTRawData(OCTinfo params);
   void receivedOCTSurfData(OCTinfo params);
-  void receivedLeftImage();
-  void receivedRightImage();
-  void receivedDispImage();
-  void receivedDepthImage();
+  void accumulated(float new_ratio);
+  void receivedStereoImages();
   void receivedRegistration();
 
  private:
   ros::NodeHandle* m_nh;
   ros::ServiceClient m_oct_tcp_client, m_segmentation_client,
       m_registration_client;  
-  FileManager* m_file_manager;
+
+  Crossbar* m_crossbar;
 
   // We don't use command line arguments, but ros::init needs something anyway
   int no_argc;
@@ -148,15 +140,12 @@ Q_SIGNALS:  // Same as 'signals'
   // Turns true when its time to shutdown
   bool m_shutdown;
 
-  uint32_t m_left_accu_count;
-  uint32_t m_depth_accu_count;
-  uint32_t m_right_img_count;
-  uint32_t m_disp_img_count;
-
-  uint32_t m_left_accu_size;
-  uint32_t m_depth_accu_size;
+  uint32_t m_accu_count;
+  uint32_t m_accu_size;
 
   cv::Mat m_left_accu;
+  cv::Mat m_right_accu;
+  cv::Mat m_disp_accu;
   cv::Mat m_depth_accu;
 
   boost::shared_ptr<message_filters::Subscriber<sensor_msgs::Image> >

@@ -24,10 +24,11 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_waiting_response = false;
   m_has_oct_surf = false;
   m_has_oct_mass = false;
-  m_has_left_img = false;
-  m_has_right_img = false;
-  m_has_disp_img = false;
-  m_has_depth_img = false;
+  m_has_stereo_cache = false;
+  m_has_left_image = false;
+  m_has_right_image = false;
+  m_has_disp_image = false;
+  m_has_depth_image = false;
   m_has_transform = false;
   m_viewing_overlay = false;
   updateUIStates();
@@ -61,26 +62,20 @@ Form::Form(int argc, char** argv, QWidget* parent)
   connect(m_qnode, SIGNAL(receivedOCTSurfData(OCTinfo)), this,
           SLOT(receivedOCTSurfData(OCTinfo)), Qt::QueuedConnection);
 
-  connect(m_qnode, SIGNAL(receivedLeftImage()), this, SLOT(receivedLeftImage()),
+  connect(m_qnode, SIGNAL(receivedStereoImages()), this,
+          SLOT(receivedStereoImages()), Qt::QueuedConnection);
+
+  connect(m_qnode, SIGNAL(accumulated(float)), this, SLOT(accumulated(float)),
           Qt::QueuedConnection);
-
-  connect(m_qnode, SIGNAL(receivedRightImage()), this,
-          SLOT(receivedRightImage()), Qt::QueuedConnection);
-
-  connect(m_qnode, SIGNAL(receivedDispImage()), this, SLOT(receivedDispImage()),
-          Qt::QueuedConnection);
-
-  connect(m_qnode, SIGNAL(receivedDepthImage()), this,
-          SLOT(receivedDepthImage()), Qt::QueuedConnection);
 
   connect(m_qnode, SIGNAL(receivedRegistration()), this,
           SLOT(receivedRegistration()), Qt::QueuedConnection);
 
-  connect(this, SIGNAL(setLeftAccumulatorSize(uint)), m_qnode,
-          SLOT(setLeftAccumulatorSize(uint)), Qt::QueuedConnection);
+  connect(this, SIGNAL(setAccumulatorSize(uint)), m_qnode,
+          SLOT(setAccumulatorSize(uint)), Qt::QueuedConnection);
 
-  connect(this, SIGNAL(setDepthAccumulatorSize(uint)), m_qnode,
-          SLOT(setDepthAccumulatorSize(uint)), Qt::QueuedConnection);
+  connect(this, SIGNAL(resetAccumulators()), m_qnode, SLOT(resetAccumulators()),
+          Qt::QueuedConnection);
 
   // Wire up qnode and it's thread. Don't touch this unless absolutely necessary
   connect(m_qthread, SIGNAL(started()), m_qnode, SLOT(process()));
@@ -95,6 +90,11 @@ Form::Form(int argc, char** argv, QWidget* parent)
   // Instantiate vtk objects
   // Data structures
   m_oct_poly_data = vtkSmartPointer<vtkPolyData>::New();
+  m_oct_surf_poly_data = vtkSmartPointer<vtkPolyData>::New();
+  m_oct_mass_poly_data = vtkSmartPointer<vtkPolyData>::New();
+  m_stereo_left_image = vtkSmartPointer<vtkImageData>::New();
+  m_stereo_right_image = vtkSmartPointer<vtkImageData>::New();
+  m_stereo_disp_image = vtkSmartPointer<vtkImageData>::New();
   m_oct_stereo_trans = vtkSmartPointer<vtkTransform>::New();
   m_oct_stereo_trans->Identity();
   // Actors
@@ -126,7 +126,7 @@ Form::~Form() {
   delete m_qthread;
 
   // Delete all of our .cache files
-  m_file_manager->clearAllFiles();
+  m_crossbar->clearAllFiles();
 }
 
 void Form::updateUIStates() {
@@ -159,21 +159,50 @@ void Form::updateUIStates() {
   m_ui->view_oct_mass_button->setEnabled(m_has_oct_mass && !m_waiting_response);
 
   m_ui->calc_oct_surf_button->setEnabled(m_has_raw_oct && !m_waiting_response);
-  m_ui->calc_oct_mass_button->setEnabled(m_has_oct_surf && !m_waiting_response);
+  m_ui->calc_oct_mass_button->setEnabled(m_has_raw_oct && m_has_oct_surf &&
+                                         !m_waiting_response);
+
+  m_ui->save_oct_surf_button->setEnabled(m_has_oct_surf && !m_waiting_response);
+  m_ui->save_oct_mass_button->setEnabled(m_has_oct_mass && !m_waiting_response);
+
+  m_ui->browse_oct_surf_button->setEnabled(!m_waiting_response);
+  m_ui->browse_oct_mass_button->setEnabled(!m_waiting_response);
 
   // Stereocamera page
-  m_ui->view_left_image_button->setEnabled(m_has_left_img &&
+  m_ui->request_left_image_button->setEnabled(m_has_stereo_cache &&
+                                              !m_waiting_response);
+  m_ui->request_right_image_button->setEnabled(m_has_stereo_cache &&
+                                               !m_waiting_response);
+  m_ui->request_disp_image_button->setEnabled(m_has_stereo_cache &&
+                                              !m_waiting_response);
+  m_ui->request_depth_image_button->setEnabled(m_has_stereo_cache &&
+                                               !m_waiting_response);
+
+  m_ui->browse_left_image_button->setEnabled(!m_waiting_response);
+  m_ui->browse_right_image_button->setEnabled(!m_waiting_response);
+  m_ui->browse_disp_image_button->setEnabled(!m_waiting_response);
+  m_ui->browse_depth_image_button->setEnabled(!m_waiting_response);
+
+  m_ui->save_left_image_button->setEnabled(m_has_left_image &&
                                            !m_waiting_response);
-  m_ui->view_right_image_button->setEnabled(m_has_right_img &&
+  m_ui->save_right_image_button->setEnabled(m_has_right_image &&
                                             !m_waiting_response);
-  m_ui->view_disp_image_button->setEnabled(m_has_disp_img &&
+  m_ui->save_disp_image_button->setEnabled(m_has_disp_image &&
                                            !m_waiting_response);
-  m_ui->view_depth_image_button->setEnabled(m_has_depth_img &&
+  m_ui->save_depth_image_button->setEnabled(m_has_depth_image &&
                                             !m_waiting_response);
-  m_ui->left_accu_spinbox->setEnabled(!m_waiting_response);
-  m_ui->depth_accu_spinbox->setEnabled(!m_waiting_response);
-  m_ui->left_accu_reset_button->setEnabled(!m_waiting_response);
-  m_ui->depth_accu_reset_button->setEnabled(!m_waiting_response);
+
+  m_ui->view_left_image_button->setEnabled(m_has_left_image &&
+                                           !m_waiting_response);
+  m_ui->view_right_image_button->setEnabled(m_has_right_image &&
+                                            !m_waiting_response);
+  m_ui->view_disp_image_button->setEnabled(m_has_disp_image &&
+                                           !m_waiting_response);
+  m_ui->view_depth_image_button->setEnabled(m_has_depth_image &&
+                                            !m_waiting_response);
+
+  m_ui->accu_spinbox->setEnabled(!m_waiting_response);
+  m_ui->accu_reset_button->setEnabled(!m_waiting_response);
 
   // Visualization page
   m_ui->over_min_vis_spinbox->setEnabled(!m_waiting_response);
@@ -186,12 +215,12 @@ void Form::updateUIStates() {
                                            !m_waiting_response);
   m_ui->over_oct_mass_checkbox->setEnabled(m_has_oct_mass &&
                                            !m_waiting_response);
-  m_ui->over_oct_axes_checkbox->setEnabled(m_has_raw_oct &&
-                                           !m_waiting_response);
-  m_ui->over_depth_checkbox->setEnabled(m_has_depth_img && !m_waiting_response);
+  m_ui->over_oct_axes_checkbox->setEnabled(!m_waiting_response);
+  m_ui->over_depth_checkbox->setEnabled(m_has_depth_image &&
+                                        !m_waiting_response);
   m_ui->over_trans_axes_checkbox->setEnabled(m_has_transform &&
                                              !m_waiting_response);
-  m_ui->calc_transform_button->setEnabled(m_has_oct_surf && m_has_depth_img &&
+  m_ui->calc_transform_button->setEnabled(m_has_oct_surf && m_has_depth_image &&
                                           !m_waiting_response);
   m_ui->print_transform_button->setEnabled(m_has_transform &&
                                            !m_waiting_response);
@@ -307,7 +336,7 @@ void Form::loadVectorToPolyData(std::vector<uint8_t>& oct_data) {
     }
 
     this->statusBar()->showMessage(
-        "Building raw point data... " + QString::number(i+1) + " of " +
+        "Building raw point data... " + QString::number(i + 1) + " of " +
         QString::number(m_current_params.length_steps));
 
     QApplication::processEvents();
@@ -320,103 +349,13 @@ void Form::loadVectorToPolyData(std::vector<uint8_t>& oct_data) {
   QApplication::processEvents();
 }
 
-void Form::loadPCLCacheToPolyData(
-    const char* file_path, vtkSmartPointer<vtkPolyData> cloud_poly_data) {
-  // Points have no color components
-  if (std::strcmp(file_path, OCT_SURF_CACHE_PATH) == 0) {
-    this->statusBar()->showMessage("Reading OCT surface PCL cache... ");
-    QApplication::processEvents();
-
-    pcl::PointCloud<pcl::PointXYZ>::Ptr pts(new pcl::PointCloud<pcl::PointXYZ>);
-
-    // Reads the file into our pts point cloud
-    m_file_manager->readPCL(file_path, pts);
-
-    int num_pts = pts->size();
-
-    VTK_NEW(vtkPoints, points);
-    points->SetNumberOfPoints(num_pts);
-
-    pcl::PointXYZ* cloud_point;
-
-    this->statusBar()->showMessage("Building OCT surface vtkPolyData... ");
-    QApplication::processEvents();
-
-    for (int i = 0; i < num_pts; i++) {
-      cloud_point = &(pts->at(i));
-
-      // Intentionally inverts X and Y at this point. This is to compensate for
-      // OCT_segmentation, at some point of the algorithm, inverting what it
-      // considers "x" and "y". This is combined with another type of inversion
-      // at QNode::requestSegmentation
-      points->SetPoint(i, cloud_point->y, cloud_point->x, cloud_point->z);
-    }
-
-    cloud_poly_data->SetPoints(points);
-
-    this->statusBar()->showMessage("Building OCT surface vtkPolyData... done!");
-    QApplication::processEvents();
-  }
-
-  // Points have color component
-  else if (std::strcmp(file_path, STEREO_DEPTH_CACHE_PATH) == 0) {
-    this->statusBar()->showMessage("Reading depth map PCL cache... ");
-    QApplication::processEvents();
-
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr pts(
-        new pcl::PointCloud<pcl::PointXYZRGB>);
-
-    // Reads the file into our pts point cloud
-    m_file_manager->readPCL(file_path, pts);
-    int num_pts = pts->size();
-
-    VTK_NEW(vtkPoints, points);
-    points->SetNumberOfPoints(num_pts);
-
-    VTK_NEW(vtkUnsignedCharArray, data_array);
-    data_array->SetNumberOfComponents(3);
-    data_array->SetNumberOfTuples(num_pts);
-    data_array->SetName("Colors");
-
-    pcl::PointXYZRGB* cloud_point;
-    unsigned char color[3] = {0, 0, 0};
-
-    this->statusBar()->showMessage("Building depth map vtkPolyData... ");
-    QApplication::processEvents();
-
-    for (int i = 0; i < num_pts; i++) {
-      cloud_point = &(pts->at(i));
-
-      points->SetPoint(i, cloud_point->x, cloud_point->y, cloud_point->z);
-
-      color[0] = cloud_point->r;
-      color[1] = cloud_point->g;
-      color[2] = cloud_point->b;
-      data_array->SetTupleValue(i, color);
-    }
-
-    cloud_poly_data->SetPoints(points);
-    cloud_poly_data->GetPointData()->SetScalars(data_array);
-
-    std::cout
-        << "\n\n=========================================\ncloud_poly_data:\n";
-    cloud_poly_data->Print(std::cout);
-
-    this->statusBar()->showMessage("Building depth map vtkPolyData... done!");
-    QApplication::processEvents();
-  } else {
-    qDebug() << "Invalid file path for loadPCLCacheToPolyData";
-    return;
-  }
-}
-
 void Form::load2DVectorCacheToImageData(
     const char* file_path, vtkSmartPointer<vtkImageData> image_data) {
   if (std::strcmp(file_path, STEREO_DISP_CACHE_PATH) == 0) {
     std::vector<uint8_t> data;
 
     // Read the entire file
-    m_file_manager->readVector(file_path, data);
+    m_crossbar->readVector(file_path, data);
 
     // Parse the first 8 bytes to determine dimensions
     uint32_t rows, cols;
@@ -447,7 +386,7 @@ void Form::load2DVectorCacheToImageData(
     std::vector<uint32_t> data;
 
     // Read the entire file
-    m_file_manager->readVector(file_path, data);
+    m_crossbar->readVector(file_path, data);
 
     // Parse the first 8 bytes to determine dimensions
     uint32_t rows, cols;
@@ -958,7 +897,7 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
   clean_pts_filter->SetScalarConnectivity(0);
 
   for (int i = 0; i < num_regions; ++i) {
-    this->statusBar()->showMessage("Analysing mesh " + QString::number(i+1) +
+    this->statusBar()->showMessage("Analysing mesh " + QString::number(i + 1) +
                                    " of " + QString::number(num_regions) +
                                    "... ");
     QApplication::processEvents();
@@ -1023,7 +962,7 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
     con_filter->Update();
 
     this->statusBar()->showMessage("Grouping and cleaning mesh cluster " +
-                                   QString::number(i+1) + " of " +
+                                   QString::number(i + 1) + " of " +
                                    QString::number(num_clusters) + "... ");
     QApplication::processEvents();
 
@@ -1044,7 +983,8 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
 
     this->statusBar()->showMessage(
         "Performing Delaunay3D triangulation on mesh cluster " +
-        QString::number(i+1) + " of " + QString::number(num_clusters) + "... ");
+        QString::number(i + 1) + " of " + QString::number(num_clusters) +
+        "... ");
     QApplication::processEvents();
 
     // Generates a single enveloping mesh that envelops all individual meshes in
@@ -1066,7 +1006,7 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
     getCenterOfMass(surf_filter->GetOutput(), center);
 
     this->statusBar()->showMessage("Adjusting mesh cluster " +
-                                   QString::number(i+1) + " of " +
+                                   QString::number(i + 1) + " of " +
                                    QString::number(num_clusters) + "... ");
     QApplication::processEvents();
 
@@ -1095,9 +1035,9 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
 
     // We'll be modifying the output of the normals filter, so its important to
     // disconnect it or it will update the filter itself whenever modified
-//    vtkPolyData* normals_output = normals_filter->GetOutput();
-//    normals_output->Register(NULL);
-//    normals_output->SetSource(NULL);
+    //    vtkPolyData* normals_output = normals_filter->GetOutput();
+    //    normals_output->Register(NULL);
+    //    normals_output->SetSource(NULL);
     VTK_NEW(vtkPolyData, normals_output);
     normals_output->ShallowCopy(normals_filter->GetOutput());
 
@@ -1146,7 +1086,7 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
 // We cleared our oct point cloud to conserve RAM. Let's load it again
 #ifdef AT_HOME
   std::vector<uint8_t> data;
-  m_file_manager->readVector(OCT_RAW_CACHE_PATH, data);
+  m_crossbar->readVector(OCT_RAW_CACHE_PATH, data);
   loadVectorToPolyData(data);
 #endif  // AT_HOME
 
@@ -1262,61 +1202,63 @@ void Form::renderOCTVolumePolyData() {
   updateUIStates();
 }
 
-void Form::renderPolyDataSurface(vtkSmartPointer<vtkPolyData> cloud_poly_data,
-                                 vtkSmartPointer<vtkActor> actor) {
-  int num_pts = cloud_poly_data->GetNumberOfPoints();
+void Form::renderOCTSurface() {
+  assert("Input vtkPolyData is NULL!" && m_oct_surf_poly_data != NULL);
 
-  if (num_pts == 0) {
-    qDebug() << "cloud_poly_data is empty!";
-    return;
-  }
+  int num_pts = m_oct_surf_poly_data->GetNumberOfPoints();
 
-  if (actor == m_oct_surf_actor) {
-    VTK_NEW(vtkDelaunay2D, delaunay_filter);
-    delaunay_filter->SetInput(cloud_poly_data);
-    delaunay_filter->SetTolerance(0.001);
+  assert("Input vtkPolyData is NULL!" && num_pts > 0);
 
-    VTK_NEW(vtkTransformFilter, trans_filter)
-    trans_filter->SetInputConnection(delaunay_filter->GetOutputPort());
-    trans_filter->SetTransform(m_oct_stereo_trans);
+  VTK_NEW(vtkDelaunay2D, delaunay_filter);
+  delaunay_filter->SetInput(m_oct_surf_poly_data);
+  delaunay_filter->SetTolerance(0.001);
 
-    VTK_NEW(vtkPolyDataMapper, mapper);
-    mapper->SetInputConnection(trans_filter->GetOutputPort());
+  VTK_NEW(vtkTransformFilter, trans_filter)
+  trans_filter->SetInputConnection(delaunay_filter->GetOutputPort());
+  trans_filter->SetTransform(m_oct_stereo_trans);
 
-    actor->SetMapper(mapper);
+  VTK_NEW(vtkPolyDataMapper, mapper);
+  mapper->SetInputConnection(trans_filter->GetOutputPort());
 
-    m_renderer->AddActor(actor);
+  m_oct_surf_actor->SetMapper(mapper);
 
-    this->statusBar()->showMessage("Rendering OCT surface... ");
-    QApplication::processEvents();
+  m_renderer->AddActor(m_oct_surf_actor);
 
-    this->m_ui->qvtkWidget->update();
-    QApplication::processEvents();
+  this->statusBar()->showMessage("Rendering OCT surface... ");
+  QApplication::processEvents();
 
-    this->statusBar()->showMessage("Rendering OCT surface... done!");
-    QApplication::processEvents();
+  this->m_ui->qvtkWidget->update();
+  QApplication::processEvents();
 
-    return;
-  } else if (actor == m_stereo_depth_actor) {
-    VTK_NEW(vtkVertexGlyphFilter, vert_filter);
-    vert_filter->SetInput(cloud_poly_data);
+  this->statusBar()->showMessage("Rendering OCT surface... done!");
+  QApplication::processEvents();
+}
 
-    VTK_NEW(vtkPolyDataMapper, mapper);
-    mapper->SetInputConnection(vert_filter->GetOutputPort());
+void Form::renderDepthImage() {
+  assert("Input vtkPolyData is NULL!" && m_stereo_depth_image != NULL);
 
-    actor->SetMapper(mapper);
+  int num_pts = m_stereo_depth_image->GetNumberOfPoints();
 
-    m_renderer->AddActor(actor);
+  assert("Input vtkPolyData is NULL!" && num_pts > 0);
 
-    this->statusBar()->showMessage("Rendering depth map... ");
-    QApplication::processEvents();
+  VTK_NEW(vtkVertexGlyphFilter, vert_filter);
+  vert_filter->SetInput(m_stereo_depth_image);
 
-    this->m_ui->qvtkWidget->update();
-    QApplication::processEvents();
+  VTK_NEW(vtkPolyDataMapper, mapper);
+  mapper->SetInputConnection(vert_filter->GetOutputPort());
 
-    this->statusBar()->showMessage("Rendering depth map... done!");
-    QApplication::processEvents();
-  }
+  m_stereo_depth_actor->SetMapper(mapper);
+
+  m_renderer->AddActor(m_stereo_depth_actor);
+
+  this->statusBar()->showMessage("Rendering depth map... ");
+  QApplication::processEvents();
+
+  this->m_ui->qvtkWidget->update();
+  QApplication::processEvents();
+
+  this->statusBar()->showMessage("Rendering depth map... done!");
+  QApplication::processEvents();
 }
 
 void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data) {
@@ -1407,10 +1349,15 @@ void Form::on_browse_button_clicked() {
   // getOpenFileName displays a file dialog and returns the full file path of
   // the selected file, or an empty string if the user canceled the dialog
   // The tr() function makes the dialog language proof (chinese characters, etc)
+  QString file_name;
   QFileDialog dialog(this);
   dialog.setFileMode(QFileDialog::ExistingFile);
-  dialog.setNameFilter(tr("Image Files (*.img);;Text Files (*.txt)"));
-  QString file_name = dialog.getOpenFileName(this);
+  dialog.setFilter(tr("Image Files (*.img);;Text Files (*.txt)"));
+  if (dialog.exec()) {
+    file_name = dialog.selectedFiles().first();
+  } else {
+    return;
+  }
 
   if (!file_name.isEmpty()) {
     m_waiting_response = true;
@@ -1424,7 +1371,7 @@ void Form::on_browse_button_clicked() {
     QApplication::processEvents();
 
     std::vector<uint8_t> data;
-    m_file_manager->readVector(file_name.toStdString().c_str(), data);
+    m_crossbar->readVector(file_name.toStdString().c_str(), data);
 
     this->m_ui->status_bar->showMessage("Loading data into point cloud... ");
     QApplication::processEvents();
@@ -1435,7 +1382,7 @@ void Form::on_browse_button_clicked() {
 
     // Immediately write our headerless vector to cache so we can segment
     // Or register using this data
-    m_file_manager->writeVector(data, OCT_RAW_CACHE_PATH);
+    m_crossbar->writeVector(data, OCT_RAW_CACHE_PATH);
 
     loadVectorToPolyData(data);
 
@@ -1497,8 +1444,16 @@ void Form::on_request_scan_button_clicked() {
 }
 
 void Form::on_save_button_clicked() {
-  QString file_name = QFileDialog::getSaveFileName(
-      this, tr("Save as img file"), "", tr("Image file (*.img)"));
+  QString file_name;
+  QFileDialog dialog(this);
+  dialog.setFileMode(QFileDialog::AnyFile);
+  dialog.setDefaultSuffix(".img");
+  dialog.setFilter(tr("OCT volume image file (*.img)"));
+  if (dialog.exec()) {
+    file_name = dialog.selectedFiles().first();
+  } else {
+    return;
+  }
 
   if (!file_name.isEmpty()) {
     m_waiting_response = true;
@@ -1522,13 +1477,13 @@ void Form::on_save_button_clicked() {
     memcpy(&header[124], &m_current_params.width_offset, 4);
 
     // Write the vector
-    m_file_manager->writeVector(header, file_name.toStdString().c_str());
+    m_crossbar->writeVector(header, file_name.toStdString().c_str());
 
     // Write the actual data, the true at the end of writeVector means we want
     // to append this data to the previously written header
     std::vector<uint8_t> data;
-    m_file_manager->readVector(OCT_RAW_CACHE_PATH, data);
-    m_file_manager->writeVector(data, file_name.toStdString().c_str(), true);
+    m_crossbar->readVector(OCT_RAW_CACHE_PATH, data);
+    m_crossbar->writeVector(data, file_name.toStdString().c_str(), true);
 
     m_waiting_response = false;
     updateUIStates();
@@ -1589,10 +1544,8 @@ void Form::on_view_oct_surf_button_clicked() {
   m_waiting_response = true;
   updateUIStates();
 
-  VTK_NEW(vtkPolyData, surf_oct_poly_data);
-  loadPCLCacheToPolyData(OCT_SURF_CACHE_PATH, surf_oct_poly_data);
   m_renderer->RemoveAllViewProps();
-  renderPolyDataSurface(surf_oct_poly_data, m_oct_surf_actor);
+  renderOCTSurface();
 
   VTK_NEW(vtkTransform, trans);
   trans->Identity();
@@ -1612,11 +1565,8 @@ void Form::on_calc_oct_mass_button_clicked() {
   m_waiting_response = true;
   updateUIStates();
 
-  VTK_NEW(vtkPolyData, surf_oct_poly_data);
-  loadPCLCacheToPolyData(OCT_SURF_CACHE_PATH, surf_oct_poly_data);
-
   m_renderer->RemoveAllViewProps();
-  segmentTumour(m_oct_mass_actor, surf_oct_poly_data);
+  segmentTumour(m_oct_mass_actor, m_oct_surf_poly_data);
 
   this->m_ui->status_bar->showMessage("Rendering OCT mass... done!");
   QApplication::processEvents();
@@ -1626,16 +1576,14 @@ void Form::on_calc_oct_mass_button_clicked() {
 }
 
 void Form::on_view_left_image_button_clicked() {
-  this->m_ui->status_bar->showMessage("Rendering left image... done!");
+  this->m_ui->status_bar->showMessage("Rendering left image...");
   QApplication::processEvents();
 
   m_waiting_response = true;
   m_viewing_overlay = false;
   updateUIStates();
 
-  VTK_NEW(vtkImageData, left_image);
-  load2DVectorCacheToImageData(STEREO_LEFT_CACHE_PATH, left_image);
-  render2DImageData(left_image);
+  render2DImageData(m_stereo_left_image);
 
   this->m_ui->status_bar->showMessage("Rendering left image... done!");
   QApplication::processEvents();
@@ -1645,16 +1593,14 @@ void Form::on_view_left_image_button_clicked() {
 }
 
 void Form::on_view_right_image_button_clicked() {
-  this->m_ui->status_bar->showMessage("Rendering right image... done!");
+  this->m_ui->status_bar->showMessage("Rendering right image... ");
   QApplication::processEvents();
 
   m_waiting_response = true;
   m_viewing_overlay = false;
   updateUIStates();
 
-  VTK_NEW(vtkImageData, right_image);
-  load2DVectorCacheToImageData(STEREO_RIGHT_CACHE_PATH, right_image);
-  render2DImageData(right_image);
+  render2DImageData(m_stereo_right_image);
 
   this->m_ui->status_bar->showMessage("Rendering right image... done!");
   QApplication::processEvents();
@@ -1671,8 +1617,12 @@ void Form::on_view_disp_image_button_clicked() {
   m_viewing_overlay = false;
   updateUIStates();
 
+  std::vector<uint32_t> disp_vector;
+  m_crossbar->readVector(STEREO_DISP_CACHE_PATH, disp_vector);
+
   VTK_NEW(vtkImageData, disp_image);
-  load2DVectorCacheToImageData(STEREO_DISP_CACHE_PATH, disp_image);
+  m_crossbar->intVectorToImageData2D(disp_vector, disp_image);
+
   render2DImageData(disp_image);
 
   this->m_ui->status_bar->showMessage("Rendering displacement image... done!");
@@ -1690,14 +1640,7 @@ void Form::on_view_depth_image_button_clicked() {
   m_viewing_overlay = false;
   updateUIStates();
 
-  VTK_NEW(vtkPolyData, depth_image);
-  loadPCLCacheToPolyData(STEREO_DEPTH_CACHE_PATH, depth_image);
-  m_renderer->RemoveAllViewProps();
-  renderPolyDataSurface(depth_image, m_stereo_depth_actor);
-
-  VTK_NEW(vtkTransform, trans);
-  trans->Identity();
-  renderAxes(m_trans_axes_actor, m_oct_stereo_trans);
+  renderDepthImage();
 
   this->m_ui->status_bar->showMessage("Rendering depth map... done!");
   QApplication::processEvents();
@@ -1709,6 +1652,8 @@ void Form::on_view_depth_image_button_clicked() {
 void Form::on_calc_transform_button_clicked() {
   m_waiting_response = true;
   updateUIStates();
+
+  // Write our polydatas to a PCL cache
 
   Q_EMIT requestRegistration();
 
@@ -1899,9 +1844,7 @@ void Form::on_over_oct_surf_checkbox_clicked() {
         "Adding OCT surface to overlay view...");
     QApplication::processEvents();
 
-    VTK_NEW(vtkPolyData, surf_oct_poly_data);
-    loadPCLCacheToPolyData(OCT_SURF_CACHE_PATH, surf_oct_poly_data);
-    renderPolyDataSurface(surf_oct_poly_data, m_oct_surf_actor);
+    renderOCTSurface();
   } else {
     this->m_ui->status_bar->showMessage(
         "Removing OCT surface from overlay view...", 3000);
@@ -1989,9 +1932,13 @@ void Form::on_over_depth_checkbox_clicked() {
         " overlay view...");
     QApplication::processEvents();
 
-    VTK_NEW(vtkPolyData, depth_image);
-    loadPCLCacheToPolyData(STEREO_DEPTH_CACHE_PATH, depth_image);
-    renderPolyDataSurface(depth_image, m_stereo_depth_actor);
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr depth_point_cloud(
+        new pcl::PointCloud<pcl::PointXYZRGB>);
+    m_crossbar->readPCL(STEREO_DEPTH_CACHE_PATH, depth_point_cloud);
+    m_crossbar->PCLxyzrgbToVTKPolyData(depth_point_cloud, m_stereo_depth_image);
+
+    renderDepthImage();
+
   } else {
     this->m_ui->status_bar->showMessage(
         "Remove stereocamera depth map from"
@@ -2036,23 +1983,6 @@ void Form::on_over_trans_axes_checkbox_clicked() {
   updateUIStates();
 }
 
-void Form::on_left_accu_reset_button_clicked() {
-  m_has_left_img = false;
-  updateUIStates();
-
-  std::cout << "left accu reset called" << std::endl;
-  Q_EMIT setLeftAccumulatorSize(m_ui->left_accu_spinbox->value());
-  Q_EMIT resetAccumulators();
-}
-
-void Form::on_depth_accu_reset_button_clicked() {
-  m_has_depth_img = false;
-  updateUIStates();
-
-  std::cout << "depth accu reset called" << std::endl;
-  Q_EMIT setDepthAccumulatorSize(m_ui->depth_accu_spinbox->value());
-}
-
 //------------QNODE CALLBACKS---------------------------------------------------
 
 void Form::receivedRawOCTData(OCTinfo params) {
@@ -2062,7 +1992,7 @@ void Form::receivedRawOCTData(OCTinfo params) {
   QApplication::processEvents();
 
   std::vector<uint8_t> raw_data;
-  m_file_manager->readVector(OCT_RAW_CACHE_PATH, raw_data);
+  m_crossbar->readVector(OCT_RAW_CACHE_PATH, raw_data);
 
   m_current_params.length_steps = params.length_steps;
   m_current_params.width_steps = params.width_steps;
@@ -2079,7 +2009,7 @@ void Form::receivedRawOCTData(OCTinfo params) {
   normalize(raw_data);
 
   // Write our new, filtered vector to our cache file
-  m_file_manager->writeVector(raw_data, OCT_RAW_CACHE_PATH);
+  m_crossbar->writeVector(raw_data, OCT_RAW_CACHE_PATH);
 
   loadVectorToPolyData(raw_data);
 
@@ -2106,11 +2036,14 @@ void Form::receivedOCTSurfData(OCTinfo params) {
       "done!");
   QApplication::processEvents();
 
-  VTK_NEW(vtkPolyData, surf_oct_poly_data);
-  loadPCLCacheToPolyData(OCT_SURF_CACHE_PATH, surf_oct_poly_data);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr surf_point_cloud(
+      new pcl::PointCloud<pcl::PointXYZ>);
+
+  m_crossbar->readPCL(OCT_SURF_CACHE_PATH, surf_point_cloud);
+  m_crossbar->PCLxyzToVTKPolyData(surf_point_cloud, m_oct_surf_poly_data);
 
   m_renderer->RemoveAllViewProps();
-  renderPolyDataSurface(surf_oct_poly_data, m_oct_surf_actor);
+  renderOCTSurface();
   m_renderer->ResetCamera();
 
   VTK_NEW(vtkTransform, trans);
@@ -2122,24 +2055,13 @@ void Form::receivedOCTSurfData(OCTinfo params) {
   updateUIStates();
 }
 
-void Form::receivedLeftImage() {
-  m_has_left_img = true;
+void Form::receivedStereoImages() {
+  m_has_stereo_cache = true;
   updateUIStates();
 }
 
-void Form::receivedRightImage() {
-  m_has_right_img = true;
-  updateUIStates();
-}
-
-void Form::receivedDispImage() {
-  m_has_disp_img = true;
-  updateUIStates();
-}
-
-void Form::receivedDepthImage() {
-  m_has_depth_img = true;
-  updateUIStates();
+void Form::accumulated(float new_ratio) {
+  m_ui->accu_progress->setValue((int)(new_ratio * 100));
 }
 
 void Form::receivedRegistration() {
@@ -2161,4 +2083,586 @@ void Form::receivedRegistration() {
 
   m_has_transform = true;
   updateUIStates();
+}
+
+void Form::on_browse_oct_surf_button_clicked() {
+  // getOpenFileName displays a file dialog and returns the full file path of
+  // the selected file, or an empty string if the user canceled the dialog
+  // The tr() function makes the dialog language proof (chinese characters, etc)
+  QString file_name;
+  QFileDialog dialog(this);
+  dialog.setFileMode(QFileDialog::ExistingFile);
+  dialog.setFilter(tr("OCT surface file (*.surf)"));
+  if (dialog.exec()) {
+    file_name = dialog.selectedFiles().first();
+  } else {
+    return;
+  }
+
+  if (!file_name.isEmpty()) {
+    m_waiting_response = true;
+    m_viewing_overlay = false;
+    updateUIStates();
+
+    // Allows the file dialog to close before moving on
+    QApplication::processEvents(QEventLoop::ExcludeSocketNotifiers, 10);
+
+    this->m_ui->status_bar->showMessage("Reading file... ");
+    QApplication::processEvents();
+
+    m_crossbar->readPolyData(file_name.toStdString().c_str(),
+                             m_oct_surf_poly_data);
+
+    m_renderer->RemoveAllViewProps();
+    renderOCTSurface();
+    m_renderer->ResetCamera();
+
+    VTK_NEW(vtkTransform, trans);
+    trans->Identity();
+    renderAxes(m_oct_axes_actor, trans);
+
+    m_has_oct_surf = true;
+    m_waiting_response = false;
+    updateUIStates();
+  }
+}
+
+void Form::on_save_oct_surf_button_clicked() {
+  QString file_name;
+  QFileDialog dialog(this);
+  dialog.setFileMode(QFileDialog::AnyFile);
+  dialog.setDefaultSuffix(".surf");
+  dialog.setFilter(tr("OCT surface file (*.surf)"));
+  if (dialog.exec()) {
+    file_name = dialog.selectedFiles().first();
+  } else {
+    return;
+  }
+
+  if (!file_name.isEmpty()) {
+    m_waiting_response = true;
+    updateUIStates();
+
+    // Allows the file dialog to close before resuming computations
+    QApplication::processEvents(QEventLoop::ExcludeSocketNotifiers, 10);
+
+    this->m_ui->status_bar->showMessage("Writing data to file... ");
+    QApplication::processEvents();
+
+    m_crossbar->writePolyData(m_oct_surf_poly_data,
+                              file_name.toStdString().c_str());
+
+    m_waiting_response = false;
+    updateUIStates();
+
+    this->m_ui->status_bar->showMessage("Writing data to file... done!");
+    QApplication::processEvents();
+  }
+}
+
+void Form::on_browse_oct_mass_button_clicked() {
+  // getOpenFileName displays a file dialog and returns the full file path of
+  // the selected file, or an empty string if the user canceled the dialog
+  // The tr() function makes the dialog language proof (chinese characters, etc)
+  QString file_name;
+  QFileDialog dialog(this);
+  dialog.setFileMode(QFileDialog::ExistingFile);
+  dialog.setFilter(tr("OCT mass file (*.mass)"));
+  if (dialog.exec()) {
+    file_name = dialog.selectedFiles().first();
+  } else {
+    return;
+  }
+
+  if (!file_name.isEmpty()) {
+    m_waiting_response = true;
+    m_viewing_overlay = false;
+    updateUIStates();
+
+    // Allows the file dialog to close before moving on
+    QApplication::processEvents(QEventLoop::ExcludeSocketNotifiers, 10);
+
+    this->m_ui->status_bar->showMessage("Reading file... ");
+    QApplication::processEvents();
+
+    m_crossbar->readPolyData(file_name.toStdString().c_str(),
+                             m_oct_mass_poly_data);
+
+    m_renderer->RemoveAllViewProps();
+    renderOCTMass();
+    m_renderer->ResetCamera();
+
+    VTK_NEW(vtkTransform, trans);
+    trans->Identity();
+    renderAxes(m_oct_axes_actor, trans);
+
+    this->m_ui->status_bar->showMessage("Reading file... done!");
+    QApplication::processEvents();
+
+    m_has_oct_mass = true;
+    m_waiting_response = false;
+    updateUIStates();
+  }
+}
+
+void Form::on_save_oct_mass_button_clicked() {
+  QString file_name;
+  QFileDialog dialog(this);
+  dialog.setFileMode(QFileDialog::AnyFile);
+  dialog.setDefaultSuffix(".mass");
+  dialog.setFilter(tr("OCT mass file (*.mass)"));
+  if (dialog.exec()) {
+    file_name = dialog.selectedFiles().first();
+  } else {
+    return;
+  }
+
+  if (!file_name.isEmpty()) {
+    m_waiting_response = true;
+    updateUIStates();
+
+    // Allows the file dialog to close before resuming computations
+    QApplication::processEvents(QEventLoop::ExcludeSocketNotifiers, 10);
+
+    this->m_ui->status_bar->showMessage("Writing data to file... ");
+    QApplication::processEvents();
+
+    m_crossbar->writePolyData(m_oct_mass_poly_data,
+                              file_name.toStdString().c_str());
+
+    m_waiting_response = false;
+    updateUIStates();
+
+    this->m_ui->status_bar->showMessage("Writing data to file... done!");
+    QApplication::processEvents();
+  }
+}
+
+void Form::on_view_oct_mass_button_clicked() {
+  this->m_ui->status_bar->showMessage("Rendering OCT tumour segmentation... ");
+  QApplication::processEvents();
+
+  m_waiting_response = true;
+  updateUIStates();
+
+  m_renderer->RemoveAllViewProps();
+  renderOCTMass();
+
+  VTK_NEW(vtkTransform, trans);
+  trans->Identity();
+  renderAxes(m_oct_axes_actor, trans);
+
+  this->m_ui->status_bar->showMessage(
+      "Rendering OCT tumour segmentation... done!");
+  QApplication::processEvents();
+
+  m_waiting_response = false;
+  updateUIStates();
+}
+
+void Form::on_request_left_image_button_clicked() {
+  this->m_ui->status_bar->showMessage("Rendering left image...");
+  QApplication::processEvents();
+
+  m_waiting_response = true;
+  m_viewing_overlay = false;
+  updateUIStates();
+
+  std::vector<uint32_t> left_vector;
+  m_crossbar->readVector(STEREO_LEFT_CACHE_PATH, left_vector);
+
+  m_crossbar->intVectorToImageData2D(left_vector, m_stereo_left_image);
+
+  render2DImageData(m_stereo_left_image);
+
+  this->m_ui->status_bar->showMessage("Rendering left image... done!");
+  QApplication::processEvents();
+
+  m_has_left_image = true;
+  m_waiting_response = false;
+  updateUIStates();
+}
+
+void Form::on_request_right_image_button_clicked() {
+  this->m_ui->status_bar->showMessage("Rendering right image... ");
+  QApplication::processEvents();
+
+  m_waiting_response = true;
+  m_viewing_overlay = false;
+  updateUIStates();
+
+  std::vector<uint32_t> right_vector;
+  m_crossbar->readVector(STEREO_RIGHT_CACHE_PATH, right_vector);
+
+  m_crossbar->intVectorToImageData2D(right_vector, m_stereo_right_image);
+
+  render2DImageData(m_stereo_right_image);
+
+  this->m_ui->status_bar->showMessage("Rendering right image... done!");
+  QApplication::processEvents();
+
+  m_has_right_image = true;
+  m_waiting_response = false;
+  updateUIStates();
+}
+
+void Form::on_request_disp_image_button_clicked() {
+  this->m_ui->status_bar->showMessage("Rendering displacement image... ");
+  QApplication::processEvents();
+
+  m_waiting_response = true;
+  m_viewing_overlay = false;
+  updateUIStates();
+
+  std::vector<uint32_t> disp_vector;
+  m_crossbar->readVector(STEREO_DISP_CACHE_PATH, disp_vector);
+
+  m_crossbar->intVectorToImageData2D(disp_vector, m_stereo_disp_image);
+
+  render2DImageData(m_stereo_disp_image);
+
+  this->m_ui->status_bar->showMessage("Rendering displacement image... done!");
+  QApplication::processEvents();
+
+  m_has_disp_image = true;
+  m_waiting_response = false;
+  updateUIStates();
+}
+
+void Form::on_request_depth_image_button_clicked() {
+  this->m_ui->status_bar->showMessage("Rendering depth map... ");
+  QApplication::processEvents();
+
+  m_waiting_response = true;
+  m_viewing_overlay = false;
+  updateUIStates();
+
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr depth_point_cloud(
+      new pcl::PointCloud<pcl::PointXYZRGB>);
+  m_crossbar->readPCL(STEREO_DEPTH_CACHE_PATH, depth_point_cloud);
+
+  m_crossbar->PCLxyzrgbToVTKPolyData(depth_point_cloud, m_stereo_depth_image);
+
+  m_renderer->RemoveAllViewProps();
+  renderDepthImage();
+
+  this->m_ui->status_bar->showMessage("Rendering depth map... done!");
+  QApplication::processEvents();
+
+  m_has_depth_image = true;
+  m_waiting_response = false;
+  updateUIStates();
+}
+
+void Form::on_browse_left_image_button_clicked() {
+  // getOpenFileName displays a file dialog and returns the full file path of
+  // the selected file, or an empty string if the user canceled the dialog
+  // The tr() function makes the dialog language proof (chinese characters, etc)
+  QString file_name;
+  QFileDialog dialog(this);
+  dialog.setFileMode(QFileDialog::ExistingFile);
+  dialog.setFilter(tr("Stereocamera left image file (*.left)"));
+  if (dialog.exec()) {
+    file_name = dialog.selectedFiles().first();
+  } else {
+    return;
+  }
+
+  if (!file_name.isEmpty()) {
+    m_waiting_response = true;
+    m_viewing_overlay = false;
+    updateUIStates();
+
+    // Allows the file dialog to close before moving on
+    QApplication::processEvents(QEventLoop::ExcludeSocketNotifiers, 10);
+
+    this->m_ui->status_bar->showMessage("Reading file... ");
+    QApplication::processEvents();
+
+    std::vector<uint32_t> left_vector;
+    m_crossbar->readVector(file_name.toStdString().c_str(), left_vector);
+
+    m_crossbar->intVectorToImageData2D(left_vector, m_stereo_left_image);
+
+    render2DImageData(m_stereo_left_image);
+
+    this->m_ui->status_bar->showMessage("Reading file... done!");
+    QApplication::processEvents();
+
+    m_has_left_image = true;
+    m_waiting_response = false;
+    updateUIStates();
+  }
+}
+
+void Form::on_browse_right_image_button_clicked() {
+  // getOpenFileName displays a file dialog and returns the full file path of
+  // the selected file, or an empty string if the user canceled the dialog
+  // The tr() function makes the dialog language proof (chinese characters, etc)
+  QString file_name;
+  QFileDialog dialog(this);
+  dialog.setFileMode(QFileDialog::ExistingFile);
+  dialog.setFilter(tr("Stereocamera right image file (*.right)"));
+  if (dialog.exec()) {
+    file_name = dialog.selectedFiles().first();
+  } else {
+    return;
+  }
+
+  if (!file_name.isEmpty()) {
+    m_waiting_response = true;
+    m_viewing_overlay = false;
+    updateUIStates();
+
+    // Allows the file dialog to close before moving on
+    QApplication::processEvents(QEventLoop::ExcludeSocketNotifiers, 10);
+
+    this->m_ui->status_bar->showMessage("Reading file... ");
+    QApplication::processEvents();
+
+    std::vector<uint32_t> right_vector;
+    m_crossbar->readVector(file_name.toStdString().c_str(), right_vector);
+
+    m_crossbar->intVectorToImageData2D(right_vector, m_stereo_right_image);
+
+    render2DImageData(m_stereo_right_image);
+
+    this->m_ui->status_bar->showMessage("Reading file... done!");
+    QApplication::processEvents();
+
+    m_has_right_image = true;
+    m_waiting_response = false;
+    updateUIStates();
+  }
+}
+
+void Form::on_browse_disp_image_button_clicked() {
+  // getOpenFileName displays a file dialog and returns the full file path of
+  // the selected file, or an empty string if the user canceled the dialog
+  // The tr() function makes the dialog language proof (chinese characters, etc)
+  QString file_name;
+  QFileDialog dialog(this);
+  dialog.setFileMode(QFileDialog::ExistingFile);
+  dialog.setFilter(tr("Stereocamera displacement image file (*.disp)"));
+  if (dialog.exec()) {
+    file_name = dialog.selectedFiles().first();
+  } else {
+    return;
+  }
+
+  if (!file_name.isEmpty()) {
+    m_waiting_response = true;
+    m_viewing_overlay = false;
+    updateUIStates();
+
+    // Allows the file dialog to close before moving on
+    QApplication::processEvents(QEventLoop::ExcludeSocketNotifiers, 10);
+
+    this->m_ui->status_bar->showMessage("Reading file... ");
+    QApplication::processEvents();
+
+    std::vector<uint32_t> disp_vector;
+    m_crossbar->readVector(file_name.toStdString().c_str(), disp_vector);
+
+    m_crossbar->intVectorToImageData2D(disp_vector, m_stereo_disp_image);
+
+    render2DImageData(m_stereo_disp_image);
+
+    this->m_ui->status_bar->showMessage("Reading file... done!");
+    QApplication::processEvents();
+
+    m_has_disp_image = true;
+    m_waiting_response = false;
+    updateUIStates();
+  }
+}
+
+void Form::on_browse_depth_image_button_clicked() {
+  // getOpenFileName displays a file dialog and returns the full file path of
+  // the selected file, or an empty string if the user canceled the dialog
+  // The tr() function makes the dialog language proof (chinese characters, etc)
+  QString file_name;
+  QFileDialog dialog(this);
+  dialog.setFileMode(QFileDialog::ExistingFile);
+  dialog.setFilter(tr("Stereocamera depth image file (*.depth)"));
+  if (dialog.exec()) {
+    file_name = dialog.selectedFiles().first();
+  } else {
+    return;
+  }
+
+  if (!file_name.isEmpty()) {
+    m_waiting_response = true;
+    m_viewing_overlay = false;
+    updateUIStates();
+
+    // Allows the file dialog to close before moving on
+    QApplication::processEvents(QEventLoop::ExcludeSocketNotifiers, 10);
+
+    this->m_ui->status_bar->showMessage("Reading file... ");
+    QApplication::processEvents();
+
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr depth_point_cloud(
+        new pcl::PointCloud<pcl::PointXYZRGB>);
+    m_crossbar->readPCL(file_name.toStdString().c_str(), depth_point_cloud);
+
+    m_crossbar->PCLxyzrgbToVTKPolyData(depth_point_cloud, m_stereo_depth_image);
+
+    m_renderer->RemoveAllViewProps();
+    renderDepthImage();
+
+    this->m_ui->status_bar->showMessage("Reading file... done!");
+    QApplication::processEvents();
+
+    m_has_disp_image = true;
+    m_waiting_response = false;
+    updateUIStates();
+  }
+}
+
+void Form::on_save_left_image_button_clicked() {
+  QString file_name;
+  QFileDialog dialog(this);
+  dialog.setFileMode(QFileDialog::AnyFile);
+  dialog.setDefaultSuffix(".left");
+  dialog.setFilter(tr("Stereocamera left image file (*.left)"));
+  if (dialog.exec()) {
+    file_name = dialog.selectedFiles().first();
+  } else {
+    return;
+  }
+
+  if (!file_name.isEmpty()) {
+    m_waiting_response = true;
+    updateUIStates();
+
+    // Allows the file dialog to close before resuming computations
+    QApplication::processEvents(QEventLoop::ExcludeSocketNotifiers, 10);
+
+    this->m_ui->status_bar->showMessage("Writing data to file... ");
+    QApplication::processEvents();
+
+    std::vector<uint32_t> left_vector;
+    m_crossbar->imageData2DtoIntVector(m_stereo_left_image, left_vector);
+
+    m_crossbar->writeVector(left_vector, file_name.toStdString().c_str());
+
+    m_waiting_response = false;
+    updateUIStates();
+
+    this->m_ui->status_bar->showMessage("Writing data to file... done!");
+    QApplication::processEvents();
+  }
+}
+
+void Form::on_save_right_image_button_clicked() {
+  QString file_name;
+  QFileDialog dialog(this);
+  dialog.setFileMode(QFileDialog::AnyFile);
+  dialog.setDefaultSuffix(".right");
+  dialog.setFilter(tr("Stereocamera right image file (*.right)"));
+  if (dialog.exec()) {
+    file_name = dialog.selectedFiles().first();
+  } else {
+    return;
+  }
+
+  if (!file_name.isEmpty()) {
+    m_waiting_response = true;
+    updateUIStates();
+
+    // Allows the file dialog to close before resuming computations
+    QApplication::processEvents(QEventLoop::ExcludeSocketNotifiers, 10);
+
+    this->m_ui->status_bar->showMessage("Writing data to file... ");
+    QApplication::processEvents();
+
+    std::vector<uint32_t> right_vector;
+    m_crossbar->imageData2DtoIntVector(m_stereo_right_image, right_vector);
+
+    m_crossbar->writeVector(right_vector, file_name.toStdString().c_str());
+
+    m_waiting_response = false;
+    updateUIStates();
+
+    this->m_ui->status_bar->showMessage("Writing data to file... done!");
+    QApplication::processEvents();
+  }
+}
+
+void Form::on_save_disp_image_button_clicked() {
+  QString file_name;
+  QFileDialog dialog(this);
+  dialog.setFileMode(QFileDialog::AnyFile);
+  dialog.setDefaultSuffix(".disp");
+  dialog.setFilter(tr("Stereocamera displacement image file (*.disp)"));
+  if (dialog.exec()) {
+    file_name = dialog.selectedFiles().first();
+  } else {
+    return;
+  }
+
+  if (!file_name.isEmpty()) {
+    m_waiting_response = true;
+    updateUIStates();
+
+    // Allows the file dialog to close before resuming computations
+    QApplication::processEvents(QEventLoop::ExcludeSocketNotifiers, 10);
+
+    this->m_ui->status_bar->showMessage("Writing data to file... ");
+    QApplication::processEvents();
+
+    std::vector<uint32_t> disp_vector;
+    m_crossbar->imageData2DtoIntVector(m_stereo_disp_image, disp_vector);
+
+    m_crossbar->writeVector(disp_vector, file_name.toStdString().c_str());
+
+    m_waiting_response = false;
+    updateUIStates();
+
+    this->m_ui->status_bar->showMessage("Writing data to file... done!");
+    QApplication::processEvents();
+  }
+}
+
+void Form::on_save_depth_image_button_clicked() {
+  QString file_name;
+  QFileDialog dialog(this);
+  dialog.setFileMode(QFileDialog::AnyFile);
+  dialog.setDefaultSuffix(".depth");
+  dialog.setFilter(tr("Stereocamera depth image file (*.depth)"));
+  if (dialog.exec()) {
+    file_name = dialog.selectedFiles().first();
+  } else {
+    return;
+  }
+
+  if (!file_name.isEmpty()) {
+    m_waiting_response = true;
+    updateUIStates();
+
+    // Allows the file dialog to close before resuming computations
+    QApplication::processEvents(QEventLoop::ExcludeSocketNotifiers, 10);
+
+    this->m_ui->status_bar->showMessage("Writing data to file... ");
+    QApplication::processEvents();
+
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr depth_point_cloud(
+        new pcl::PointCloud<pcl::PointXYZRGB>);
+    m_crossbar->VTKPolyDataToPCLxyzrgb(m_stereo_depth_image, depth_point_cloud);
+
+    m_crossbar->writePCL(depth_point_cloud, file_name.toStdString().c_str());
+
+    m_waiting_response = false;
+    updateUIStates();
+
+    this->m_ui->status_bar->showMessage("Writing data to file... done!");
+    QApplication::processEvents();
+  }
+}
+
+void Form::on_accu_reset_button_clicked() { Q_EMIT resetAccumulators(); }
+
+void Form::on_accu_spinbox_editingFinished() {
+  Q_EMIT setAccumulatorSize(m_ui->accu_spinbox->value());
 }

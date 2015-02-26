@@ -1,6 +1,15 @@
 /*  TODO:
+* 
+* -Delete conversion functions in form.ccp that went to the crossbar. Like the "load..." functions
 *
-* -Test releasing data flags for erode and dilate
+* -Cleanup Form.h, Form.cpp, qnode.h, qnode.cpp, crossbar, etc. Re-order functions and so on
+*
+* -Ensure that if depth map uses left image, then guarantee both use same resolution
+*
+* -Some functions dont need parameters anymore, like the rendering functions
+*
+* -Bring the Raw OCT inputs to the same style as the others: Bring the browse button
+*  down, maybe the request and save buttons too. Allow saving an image file as another?
 *
 * -Find the correct way of intializing/zeroing the accs in resetAccumulators
 *

@@ -60,12 +60,12 @@ SET(SOURCES
     main.cpp
     form.cpp
     qnode.cpp
-    filemanager.cpp
+    crossbar.cpp
     octinfo.cpp
     )
 
 SET(HEADERS
-    filemanager.h
+    crossbar.h
     octinfo.h
     clustering.h
     sliceinteractor.h

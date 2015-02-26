@@ -96,7 +96,7 @@
 
 // Project files
 #include "qnode.h"
-#include "filemanager.h"
+#include "crossbar.h"
 #include "octinfo.h"
 #include "sliceinteractor.h"
 #include "clustering.h"
@@ -130,11 +130,6 @@ class Form : public QMainWindow {
   // Loads data from a depth-fast, width-medium, length-slow vector octdata
   // Into raw_oct_poly_data
   void loadVectorToPolyData(std::vector<uint8_t>& oct_data);
-
-  // Loads a PCL point cloud saved as a binary file at file_path and builds a
-  // poly_data for visualization
-  void loadPCLCacheToPolyData(const char* file_path,
-                              vtkSmartPointer<vtkPolyData> depth_image);
 
   // Loads either the left, right or displacement map images produced by the
   // stereocamera into a vtkImageData object
@@ -186,9 +181,10 @@ class Form : public QMainWindow {
   // m_vis_threshold
   void renderOCTVolumePolyData();
 
-  // Adds m_oct_surf_actor, a 1-sample-thick PolyData actor, to m_renderer
-  void renderPolyDataSurface(vtkSmartPointer<vtkPolyData> depth_image,
-                             vtkSmartPointer<vtkActor> actor);
+
+  void renderOCTSurface();
+
+  void renderDepthImage();
 
   // Clears m_renderer from actors and renders either the left, right or
   // displacement map vtkImageData objects from by load2DVectorCacheToImageData
@@ -245,32 +241,64 @@ Q_SLOTS:
   void on_over_oct_axes_checkbox_clicked();
   void on_over_trans_axes_checkbox_clicked();
 
-  void on_left_accu_reset_button_clicked();
-  void on_depth_accu_reset_button_clicked();
-
   //------------QNODE CALLBACKS-------------------------------------------------
 
   void receivedRawOCTData(OCTinfo params);
   void receivedOCTSurfData(OCTinfo params);
-  void receivedLeftImage();
-  void receivedRightImage();
-  void receivedDispImage();
-  void receivedDepthImage();
+  void receivedStereoImages();
   void receivedRegistration();
+  void accumulated(float new_ratio);
 
-Q_SIGNALS:
+  void on_browse_oct_surf_button_clicked();
+
+  void on_save_oct_surf_button_clicked();
+
+  void on_browse_oct_mass_button_clicked();
+
+  void on_save_oct_mass_button_clicked();
+
+  void on_view_oct_mass_button_clicked();
+
+  void on_request_left_image_button_clicked();
+
+  void on_request_right_image_button_clicked();
+
+  void on_request_disp_image_button_clicked();
+
+  void on_request_depth_image_button_clicked();
+
+  void on_browse_left_image_button_clicked();
+
+  void on_browse_right_image_button_clicked();
+
+  void on_browse_disp_image_button_clicked();
+
+  void on_browse_depth_image_button_clicked();
+
+  void on_save_left_image_button_clicked();
+
+  void on_save_right_image_button_clicked();
+
+  void on_save_disp_image_button_clicked();
+
+  void on_save_depth_image_button_clicked();
+
+  void on_accu_reset_button_clicked();
+
+  void on_accu_spinbox_editingFinished();
+
+  Q_SIGNALS:
   void requestScan(OCTinfo);
   void requestSegmentation(OCTinfo);
   void requestRegistration();
-  void setLeftAccumulatorSize(unsigned int);
-  void setDepthAccumulatorSize(unsigned int);
+  void setAccumulatorSize(unsigned int);
   void resetAccumulators();
 
  private:
   Ui::Form* m_ui;
   QNode* m_qnode;
   QThread* m_qthread;
-  FileManager* m_file_manager;
+  Crossbar* m_crossbar;
 
   // Controls minimum displayed intensity value when viewing raw OCT
   uint8_t m_min_vis_thresh;
@@ -283,10 +311,11 @@ Q_SIGNALS:
   bool m_waiting_response;
   bool m_has_oct_surf;
   bool m_has_oct_mass;
-  bool m_has_left_img;
-  bool m_has_right_img;
-  bool m_has_disp_img;
-  bool m_has_depth_img;
+  bool m_has_stereo_cache;
+  bool m_has_left_image;
+  bool m_has_right_image;
+  bool m_has_disp_image;
+  bool m_has_depth_image;
   bool m_has_transform;
   bool m_viewing_overlay;
 
@@ -294,11 +323,13 @@ Q_SIGNALS:
   OCTinfo m_current_params;
 
   // VTK objects
-  // Data structures are kept since they can't be quickly written/read to/from
-  // caches quickly (due to VTK only doing XML file IO, as opposed to binary
-  // files), and also due to taking a long time to construct from raw vectors
   vtkSmartPointer<vtkPolyData> m_oct_poly_data;
   vtkSmartPointer<vtkPolyData> m_oct_mass_poly_data;
+  vtkSmartPointer<vtkPolyData> m_oct_surf_poly_data;
+  vtkSmartPointer<vtkImageData> m_stereo_left_image;
+  vtkSmartPointer<vtkImageData> m_stereo_right_image;
+  vtkSmartPointer<vtkImageData> m_stereo_disp_image;
+  vtkSmartPointer<vtkPolyData> m_stereo_depth_image;
   vtkSmartPointer<vtkTransform> m_oct_stereo_trans;
   // Actors are kept since we need their references when we add/remove actors in
   // the Overlay section of the program
