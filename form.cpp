@@ -349,73 +349,6 @@ void Form::loadVectorToPolyData(std::vector<uint8_t>& oct_data) {
   QApplication::processEvents();
 }
 
-void Form::load2DVectorCacheToImageData(
-    const char* file_path, vtkSmartPointer<vtkImageData> image_data) {
-  if (std::strcmp(file_path, STEREO_DISP_CACHE_PATH) == 0) {
-    std::vector<uint8_t> data;
-
-    // Read the entire file
-    m_crossbar->readVector(file_path, data);
-
-    // Parse the first 8 bytes to determine dimensions
-    uint32_t rows, cols;
-    memcpy(&rows, &data[0], 4);
-    memcpy(&cols, &data[1], 4);
-
-    image_data->SetDimensions(cols, rows, 1);
-    image_data->SetNumberOfScalarComponents(1);
-    image_data->SetScalarTypeToUnsignedChar();
-    image_data->AllocateScalars();
-
-    uint8_t val;
-    for (uint32_t y = 0; y < rows; y++) {
-      for (uint32_t x = 0; x < cols; x++) {
-        // We need to invert the vertical coordinate since we use different
-        // origins
-        unsigned char* pixel = static_cast<unsigned char*>(
-            image_data->GetScalarPointer(x, (rows - 1) - y, 0));
-
-        // The two first uint32_t are the header
-        val = data[x + y * cols + 8];  // Skip the two 32-bit values (header)
-        memcpy(&pixel[0], &val, 1);
-      }
-    }
-
-    image_data->Modified();
-  } else {
-    std::vector<uint32_t> data;
-
-    // Read the entire file
-    m_crossbar->readVector(file_path, data);
-
-    // Parse the first 8 bytes to determine dimensions
-    uint32_t rows, cols;
-    memcpy(&rows, &data[0], 4);
-    memcpy(&cols, &data[1], 4);
-
-    image_data->SetDimensions(cols, rows, 1);
-    image_data->SetNumberOfScalarComponents(3);
-    image_data->SetScalarTypeToUnsignedChar();
-    image_data->AllocateScalars();
-
-    uint32_t val;
-    for (uint32_t y = 0; y < rows; y++) {
-      for (uint32_t x = 0; x < cols; x++) {
-        // We need to invert the vertical coordinate since we use different
-        // origins
-        unsigned char* pixel = static_cast<unsigned char*>(
-            image_data->GetScalarPointer(x, (rows - 1) - y, 0));
-
-        // The two first uint32_t are the header
-        val = data[x + y * cols + 2];  // Skip the two 32-bit values (header)
-        memcpy(&pixel[0], &val, 3);
-      }
-    }
-
-    image_data->Modified();
-  }
-}
-
 //------------PROCESSING--------------------------------------------------------
 
 void Form::medianFilter2D(std::vector<uint8_t>& input) {
@@ -1653,7 +1586,17 @@ void Form::on_calc_transform_button_clicked() {
   m_waiting_response = true;
   updateUIStates();
 
-  // Write our polydatas to a PCL cache
+  // Write our current depth image to the cache
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr depth_image_pcl(
+      new pcl::PointCloud<pcl::PointXYZRGB>);
+  m_crossbar->VTKPolyDataToPCLxyzrgb(m_stereo_depth_image, depth_image_pcl);
+  m_crossbar->writePCL(depth_image_pcl, STEREO_DEPTH_CACHE_PATH);
+
+  //Write our current oct surface to the cache
+  pcl::PointCloud<pcl::PointXYZ>::Ptr oct_surf_pcl(
+      new pcl::PointCloud<pcl::PointXYZ>);
+  m_crossbar->VTKPolyDataToPCLxyz(m_oct_surf_poly_data, oct_surf_pcl);
+  m_crossbar->writePCL(oct_surf_pcl, OCT_SURF_CACHE_PATH);
 
   Q_EMIT requestRegistration();
 
@@ -2361,7 +2304,7 @@ void Form::on_browse_left_image_button_clicked() {
   QString file_name;
   QFileDialog dialog(this);
   dialog.setFileMode(QFileDialog::ExistingFile);
-  dialog.setFilter(tr("Stereocamera left image file (*.left)"));
+  dialog.setFilter(tr("Stereocamera left PNG image (*.png)"));
   if (dialog.exec()) {
     file_name = dialog.selectedFiles().first();
   } else {
@@ -2379,10 +2322,14 @@ void Form::on_browse_left_image_button_clicked() {
     this->m_ui->status_bar->showMessage("Reading file... ");
     QApplication::processEvents();
 
-    std::vector<uint32_t> left_vector;
-    m_crossbar->readVector(file_name.toStdString().c_str(), left_vector);
+//    std::vector<uint32_t> left_vector;
+//    m_crossbar->readVector(file_name.toStdString().c_str(), left_vector);
+//    m_crossbar->intVectorToImageData2D(left_vector, m_stereo_left_image);
 
-    m_crossbar->intVectorToImageData2D(left_vector, m_stereo_left_image);
+    VTK_NEW(vtkPNGReader, png_reader);
+    png_reader->SetFileName(file_name.toStdString().c_str());
+    png_reader->Update();
+    m_stereo_left_image = png_reader->GetOutput();
 
     render2DImageData(m_stereo_left_image);
 
@@ -2402,7 +2349,7 @@ void Form::on_browse_right_image_button_clicked() {
   QString file_name;
   QFileDialog dialog(this);
   dialog.setFileMode(QFileDialog::ExistingFile);
-  dialog.setFilter(tr("Stereocamera right image file (*.right)"));
+  dialog.setFilter(tr("Stereocamera right PNG image (*.png)"));
   if (dialog.exec()) {
     file_name = dialog.selectedFiles().first();
   } else {
@@ -2420,10 +2367,14 @@ void Form::on_browse_right_image_button_clicked() {
     this->m_ui->status_bar->showMessage("Reading file... ");
     QApplication::processEvents();
 
-    std::vector<uint32_t> right_vector;
-    m_crossbar->readVector(file_name.toStdString().c_str(), right_vector);
+//    std::vector<uint32_t> right_vector;
+//    m_crossbar->readVector(file_name.toStdString().c_str(), right_vector);
+//    m_crossbar->intVectorToImageData2D(right_vector, m_stereo_right_image);
 
-    m_crossbar->intVectorToImageData2D(right_vector, m_stereo_right_image);
+    VTK_NEW(vtkPNGReader, png_reader);
+    png_reader->SetFileName(file_name.toStdString().c_str());
+    png_reader->Update();
+    m_stereo_right_image = png_reader->GetOutput();
 
     render2DImageData(m_stereo_right_image);
 
@@ -2443,7 +2394,7 @@ void Form::on_browse_disp_image_button_clicked() {
   QString file_name;
   QFileDialog dialog(this);
   dialog.setFileMode(QFileDialog::ExistingFile);
-  dialog.setFilter(tr("Stereocamera displacement image file (*.disp)"));
+  dialog.setFilter(tr("Stereocamera displacement PNG image (*.png)"));
   if (dialog.exec()) {
     file_name = dialog.selectedFiles().first();
   } else {
@@ -2461,10 +2412,14 @@ void Form::on_browse_disp_image_button_clicked() {
     this->m_ui->status_bar->showMessage("Reading file... ");
     QApplication::processEvents();
 
-    std::vector<uint32_t> disp_vector;
-    m_crossbar->readVector(file_name.toStdString().c_str(), disp_vector);
+//    std::vector<uint32_t> disp_vector;
+//    m_crossbar->readVector(file_name.toStdString().c_str(), disp_vector);
+//    m_crossbar->intVectorToImageData2D(disp_vector, m_stereo_disp_image);
 
-    m_crossbar->intVectorToImageData2D(disp_vector, m_stereo_disp_image);
+    VTK_NEW(vtkPNGReader, png_reader);
+    png_reader->SetFileName(file_name.toStdString().c_str());
+    png_reader->Update();
+    m_stereo_disp_image = png_reader->GetOutput();
 
     render2DImageData(m_stereo_disp_image);
 
@@ -2484,7 +2439,7 @@ void Form::on_browse_depth_image_button_clicked() {
   QString file_name;
   QFileDialog dialog(this);
   dialog.setFileMode(QFileDialog::ExistingFile);
-  dialog.setFilter(tr("Stereocamera depth image file (*.depth)"));
+  dialog.setFilter(tr("Stereocamera depth image PCL file (*.pcd)"));
   if (dialog.exec()) {
     file_name = dialog.selectedFiles().first();
   } else {
@@ -2524,8 +2479,8 @@ void Form::on_save_left_image_button_clicked() {
   QString file_name;
   QFileDialog dialog(this);
   dialog.setFileMode(QFileDialog::AnyFile);
-  dialog.setDefaultSuffix(".left");
-  dialog.setFilter(tr("Stereocamera left image file (*.left)"));
+  dialog.setDefaultSuffix("png");
+  dialog.setFilter(tr("Stereocamera left PNG image (*.png)"));
   if (dialog.exec()) {
     file_name = dialog.selectedFiles().first();
   } else {
@@ -2542,10 +2497,14 @@ void Form::on_save_left_image_button_clicked() {
     this->m_ui->status_bar->showMessage("Writing data to file... ");
     QApplication::processEvents();
 
-    std::vector<uint32_t> left_vector;
-    m_crossbar->imageData2DtoIntVector(m_stereo_left_image, left_vector);
+//    std::vector<uint32_t> left_vector;
+//    m_crossbar->imageData2DtoIntVector(m_stereo_left_image, left_vector);
+//    m_crossbar->writeVector(left_vector, file_name.toStdString().c_str());
 
-    m_crossbar->writeVector(left_vector, file_name.toStdString().c_str());
+    VTK_NEW(vtkPNGWriter, png_writer);
+    png_writer->SetInput(m_stereo_left_image);
+    png_writer->SetFileName(file_name.toStdString().c_str());
+    png_writer->Write();
 
     m_waiting_response = false;
     updateUIStates();
@@ -2559,8 +2518,8 @@ void Form::on_save_right_image_button_clicked() {
   QString file_name;
   QFileDialog dialog(this);
   dialog.setFileMode(QFileDialog::AnyFile);
-  dialog.setDefaultSuffix(".right");
-  dialog.setFilter(tr("Stereocamera right image file (*.right)"));
+  dialog.setDefaultSuffix("png");
+  dialog.setFilter(tr("Stereocamera right PNG image (*.png)"));
   if (dialog.exec()) {
     file_name = dialog.selectedFiles().first();
   } else {
@@ -2577,10 +2536,14 @@ void Form::on_save_right_image_button_clicked() {
     this->m_ui->status_bar->showMessage("Writing data to file... ");
     QApplication::processEvents();
 
-    std::vector<uint32_t> right_vector;
-    m_crossbar->imageData2DtoIntVector(m_stereo_right_image, right_vector);
+//    std::vector<uint32_t> right_vector;
+//    m_crossbar->imageData2DtoIntVector(m_stereo_right_image, right_vector);
+//    m_crossbar->writeVector(right_vector, file_name.toStdString().c_str());
 
-    m_crossbar->writeVector(right_vector, file_name.toStdString().c_str());
+    VTK_NEW(vtkPNGWriter, png_writer);
+    png_writer->SetInput(m_stereo_right_image);
+    png_writer->SetFileName(file_name.toStdString().c_str());
+    png_writer->Write();
 
     m_waiting_response = false;
     updateUIStates();
@@ -2594,8 +2557,8 @@ void Form::on_save_disp_image_button_clicked() {
   QString file_name;
   QFileDialog dialog(this);
   dialog.setFileMode(QFileDialog::AnyFile);
-  dialog.setDefaultSuffix(".disp");
-  dialog.setFilter(tr("Stereocamera displacement image file (*.disp)"));
+  dialog.setDefaultSuffix("png");
+  dialog.setFilter(tr("Stereocamera displacement PNG image (*.png)"));
   if (dialog.exec()) {
     file_name = dialog.selectedFiles().first();
   } else {
@@ -2612,10 +2575,14 @@ void Form::on_save_disp_image_button_clicked() {
     this->m_ui->status_bar->showMessage("Writing data to file... ");
     QApplication::processEvents();
 
-    std::vector<uint32_t> disp_vector;
-    m_crossbar->imageData2DtoIntVector(m_stereo_disp_image, disp_vector);
+//    std::vector<uint32_t> disp_vector;
+//    m_crossbar->imageData2DtoIntVector(m_stereo_disp_image, disp_vector);
+//    m_crossbar->writeVector(disp_vector, file_name.toStdString().c_str());
 
-    m_crossbar->writeVector(disp_vector, file_name.toStdString().c_str());
+    VTK_NEW(vtkPNGWriter, png_writer);
+    png_writer->SetInput(m_stereo_disp_image);
+    png_writer->SetFileName(file_name.toStdString().c_str());
+    png_writer->Write();
 
     m_waiting_response = false;
     updateUIStates();
@@ -2629,8 +2596,8 @@ void Form::on_save_depth_image_button_clicked() {
   QString file_name;
   QFileDialog dialog(this);
   dialog.setFileMode(QFileDialog::AnyFile);
-  dialog.setDefaultSuffix(".depth");
-  dialog.setFilter(tr("Stereocamera depth image file (*.depth)"));
+  dialog.setDefaultSuffix("pcd");
+  dialog.setFilter(tr("Stereocamera depth image PCL file (*.pcd)"));
   if (dialog.exec()) {
     file_name = dialog.selectedFiles().first();
   } else {
@@ -2661,8 +2628,16 @@ void Form::on_save_depth_image_button_clicked() {
   }
 }
 
-void Form::on_accu_reset_button_clicked() { Q_EMIT resetAccumulators(); }
+void Form::on_accu_reset_button_clicked() {
+  m_has_stereo_cache = false;
+  updateUIStates();
+
+  Q_EMIT resetAccumulators();
+}
 
 void Form::on_accu_spinbox_editingFinished() {
+  m_has_stereo_cache = false;
+  updateUIStates();
+
   Q_EMIT setAccumulatorSize(m_ui->accu_spinbox->value());
 }

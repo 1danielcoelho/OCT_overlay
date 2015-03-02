@@ -62,16 +62,12 @@
 #include <vtkSmoothPolyDataFilter.h>
 #include <vtkDelaunay3D.h>
 #include <vtkCleanPolyData.h>
-//#include <vtkTriangleFilter.h>
 #include <vtkDataSetSurfaceFilter.h>
 #include <vtkWarpScalar.h>
-//#include <vtkPolyDataNormals.h>
 #include <vtkPPolyDataNormals.h>
-//#include <vtkReverseSense.h>
 #include <vtkGlyph3D.h>
 #include <vtkTransformPolyDataFilter.h>
-//#include <vtkWindowedSincPolyDataFilter.h>
-//#include <vtkDecimatePro.h>
+
 // Mappers
 #include <vtkPolyDataMapper.h>
 #include <vtkImageMapper.h>
@@ -93,6 +89,8 @@
 #include <vtkGarbageCollector.h>
 #include <vtkInteractorStyleImage.h>
 #include <vtkArrowSource.h>
+#include <vtkPNGReader.h>
+#include <vtkPNGWriter.h>
 
 // Project files
 #include "qnode.h"
@@ -130,11 +128,6 @@ class Form : public QMainWindow {
   // Loads data from a depth-fast, width-medium, length-slow vector octdata
   // Into raw_oct_poly_data
   void loadVectorToPolyData(std::vector<uint8_t>& oct_data);
-
-  // Loads either the left, right or displacement map images produced by the
-  // stereocamera into a vtkImageData object
-  void load2DVectorCacheToImageData(const char* file_path,
-                                    vtkSmartPointer<vtkImageData> image_data);
 
   //------------PROCESSING------------------------------------------------------
 

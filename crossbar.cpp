@@ -347,8 +347,8 @@ void Crossbar::imageData2DtoIntVector(vtkSmartPointer<vtkImageData> input,
     int dimensions[3];
     input->GetDimensions(dimensions);
 
-    uint32_t rows = dimensions[0];
-    uint32_t cols = dimensions[1];
+    uint32_t rows = dimensions[1];
+    uint32_t cols = dimensions[2];
     memcpy( &output[0], &rows, 4);
     memcpy(&output[1], &cols, 4);
 

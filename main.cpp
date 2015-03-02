@@ -1,27 +1,21 @@
 /*  TODO:
 * 
+* -The view functions should setup pipelines that can be updated by checking a checkbox
+*  which changes a transform from identity to the registration transform, making it easy
+*  to view its effects with a single click
+*
+* -Save stereocamera images to uncompressed PNG files
+*
 * -Delete conversion functions in form.ccp that went to the crossbar. Like the "load..." functions
 *
 * -Cleanup Form.h, Form.cpp, qnode.h, qnode.cpp, crossbar, etc. Re-order functions and so on
 *
 * -Ensure that if depth map uses left image, then guarantee both use same resolution
 *
-* -Some functions dont need parameters anymore, like the rendering functions
-*
 * -Bring the Raw OCT inputs to the same style as the others: Bring the browse button
 *  down, maybe the request and save buttons too. Allow saving an image file as another?
 *
 * -Find the correct way of intializing/zeroing the accs in resetAccumulators
-*
-* -Changing accu size should make the view buttons blank out
-*
-* -Fix handling the displacement map image
-*  -use cv::normalize
-*
-* -Use CV_64FC3 for the depth map accumulator, then cast it to 32FC3 for writing
-*
-* -left accu has cast itself to another format so it can be used in the depth
-*  map write. That potentially doesn't work
 *
 * -Try using delaunay with the stereo depth map and see if it colors it
 *  automagically
