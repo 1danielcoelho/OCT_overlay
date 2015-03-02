@@ -95,6 +95,7 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_stereo_left_image = vtkSmartPointer<vtkImageData>::New();
   m_stereo_right_image = vtkSmartPointer<vtkImageData>::New();
   m_stereo_disp_image = vtkSmartPointer<vtkImageData>::New();
+  m_stereo_depth_image = vtkSmartPointer<vtkPolyData>::New();
   m_oct_stereo_trans = vtkSmartPointer<vtkTransform>::New();
   m_oct_stereo_trans->Identity();
   // Actors
@@ -708,6 +709,8 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
   this->statusBar()->showMessage("Eroding... ");
   QApplication::processEvents();
 
+  SliceViewer::view3dImageData(grad_output);
+
   // Eroding the sample gets rid of most of the noise, but fragments our contour
   VTK_NEW(vtkImageContinuousErode3D, erode_filt);
   erode_filt->SetInput(grad_output);
@@ -717,6 +720,8 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
 
   this->statusBar()->showMessage("Dilating... ");
   QApplication::processEvents();
+
+  SliceViewer::view3dImageData(erode_filt->GetOutput());
 
   // Enlarges our contour again, which helps to generate less meshes when using
   // marching cubes
@@ -728,6 +733,8 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
   this->statusBar()->showMessage("Applying marching cubes... ");
   QApplication::processEvents();
 
+  SliceViewer::view3dImageData(dilate_filt->GetOutput());
+
   VTK_NEW(vtkImageMarchingCubes, cubes_filter);
   cubes_filter->SetInput(dilate_filt->GetOutput());
   cubes_filter->SetValue(0, CUBES_VALUE);
@@ -735,6 +742,8 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
   cubes_filter->ComputeNormalsOff();
   cubes_filter->ComputeScalarsOff();
   cubes_filter->Update();
+
+  SliceViewer::viewPolyData(cubes_filter->GetOutput());
 
   this->statusBar()->showMessage("Determining number of meshes... ");
   QApplication::processEvents();
@@ -2561,14 +2570,12 @@ void Form::on_save_depth_image_button_clicked() {
 
 void Form::on_accu_reset_button_clicked() {
   m_has_stereo_cache = false;
-  updateUIStates();
+  m_ui->accu_progress->setValue(0);
 
-  Q_EMIT resetAccumulators();
-}
-
-void Form::on_accu_spinbox_editingFinished() {
-  m_has_stereo_cache = false;
+  ROS_INFO("Accu reset");
   updateUIStates();
 
   Q_EMIT setAccumulatorSize(m_ui->accu_spinbox->value());
+  Q_EMIT resetAccumulators();
 }
+

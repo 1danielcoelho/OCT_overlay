@@ -9,7 +9,7 @@
   vtkSmartPointer<type> instance = vtkSmartPointer<type>::New();
 
 // Allows me to test the program at home only changing this line
-#define AT_HOME
+//#define AT_HOME
 
 //--------------------------------FILE MANAGER----------------------------------
 // Size of the header in bytes that we use for the raw OCT vector

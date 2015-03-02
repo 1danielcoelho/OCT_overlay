@@ -141,6 +141,8 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
 
   // Finish accumulating, write to files
   if (m_accu_count == m_accu_size) {
+    m_accu_count++; // Only come back here again after accumulator is reset
+
     m_left_accu /= m_accu_size;
     m_right_accu /= m_accu_size;
     m_disp_accu /= m_accu_size;
@@ -297,7 +299,7 @@ void QNode::requestScan(OCTinfo params) {
 
   if (m_oct_tcp_client.exists()) {
     if (m_oct_tcp_client.call(octSrvMessage)) {
-      m_file_manager->writeVector(octSrvMessage.response.octImage.data,
+      m_crossbar->writeVector(octSrvMessage.response.octImage.data,
                                   OCT_RAW_CACHE_PATH);
 
       ROS_INFO("OCT scan completed");
@@ -323,7 +325,7 @@ void QNode::requestSegmentation(OCTinfo params) {
 #ifndef AT_HOME
 
   std::vector<uint8_t> data;
-  m_file_manager->readVector(OCT_RAW_CACHE_PATH, data);
+  m_crossbar->readVector(OCT_RAW_CACHE_PATH, data);
 
   //.imgs created by the Thorlabs software don't create a depth range since
   // the axial resolution is fixed. In that case it would be zero, so we fix it
@@ -358,7 +360,7 @@ void QNode::requestSegmentation(OCTinfo params) {
       pcl::fromROSMsg(pclMessage, *pts);
 
       // Store our surface to disk so we can use it for registration
-      m_file_manager->writePCL(pts, OCT_SURF_CACHE_PATH);
+      m_crossbar->writePCL(pts, OCT_SURF_CACHE_PATH);
 
       ROS_INFO("OCT surface segmentation completed");
     } else {

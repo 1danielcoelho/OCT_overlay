@@ -274,8 +274,6 @@ Q_SLOTS:
 
   void on_accu_reset_button_clicked();
 
-  void on_accu_spinbox_editingFinished();
-
   Q_SIGNALS:
   void requestScan(OCTinfo);
   void requestSegmentation(OCTinfo);

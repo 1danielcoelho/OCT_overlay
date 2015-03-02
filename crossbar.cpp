@@ -336,15 +336,14 @@ void Crossbar::VTKPolyDataToPCLxyzrgb(
 
   pcl::PointXYZRGB *pcl_point;
   double polydata_point[3];
-  uint8_t polydata_color[3];
+  double polydata_color[3];
 
-  vtkTypeUInt8Array *colors = vtkTypeUInt8Array::SafeDownCast(
-      input->GetPointData()->GetArray("Colors"));
+  vtkDataArray* colors = input->GetPointData()->GetArray("Colors");
 
   for (long i = 0; i < num_pts; i++) {
     pcl_point = &(output->points[i]);
     input->GetPoint(i, polydata_point);
-    colors->GetTupleValue(i, polydata_color);
+    colors->GetTuple(i, polydata_color);
 
     pcl_point->x = polydata_point[0];
     pcl_point->y = polydata_point[1];

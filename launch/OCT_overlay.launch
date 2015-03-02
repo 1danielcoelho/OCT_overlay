@@ -1,15 +1,15 @@
 <?xml version="1.0"?>
 <launch>
     <node pkg="oct_client" type="oct_client" name="oct_client" output="screen">
-        <param name="serverIP" type="string" value="130.75.144.211"/>
+        <param name="serverIP" type="string" value="130.75.144.214"/>
     </node>
 
     <node pkg="OCT_segmentation" type="OCT_segmentation_node" 
         name="OCT_segmentation" output="screen">
     </node>
-    
+
     <node pkg="OCT_registration" type="OCT_registration_node" 
-        name="OCT_registration" output="screen" machine="imesAS4">
+        name="OCT_registration" output="screen"> <!--machine="imesAS4"-->
 		<param name="debugMode_gui" type="bool" value="false"/>
 		
 		<param name="dx_mm" type="int" value="10"/>
@@ -22,7 +22,7 @@
 	
 		<param name="imageTopicName2D" type="string" value="camera_left/image"/>		
 
-	</node>
+    </node>
 
     <node pkg="dynamic_reconfigure" type="reconfigure_gui"
         name="reconfigure_gui" output="screen">
