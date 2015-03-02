@@ -19,7 +19,6 @@ Form::Form(int argc, char** argv, QWidget* parent)
 
   // Disable some buttons until they can be pressed
   m_connected_to_master = false;
-  m_has_ros_raw_oct = false;
   m_has_raw_oct = false;
   m_waiting_response = false;
   m_has_oct_surf = false;
@@ -138,7 +137,7 @@ void Form::updateUIStates() {
   m_ui->browse_button->setEnabled(!m_waiting_response && !m_waiting_response);
 
   m_ui->request_scan_button->setEnabled(!m_waiting_response);
-  m_ui->save_button->setEnabled(m_has_ros_raw_oct && !m_waiting_response);
+  m_ui->save_button->setEnabled(m_has_raw_oct && !m_waiting_response);
   m_ui->reset_params_button->setEnabled(!m_waiting_response);
 
   m_ui->len_steps_spinbox->setEnabled(!m_waiting_response);
@@ -1239,7 +1238,7 @@ void Form::on_browse_button_clicked() {
     std::vector<uint8_t> data;
     m_crossbar->readVector(file_name.toStdString().c_str(), data);
 
-    this->m_ui->status_bar->showMessage("Loading data into point cloud... ");
+    this->m_ui->status_bar->showMessage("Loading file into a vtkPolyData... ");
     QApplication::processEvents();
 
     // Data opened with the browse button should always already be processed
@@ -1262,9 +1261,8 @@ void Form::on_browse_button_clicked() {
 
     // Updates our UI param boxes
     on_reset_params_button_clicked();
-    this->m_ui->file_name_lineedit->setText(file_name);
 
-    m_has_ros_raw_oct = false;
+    m_has_raw_oct = true;
     m_waiting_response = false;
     updateUIStates();
   }
@@ -1313,7 +1311,7 @@ void Form::on_save_button_clicked() {
   QString file_name;
   QFileDialog dialog(this);
   dialog.setFileMode(QFileDialog::AnyFile);
-  dialog.setDefaultSuffix(".img");
+  dialog.setDefaultSuffix("img");
   dialog.setFilter(tr("OCT volume image file (*.img)"));
   if (dialog.exec()) {
     file_name = dialog.selectedFiles().first();
@@ -1898,11 +1896,7 @@ void Form::receivedRawOCTData(OCTinfo params) {
   trans->Identity();
   renderAxes(m_oct_axes_actor, trans);
 
-  // In case we opened a file before, clear that filename from the box
-  m_ui->file_name_lineedit->clear();
-
   m_has_raw_oct = true;
-  m_has_ros_raw_oct = true;  // Allows saving as .img
   m_waiting_response = false;
   updateUIStates();
 }
