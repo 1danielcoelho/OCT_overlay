@@ -125,10 +125,6 @@ class Form : public QMainWindow {
   // header bytes (it should be a simple array of raw data now)
   void processOCTHeader(std::vector<uint8_t>& full_array);
 
-  // Loads data from a depth-fast, width-medium, length-slow vector octdata
-  // Into raw_oct_poly_data
-  void loadVectorToPolyData(std::vector<uint8_t>& oct_data);
-
   //------------PROCESSING------------------------------------------------------
 
   // 2D, 8-neighbor median filter. Sets edge elements to zero

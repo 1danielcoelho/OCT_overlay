@@ -167,6 +167,61 @@ void Crossbar::readPCL(const char *filepath,
   }
 }
 
+void Crossbar::ucharVectorToPolyData(std::vector<uint8_t> &input,
+                                     OCTinfo &params,
+                                     vtkSmartPointer<vtkPolyData> output) {
+  assert("Input unsigned char vector is empty!" && input.size() > 0);
+  assert("Output vtkPolyData smart pointer is NULL!" && output != NULL);
+
+  // Determines the distance between consecutive points in each direction
+  float length_incrm = 1;
+  float width_incrm = 1;
+  float depth_incrm = 2.762 / 1024.0;  // Our OCT has a fixed axial resolution.
+                                       // If we have no depth range, this is our
+                                       // best bet
+
+  // In case we have some sample data or weird input, prevents null increments
+  if (params.length_range != 0)
+    length_incrm = params.length_range / params.length_steps;
+
+  if (params.width_range != 0)
+    width_incrm = params.width_range / params.width_steps;
+
+  if (params.depth_range != 0)
+    depth_incrm = params.depth_range / params.depth_steps;
+
+  // Setup arrays to hold point coordinates and the scalars
+  VTK_NEW(vtkPoints, points);
+  VTK_NEW(vtkTypeUInt8Array, dataArray);
+  points->SetNumberOfPoints(params.length_steps * params.width_steps *
+                            params.depth_steps);
+  dataArray->SetNumberOfValues(params.length_steps * params.width_steps *
+                               params.depth_steps);
+
+  // Set them into our polydata early, to potentially drop (and gracefully
+  // delete) the arrays that previously were in those positions
+  output->SetPoints(points);
+  output->GetPointData()->SetScalars(dataArray);
+
+  int id = 0;
+  for (int i = 0; i < params.length_steps; i++) {
+    for (int j = 0; j < params.width_steps; j++) {
+      for (int k = 0; k < params.depth_steps; k++, id++) {
+        points->SetPoint(id, i * length_incrm + params.length_offset,
+                         j * width_incrm + params.width_offset,
+                         k * depth_incrm);
+
+        dataArray->SetValue(id, input[id]);
+        //        std::cout << "id: " << id << "\t\tx: " << i*length_incrm <<
+        // "\t\ty: "
+        //        << j*width_incrm << "\t\tz: " << k*depth_incrm << "\t\tval: "
+        // <<
+        //        input[id] << std::endl;
+      }
+    }
+  }
+}
+
 void Crossbar::PCLxyzToVTKPolyData(pcl::PointCloud<pcl::PointXYZ>::Ptr input,
                                    vtkSmartPointer<vtkPolyData> output) {
   assert("Input XYZ point cloud is NULL!" && input != NULL);
@@ -322,10 +377,10 @@ void Crossbar::intVectorToImageData2D(std::vector<uint32_t> &input,
     for (uint32_t x = 0; x < cols; x++) {
       // We need to invert the vertical coordinate since we use different
       // origins
-      unsigned char* pixel = static_cast<unsigned char *>(
+      unsigned char *pixel = static_cast<unsigned char *>(
           output->GetScalarPointer(x, (rows - 1) - y, 0));
 
-       // Skip the two 32-bit values (header)
+      // Skip the two 32-bit values (header)
       memcpy(&pixel[0], &(input[x + y * cols + 2]), 3);
     }
   }
@@ -335,32 +390,32 @@ void Crossbar::intVectorToImageData2D(std::vector<uint32_t> &input,
 
 void Crossbar::imageData2DtoIntVector(vtkSmartPointer<vtkImageData> input,
                                       std::vector<uint32_t> &output) {
-    assert("Input vtkImageData is NULL!" && input != NULL);
+  assert("Input vtkImageData is NULL!" && input != NULL);
 
-    long num_pts = input->GetNumberOfPoints();
+  long num_pts = input->GetNumberOfPoints();
 
-    assert("Input vtkImageData is empty!" && num_pts > 0);
+  assert("Input vtkImageData is empty!" && num_pts > 0);
 
-    output.clear();
-    output.resize(num_pts + 2); //2 bytes for the header
+  output.clear();
+  output.resize(num_pts + 2);  // 2 bytes for the header
 
-    int dimensions[3];
-    input->GetDimensions(dimensions);
+  int dimensions[3];
+  input->GetDimensions(dimensions);
 
-    uint32_t rows = dimensions[1];
-    uint32_t cols = dimensions[2];
-    memcpy( &output[0], &rows, 4);
-    memcpy(&output[1], &cols, 4);
+  uint32_t rows = dimensions[1];
+  uint32_t cols = dimensions[2];
+  memcpy(&output[0], &rows, 4);
+  memcpy(&output[1], &cols, 4);
 
-    for (uint32_t y = 0; y < rows; y++) {
-      for (uint32_t x = 0; x < cols; x++) {
-        // We need to invert the vertical coordinate since we use different
-        // origins
-        unsigned char* pixel = static_cast<unsigned char*>(
-            input->GetScalarPointer(x, (rows - 1) - y, 0));
+  for (uint32_t y = 0; y < rows; y++) {
+    for (uint32_t x = 0; x < cols; x++) {
+      // We need to invert the vertical coordinate since we use different
+      // origins
+      unsigned char *pixel = static_cast<unsigned char *>(
+          input->GetScalarPointer(x, (rows - 1) - y, 0));
 
-        // The two first uint32_t are the header
-        memcpy(&(output[x + y*cols + 2]), &pixel[0], 3);
-      }
+      // The two first uint32_t are the header
+      memcpy(&(output[x + y * cols + 2]), &pixel[0], 3);
     }
+  }
 }

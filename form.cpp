@@ -77,7 +77,8 @@ Form::Form(int argc, char** argv, QWidget* parent)
   connect(this, SIGNAL(resetAccumulators()), m_qnode, SLOT(resetAccumulators()),
           Qt::QueuedConnection);
 
-  // Wire up qnode and it's thread. Don't touch this unless absolutely necessary
+  // Wire up qnode and it's thread. Don't touch this unless absolutely
+  // necessary. It allows both to quit gracefully
   connect(m_qthread, SIGNAL(started()), m_qnode, SLOT(process()));
   connect(m_qnode, SIGNAL(finished()), m_qthread, SLOT(quit()));
   connect(m_qnode, SIGNAL(finished()), m_qthread, SLOT(deleteLater()));
@@ -279,74 +280,6 @@ void Form::processOCTHeader(std::vector<uint8_t>& full_array) {
   }
 
   result.swap(full_array);
-}
-
-void Form::loadVectorToPolyData(std::vector<uint8_t>& oct_data) {
-  // Determines the distance between consecutive points in each direction
-  float length_incrm = 1;
-  float width_incrm = 1;
-  float depth_incrm = 2.762 / 1024.0;  // Fixed axial resolution. If we have no
-  // depth range, this is our best bet
-
-  // In case we have some sample data or weird input, prevents null increments
-  if (m_current_params.length_range != 0)
-    length_incrm =
-        m_current_params.length_range / m_current_params.length_steps;
-
-  if (m_current_params.width_range != 0)
-    width_incrm = m_current_params.width_range / m_current_params.width_steps;
-
-  if (m_current_params.depth_range != 0)
-    depth_incrm = m_current_params.depth_range / m_current_params.depth_steps;
-
-  // Setup arrays to hold point coordinates and the scalars
-  VTK_NEW(vtkPoints, points);
-  VTK_NEW(vtkTypeUInt8Array, dataArray);
-  points->SetNumberOfPoints(m_current_params.length_steps *
-                            m_current_params.width_steps *
-                            m_current_params.depth_steps);
-  dataArray->SetNumberOfValues(m_current_params.length_steps *
-                               m_current_params.width_steps *
-                               m_current_params.depth_steps);
-
-  // Set them into our polydata early, to potentially drop (and gracefully
-  // delete) the arrays that previously were in those positions
-  m_oct_poly_data = vtkSmartPointer<vtkPolyData>::New();
-  m_oct_poly_data->SetPoints(points);
-  m_oct_poly_data->GetPointData()->SetScalars(dataArray);
-
-  this->statusBar()->showMessage("Building raw point data... ");
-  QApplication::processEvents();
-
-  int id = 0;
-  for (int i = 0; i < m_current_params.length_steps; i++) {
-    for (int j = 0; j < m_current_params.width_steps; j++) {
-      for (int k = 0; k < m_current_params.depth_steps; k++, id++) {
-        points->SetPoint(id, i * length_incrm + m_current_params.length_offset,
-                         j * width_incrm + m_current_params.width_offset,
-                         k * depth_incrm);
-
-        dataArray->SetValue(id, oct_data[id]);
-        //        std::cout << "id: " << id << "\t\tx: " << i*length_incrm <<
-        // "\t\ty: "
-        //        << j*width_incrm << "\t\tz: " << k*depth_incrm << "\t\tval: "
-        // <<
-        //        oct_data[id] << std::endl;
-      }
-    }
-
-    this->statusBar()->showMessage(
-        "Building raw point data... " + QString::number(i + 1) + " of " +
-        QString::number(m_current_params.length_steps));
-
-    QApplication::processEvents();
-  }
-
-  m_has_raw_oct = true;
-  updateUIStates();
-
-  this->statusBar()->showMessage("Building raw point data... done!");
-  QApplication::processEvents();
 }
 
 //------------PROCESSING--------------------------------------------------------
@@ -1020,7 +953,7 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
 #ifdef AT_HOME
   std::vector<uint8_t> data;
   m_crossbar->readVector(OCT_RAW_CACHE_PATH, data);
-  loadVectorToPolyData(data);
+  m_crossbar->ucharVectorToPolyData(data, m_current_params, m_oct_poly_data);
 #endif  // AT_HOME
 
   renderOCTMass();
@@ -1317,7 +1250,7 @@ void Form::on_browse_button_clicked() {
     // Or register using this data
     m_crossbar->writeVector(data, OCT_RAW_CACHE_PATH);
 
-    loadVectorToPolyData(data);
+    m_crossbar->ucharVectorToPolyData(data, m_current_params, m_oct_poly_data);
 
     m_renderer->RemoveAllViewProps();
     renderOCTVolumePolyData();
@@ -1592,7 +1525,7 @@ void Form::on_calc_transform_button_clicked() {
   m_crossbar->VTKPolyDataToPCLxyzrgb(m_stereo_depth_image, depth_image_pcl);
   m_crossbar->writePCL(depth_image_pcl, STEREO_DEPTH_CACHE_PATH);
 
-  //Write our current oct surface to the cache
+  // Write our current oct surface to the cache
   pcl::PointCloud<pcl::PointXYZ>::Ptr oct_surf_pcl(
       new pcl::PointCloud<pcl::PointXYZ>);
   m_crossbar->VTKPolyDataToPCLxyz(m_oct_surf_poly_data, oct_surf_pcl);
@@ -1954,7 +1887,8 @@ void Form::receivedRawOCTData(OCTinfo params) {
   // Write our new, filtered vector to our cache file
   m_crossbar->writeVector(raw_data, OCT_RAW_CACHE_PATH);
 
-  loadVectorToPolyData(raw_data);
+  m_crossbar->ucharVectorToPolyData(raw_data, m_current_params,
+                                    m_oct_poly_data);
 
   m_renderer->RemoveAllViewProps();
   renderOCTVolumePolyData();
@@ -2322,9 +2256,9 @@ void Form::on_browse_left_image_button_clicked() {
     this->m_ui->status_bar->showMessage("Reading file... ");
     QApplication::processEvents();
 
-//    std::vector<uint32_t> left_vector;
-//    m_crossbar->readVector(file_name.toStdString().c_str(), left_vector);
-//    m_crossbar->intVectorToImageData2D(left_vector, m_stereo_left_image);
+    //    std::vector<uint32_t> left_vector;
+    //    m_crossbar->readVector(file_name.toStdString().c_str(), left_vector);
+    //    m_crossbar->intVectorToImageData2D(left_vector, m_stereo_left_image);
 
     VTK_NEW(vtkPNGReader, png_reader);
     png_reader->SetFileName(file_name.toStdString().c_str());
@@ -2367,9 +2301,10 @@ void Form::on_browse_right_image_button_clicked() {
     this->m_ui->status_bar->showMessage("Reading file... ");
     QApplication::processEvents();
 
-//    std::vector<uint32_t> right_vector;
-//    m_crossbar->readVector(file_name.toStdString().c_str(), right_vector);
-//    m_crossbar->intVectorToImageData2D(right_vector, m_stereo_right_image);
+    //    std::vector<uint32_t> right_vector;
+    //    m_crossbar->readVector(file_name.toStdString().c_str(), right_vector);
+    //    m_crossbar->intVectorToImageData2D(right_vector,
+    // m_stereo_right_image);
 
     VTK_NEW(vtkPNGReader, png_reader);
     png_reader->SetFileName(file_name.toStdString().c_str());
@@ -2412,9 +2347,9 @@ void Form::on_browse_disp_image_button_clicked() {
     this->m_ui->status_bar->showMessage("Reading file... ");
     QApplication::processEvents();
 
-//    std::vector<uint32_t> disp_vector;
-//    m_crossbar->readVector(file_name.toStdString().c_str(), disp_vector);
-//    m_crossbar->intVectorToImageData2D(disp_vector, m_stereo_disp_image);
+    //    std::vector<uint32_t> disp_vector;
+    //    m_crossbar->readVector(file_name.toStdString().c_str(), disp_vector);
+    //    m_crossbar->intVectorToImageData2D(disp_vector, m_stereo_disp_image);
 
     VTK_NEW(vtkPNGReader, png_reader);
     png_reader->SetFileName(file_name.toStdString().c_str());
@@ -2497,9 +2432,9 @@ void Form::on_save_left_image_button_clicked() {
     this->m_ui->status_bar->showMessage("Writing data to file... ");
     QApplication::processEvents();
 
-//    std::vector<uint32_t> left_vector;
-//    m_crossbar->imageData2DtoIntVector(m_stereo_left_image, left_vector);
-//    m_crossbar->writeVector(left_vector, file_name.toStdString().c_str());
+    //    std::vector<uint32_t> left_vector;
+    //    m_crossbar->imageData2DtoIntVector(m_stereo_left_image, left_vector);
+    //    m_crossbar->writeVector(left_vector, file_name.toStdString().c_str());
 
     VTK_NEW(vtkPNGWriter, png_writer);
     png_writer->SetInput(m_stereo_left_image);
@@ -2536,9 +2471,11 @@ void Form::on_save_right_image_button_clicked() {
     this->m_ui->status_bar->showMessage("Writing data to file... ");
     QApplication::processEvents();
 
-//    std::vector<uint32_t> right_vector;
-//    m_crossbar->imageData2DtoIntVector(m_stereo_right_image, right_vector);
-//    m_crossbar->writeVector(right_vector, file_name.toStdString().c_str());
+    //    std::vector<uint32_t> right_vector;
+    //    m_crossbar->imageData2DtoIntVector(m_stereo_right_image,
+    // right_vector);
+    //    m_crossbar->writeVector(right_vector,
+    // file_name.toStdString().c_str());
 
     VTK_NEW(vtkPNGWriter, png_writer);
     png_writer->SetInput(m_stereo_right_image);
@@ -2575,9 +2512,9 @@ void Form::on_save_disp_image_button_clicked() {
     this->m_ui->status_bar->showMessage("Writing data to file... ");
     QApplication::processEvents();
 
-//    std::vector<uint32_t> disp_vector;
-//    m_crossbar->imageData2DtoIntVector(m_stereo_disp_image, disp_vector);
-//    m_crossbar->writeVector(disp_vector, file_name.toStdString().c_str());
+    //    std::vector<uint32_t> disp_vector;
+    //    m_crossbar->imageData2DtoIntVector(m_stereo_disp_image, disp_vector);
+    //    m_crossbar->writeVector(disp_vector, file_name.toStdString().c_str());
 
     VTK_NEW(vtkPNGWriter, png_writer);
     png_writer->SetInput(m_stereo_disp_image);

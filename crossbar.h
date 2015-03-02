@@ -5,7 +5,6 @@
 Helper class for many I/O and conversion functions
 */
 
-
 #include "defines.h"
 
 #include <stdio.h>
@@ -26,6 +25,8 @@ Helper class for many I/O and conversion functions
 
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
+
+#include "octinfo.h"
 
 class Crossbar {
  public:
@@ -56,6 +57,8 @@ class Crossbar {
                pcl::PointCloud<pcl::PointXYZRGB>::Ptr input);
 
   // Simple conversions
+  void ucharVectorToPolyData(std::vector<uint8_t>& input, OCTinfo& params,
+                             vtkSmartPointer<vtkPolyData> output);
   void PCLxyzToVTKPolyData(pcl::PointCloud<pcl::PointXYZ>::Ptr input,
                            vtkSmartPointer<vtkPolyData> output);
   void VTKPolyDataToPCLxyz(vtkSmartPointer<vtkPolyData> input,

@@ -4,28 +4,19 @@
 *  which changes a transform from identity to the registration transform, making it easy
 *  to view its effects with a single click
 *
-* -Save stereocamera images to uncompressed PNG files
-*
-* -Delete conversion functions in form.ccp that went to the crossbar. Like the "load..." functions
-*
 * -Cleanup Form.h, Form.cpp, qnode.h, qnode.cpp, crossbar, etc. Re-order functions and so on
-*
-* -Ensure that if depth map uses left image, then guarantee both use same resolution
 *
 * -Bring the Raw OCT inputs to the same style as the others: Bring the browse button
 *  down, maybe the request and save buttons too. Allow saving an image file as another?
 *
 * -Find the correct way of intializing/zeroing the accs in resetAccumulators
 *
-* -Try using delaunay with the stereo depth map and see if it colors it
-*  automagically
-*
 * -See how the inversion of x and y impacts the OCT registration
 *
-* -Consider adding timers to the showmessage statements*
 * */
 
 /* NEXT EXPERIMENT:
+* -Test stereocamera images, saving, loading
 *
 * -Test and setup registration
 *
@@ -38,7 +29,7 @@
  *
  * -Registration transform not written/read from the correct location
  *
- *
+ * -Ensure that if depth map uses left image, then guarantee both use same resolution
  *
  *
  *
