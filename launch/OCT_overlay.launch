@@ -9,7 +9,7 @@
     </node>
 
     <node pkg="OCT_registration" type="OCT_registration_node" 
-        name="OCT_registration" output="screen"> <!--machine="imesAS4"-->
+        name="OCT_registration" output="screen" launch-prefix="gdb -ex run --args"> <!--machine="imesAS4"-->
 		<param name="debugMode_gui" type="bool" value="false"/>
 		
 		<param name="dx_mm" type="int" value="10"/>
@@ -45,8 +45,8 @@
 
 		<param name="stereoCamera" type="bool" value="true" />
 
-		<param name="left/videoDevice" type="string" value="/dev/video0" />
-		<param name="right/videoDevice" type="string" value="/dev/video1" />
+		<param name="left/videoDevice" type="string" value="/dev/video1" />
+		<param name="right/videoDevice" type="string" value="/dev/video0" />
 
 	   	<param name="imageWidth" type="int" value="640" />
 	   	<param name="imageHeight" type="int" value="480" />
@@ -85,7 +85,7 @@
 		<param name="leftImageTopicName" type="string" value="/stereocamera/left/image"/>
 		<param name="rightImageTopicName" type="string" value="/stereocamera/right/image"/>
 
-		<param name="visualizationOn" type="bool" value="false"/>
+		<param name="visualizationOn" type="bool" value="true"/>
 		<param name="publishRectifiedImages" type="bool" value="true"/>
 		<param name="publishDispMap" type="bool" value="true"/>
 		<param name="publishDepthMap" type="bool" value="true"/>

@@ -2407,7 +2407,7 @@ void Form::on_browse_depth_image_button_clicked() {
     this->m_ui->status_bar->showMessage("Reading file... done!");
     QApplication::processEvents();
 
-    m_has_disp_image = true;
+    m_has_depth_image = true;
     m_waiting_response = false;
     updateUIStates();
   }

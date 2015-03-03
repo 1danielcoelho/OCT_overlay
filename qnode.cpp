@@ -106,7 +106,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
                           const sensor_msgs::ImageConstPtr &msg_right,
                           const sensor_msgs::ImageConstPtr &msg_disp,
                           const sensor_msgs::ImageConstPtr &msg_depth) {
-  ROS_INFO("imageCallback called");
+  //ROS_INFO("imageCallback called");
 
   // Accumulator is not full yet; Accumulate
   if (m_accu_count < m_accu_size) {
@@ -232,6 +232,32 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
 
     // Write PCL cloud to disk
     m_crossbar->writePCL(pts, STEREO_DEPTH_CACHE_PATH);
+
+
+    uint32_t rows_depth = m_depth_accu.rows;
+    uint32_t cols_depth = m_depth_accu.cols;
+
+    // Now we write the test depth image separately
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr pts_test(
+        new pcl::PointCloud<pcl::PointXYZRGB>);
+
+    pts_test->height = rows_depth;
+    pts_test->width = cols_depth;
+    pts_test->resize(rows_depth * cols_depth);
+
+    // Build a PCL cloud out of the depth map
+    for (uint32_t idx = 0; idx < cols_depth; idx++) {
+      for (uint32_t idy = 0; idy < rows_depth; idy++) {
+        pcl::PointXYZRGB& point = pts_test->at(idx, idy);
+
+        point.r = m_depth_accu.at<cv::Vec3f>(idy, idx)[0];
+        point.g = m_depth_accu.at<cv::Vec3f>(idy, idx)[1];
+        point.b = m_depth_accu.at<cv::Vec3f>(idy, idx)[2];
+      }
+    }
+
+    // Write PCL cloud to disk
+    m_crossbar->writePCL(pts_test, STEREO_TEST_CACHE);
 
     //Lets Form know it can read the stereo images from the cache locations
     Q_EMIT receivedStereoImages();
@@ -407,9 +433,17 @@ void QNode::requestRegistration() {
   // Read Depth map as PCL and build a sensor_msgs::Image with it
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr depth_map_pcl(
       new pcl::PointCloud<pcl::PointXYZRGB>);
-  m_crossbar->readPCL(STEREO_DEPTH_CACHE_PATH, depth_map_pcl);
+  m_crossbar->readPCL(STEREO_TEST_CACHE, depth_map_pcl);
   sensor_msgs::Image depth_map_msg;
   pcl::toROSMsg(*depth_map_pcl, depth_map_msg);
+
+  std::cout << "PCL height: " << depth_map_pcl->height <<
+               ", PCL width: " << depth_map_pcl->width << std::endl;
+
+  cv_bridge::CvImagePtr cvDepthMapImgPtr = cv_bridge::toCvCopy(depth_map_msg,
+                                    sensor_msgs::image_encodings::TYPE_32FC3);
+  std::cout << "Registration request\nrows: " << cvDepthMapImgPtr->image.rows
+            << ", cols: " << cvDepthMapImgPtr->image.cols << std::endl;
 
   // Read OCT surface PCL and create a PointCloud2 with it
   pcl::PointCloud<pcl::PointXYZ>::Ptr oct_surface(
