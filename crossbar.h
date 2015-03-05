@@ -83,7 +83,13 @@ class Crossbar {
   void imageData2DtoIntVector(vtkSmartPointer<vtkImageData> input,
                               std::vector<uint32_t>& output);
 
-  void floatVectorToCvMat(std::vector<float> input, cv::Mat& output);
+  void floatVectorToCvMat(std::vector<float>& input, cv::Mat& output);
+
+  void floatVectorToImageData2D(std::vector<float>& input,
+                                vtkSmartPointer<vtkImageData> output);
+
+  void imageData2DToFloatVector(vtkSmartPointer<vtkImageData> output,
+                                std::vector<float>& input);
 };
 
 #endif  // FILEMANAGER_H

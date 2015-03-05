@@ -42,7 +42,6 @@
 #include <vtkImageReslice.h>
 #include <vtkTransformFilter.h>
 #include <vtkDelaunay2D.h>
-//#include <vtkImageConvolve.h>
 #include <vtkImageFFT.h>
 #include <vtkImageIdealLowPass.h>
 #include <vtkImageRFFT.h>
@@ -67,6 +66,8 @@
 #include <vtkPPolyDataNormals.h>
 #include <vtkGlyph3D.h>
 #include <vtkTransformPolyDataFilter.h>
+#include <vtkImageNormalize.h>
+#include <vtkImageCast.h>
 
 // Mappers
 #include <vtkPolyDataMapper.h>
@@ -316,7 +317,7 @@ Q_SLOTS:
   vtkSmartPointer<vtkImageData> m_stereo_left_image;
   vtkSmartPointer<vtkImageData> m_stereo_right_image;
   vtkSmartPointer<vtkImageData> m_stereo_disp_image;
-  vtkSmartPointer<vtkPolyData> m_stereo_depth_image;
+  vtkSmartPointer<vtkImageData> m_stereo_depth_image;
   vtkSmartPointer<vtkTransform> m_oct_stereo_trans;
   // Actors are kept since we need their references when we add/remove actors in
   // the Overlay section of the program

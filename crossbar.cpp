@@ -472,13 +472,13 @@ void Crossbar::imageData2DtoIntVector(vtkSmartPointer<vtkImageData> input,
   }
 }
 
-void Crossbar::floatVectorToCvMat(std::vector<float> input, cv::Mat &output)
+void Crossbar::floatVectorToCvMat(std::vector<float>& input, cv::Mat& output)
 {
     assert("Input float vector is empty!" && input.size() > 0);
 
     float rows_f, cols_f;
-    memcpy(&rows, &input[0], 4);
-    memcpy(&cols, &input[1], 4);
+    memcpy(&rows_f, &input[0], 4);
+    memcpy(&cols_f, &input[1], 4);
 
     uint32_t rows = (int)rows_f;
     uint32_t cols = (int)cols_f;
@@ -486,5 +486,85 @@ void Crossbar::floatVectorToCvMat(std::vector<float> input, cv::Mat &output)
     output.create(rows, cols, CV_32FC3);
     output = cv::Mat::zeros(rows, cols, CV_32FC3);
 
+    for(int i = 0; i < rows; i++)
+    {
+        for(int j = 0; j < cols; j++)
+        {
+            cv::Vec3f& color = output.at<cv::Vec3f>(j,i);
 
+            color[0] = input[3*j + i*cols*3 + 2]; //skip 2 header floats
+            color[1] = input[3*j+1 + i*cols*3 + 2];
+            color[2] = input[3*j+2 + i*cols*3 + 2];
+        }
+    }
+}
+
+void Crossbar::floatVectorToImageData2D(std::vector<float>& input,
+                                        vtkSmartPointer<vtkImageData> output)
+{
+    assert("Input float vector is empty!" && input.size() > 0);
+
+    if (output == NULL) {
+      output = vtkSmartPointer<vtkImageData>::New();
+    }
+
+    float rows_f, cols_f;
+    memcpy(&rows_f, &input[0], 4);
+    memcpy(&cols_f, &input[1], 4);
+
+    uint32_t rows = (int)rows_f;
+    uint32_t cols = (int)cols_f;
+
+    output->SetDimensions(cols, rows, 1);
+    output->SetNumberOfScalarComponents(3);
+    output->SetScalarTypeToFloat();
+    output->AllocateScalars();
+
+    for(int y = 0; y < rows; y++)
+    {
+        for(int x = 0; x < cols; x++)
+        {
+            // We need to invert the vertical coordinate since we use different
+            // origins
+            float *pixel = static_cast<float *>(
+                output->GetScalarPointer(x, (rows - 1) - y, 0));
+
+            memcpy(&pixel[0], &(input[3*x + y*cols*3 + 2]), 3*sizeof(float));
+        }
+    }
+
+    output->Modified();
+}
+
+void Crossbar::imageData2DToFloatVector(vtkSmartPointer<vtkImageData> input,
+                                        std::vector<float>& output)
+{
+    assert("Input vtkImageData is NULL!" && input != NULL);
+
+    long num_pts = input->GetNumberOfPoints();
+
+    assert("Input vtkImageData is empty!" && num_pts > 0);
+
+    output.clear();
+    output.resize(3*num_pts + 2);  // 2 bytes for the header
+
+    int dimensions[3];
+    input->GetDimensions(dimensions);
+
+    float rows = (float)dimensions[1];
+    float cols = (float)dimensions[2];
+    memcpy(&output[0], &rows, 4);
+    memcpy(&output[1], &cols, 4);
+
+    for (uint32_t y = 0; y < rows; y++) {
+      for (uint32_t x = 0; x < cols; x++) {
+        // We need to invert the vertical coordinate since we use different
+        // origins
+        float *pixel = static_cast<float *>(
+            input->GetScalarPointer(x, (rows - 1) - y, 0));
+
+        // The two first uint32_t are the header
+        memcpy(&(output[3*x + y * cols*3 + 2]), &pixel[0], 3*sizeof(float));
+      }
+    }
 }

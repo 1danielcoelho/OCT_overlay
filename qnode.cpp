@@ -108,8 +108,8 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
                           const sensor_msgs::ImageConstPtr &msg_depth) {
   //ROS_INFO("imageCallback called");
 
-    int depth_height = msg_depth->Image_.height;
-    int depth_width = msg_depth->Image_.width;
+    int depth_height = msg_depth->height;
+    int depth_width = msg_depth->width;
     std::cout << "Received depth height: " << depth_height << ", width: " << depth_width << std::endl;
 
   // Accumulator is not full yet; Accumulate
@@ -219,22 +219,30 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
     m_crossbar->writeVector(disp, STEREO_DISP_CACHE_PATH, true);
 
     std::vector<float> header_depth, depth;
+    float rows_f = (float)rows;
+    float cols_f = (float)cols;
+
     header_depth.clear();
     header_depth.resize(2);
-    memcpy(&header[0], &rows, 4);
-    memcpy(&header[1], &cols, 4);
+    memcpy(&header_depth[0], &rows_f, 4);
+    memcpy(&header_depth[1], &cols_f, 4);
 
     depth.reserve(rows * cols * 3); //3-channel
 
     for (uint32_t i = 0; i < rows; i++) {
       for (uint32_t j = 0; j < cols; j++) {
-          depth.push_back(m_depth_accu.at<cv::vec3f>(i,j)[0]);
-          depth.push_back(m_depth_accu.at<cv::vec3f>(i,j)[1]);
-          depth.push_back(m_depth_accu.at<cv::vec3f>(i,j)[2]);
+
+          float red = m_depth_accu.at<cv::Vec3f>(i,j)[0];
+          float green = m_depth_accu.at<cv::Vec3f>(i,j)[1];
+          float blue = m_depth_accu.at<cv::Vec3f>(i,j)[2];
+
+          depth.push_back(red);
+          depth.push_back(green);
+          depth.push_back(blue);
       }
     }
 
-    m_crossbar->writeVector(header, STEREO_DEPTH_CACHE_PATH, false);
+    m_crossbar->writeVector(header_depth, STEREO_DEPTH_CACHE_PATH, false);
     m_crossbar->writeVector(depth, STEREO_DEPTH_CACHE_PATH, true);
 
 //    // Now we write the depth image separately
@@ -430,15 +438,15 @@ void QNode::requestSegmentation(OCTinfo params) {
 void QNode::requestRegistration() {
   ROS_INFO("OCT surface to depth map registration requested");
 
+  //Read our vector from cache
   std::vector<float> depth_vector;
   m_crossbar->readVector(STEREO_DEPTH_CACHE_PATH, depth_vector);
 
+  //Convert the vector to a ROS image message
   cv::Mat depth_mat;
-  //do something to convert from vector to cv::Mat
   m_crossbar->floatVectorToCvMat(depth_vector, depth_mat);
   cv_bridge::CvImagePtr depth_cv_image_ptr;
-  depth_cv_image_ptr->image = depth_cv_mat;
-
+  depth_cv_image_ptr->image = depth_mat;
   sensor_msgs::ImagePtr depth_ros_image_msg = depth_cv_image_ptr->toImageMsg();
 
   // Read OCT surface PCL and create a PointCloud2 with it
@@ -454,7 +462,7 @@ void QNode::requestRegistration() {
   OCT_registration::registrationService registrationMessage;
   registrationMessage.request.registrationMatrixSavePath = VIS_TRANS_CACHE_PATH;
   registrationMessage.request.pclOctSurface = oct_surface_msg;
-  registrationMessage.request.cvDepthMap = depth_ros_image_msg;
+  registrationMessage.request.cvDepthMap = *depth_ros_image_msg;
 
   // Call the service passing the transform path
   if (m_registration_client.exists()) {

@@ -95,7 +95,7 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_stereo_left_image = vtkSmartPointer<vtkImageData>::New();
   m_stereo_right_image = vtkSmartPointer<vtkImageData>::New();
   m_stereo_disp_image = vtkSmartPointer<vtkImageData>::New();
-  m_stereo_depth_image = vtkSmartPointer<vtkPolyData>::New();
+  m_stereo_depth_image = vtkSmartPointer<vtkImageData>::New();
   m_oct_stereo_trans = vtkSmartPointer<vtkTransform>::New();
   m_oct_stereo_trans->Identity();
   // Actors
@@ -1136,6 +1136,36 @@ void Form::renderDepthImage() {
 }
 
 void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data) {
+  if(image_data->GetScalarType() == VTK_FLOAT)
+  {
+      std::cout << "Input 2D Image data is not of float"
+                   " type. Casting to uchar..." << std::endl;
+
+      double minmax[2];
+      image_data->GetScalarRange(minmax);
+
+      float max_output = 255;
+      float min_output = 0;
+
+      double dimensions[3];
+      image_data->GetDimensions(dimensions);
+      int cols = dimensions[0];
+      int rows = dimensions[1];
+
+      for(int y = 0; y < rows; y++)
+      {
+          for(int x = 0; x < cols; x++)
+          {
+              float *pixel = static_cast<float *>(
+                  output->GetScalarPointer(x, y, 0));
+                Parei aqui. Terminar a normalization
+
+          }
+      }
+
+
+  }
+
   // Calculate the image and window's aspect ratios
   int* window_sizes = this->m_ui->qvtkWidget->GetRenderWindow()->GetSize();
   double window_width, window_height;
@@ -1490,13 +1520,7 @@ void Form::on_view_disp_image_button_clicked() {
   m_viewing_overlay = false;
   updateUIStates();
 
-  std::vector<uint32_t> disp_vector;
-  m_crossbar->readVector(STEREO_DISP_CACHE_PATH, disp_vector);
-
-  VTK_NEW(vtkImageData, disp_image);
-  m_crossbar->intVectorToImageData2D(disp_vector, disp_image);
-
-  render2DImageData(disp_image);
+  render2DImageData(m_stereo_disp_image);
 
   this->m_ui->status_bar->showMessage("Rendering displacement image... done!");
   QApplication::processEvents();
@@ -1513,7 +1537,7 @@ void Form::on_view_depth_image_button_clicked() {
   m_viewing_overlay = false;
   updateUIStates();
 
-  renderDepthImage();
+  render2DImageData(m_stereo_depth_image);
 
   this->m_ui->status_bar->showMessage("Rendering depth map... done!");
   QApplication::processEvents();
@@ -1527,10 +1551,10 @@ void Form::on_calc_transform_button_clicked() {
   updateUIStates();
 
   // Write our current depth image to the cache
-  pcl::PointCloud<pcl::PointXYZRGB>::Ptr depth_image_pcl(
-      new pcl::PointCloud<pcl::PointXYZRGB>);
-  m_crossbar->VTKPolyDataToPCLxyzrgb(m_stereo_depth_image, depth_image_pcl);
-  m_crossbar->writePCL(depth_image_pcl, STEREO_DEPTH_CACHE_PATH);
+  std::vector<float> depth_vector;
+  m_crossbar->imageData2DToFloatVector(m_stereo_depth_image,
+                                       depth_vector);
+  m_crossbar->writeVector(depth_vector, STEREO_DEPTH_CACHE_PATH);
 
   // Write our current oct surface to the cache
   pcl::PointCloud<pcl::PointXYZ>::Ptr oct_surf_pcl(
@@ -1815,12 +1839,12 @@ void Form::on_over_depth_checkbox_clicked() {
         " overlay view...");
     QApplication::processEvents();
 
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr depth_point_cloud(
-        new pcl::PointCloud<pcl::PointXYZRGB>);
-    m_crossbar->readPCL(STEREO_DEPTH_CACHE_PATH, depth_point_cloud);
-    m_crossbar->PCLxyzrgbToVTKPolyData(depth_point_cloud, m_stereo_depth_image);
+//    pcl::PointCloud<pcl::PointXYZRGB>::Ptr depth_point_cloud(
+//        new pcl::PointCloud<pcl::PointXYZRGB>);
+//    m_crossbar->readPCL(STEREO_DEPTH_CACHE_PATH, depth_point_cloud);
+//    m_crossbar->PCLxyzrgbToVTKPolyData(depth_point_cloud, m_stereo_depth_image);
 
-    renderDepthImage();
+//    renderDepthImage();
 
   } else {
     this->m_ui->status_bar->showMessage(
@@ -2217,14 +2241,14 @@ void Form::on_request_depth_image_button_clicked() {
   m_viewing_overlay = false;
   updateUIStates();
 
-  pcl::PointCloud<pcl::PointXYZRGB>::Ptr depth_point_cloud(
-      new pcl::PointCloud<pcl::PointXYZRGB>);
-  m_crossbar->readPCL(STEREO_DEPTH_CACHE_PATH, depth_point_cloud);
+  std::vector<float> depth_vector;
+  m_crossbar->readVector(STEREO_DEPTH_CACHE_PATH, depth_vector);
 
-  m_crossbar->PCLxyzrgbToVTKPolyData(depth_point_cloud, m_stereo_depth_image);
+  std::cout << "on_request_depth_image_button_clicked, size: " << depth_vector.size() << std::endl;
 
-  m_renderer->RemoveAllViewProps();
-  renderDepthImage();
+  m_crossbar->floatVectorToImageData2D(depth_vector, m_stereo_depth_image);
+
+  render2DImageData(m_stereo_depth_image);
 
   this->m_ui->status_bar->showMessage("Rendering depth map... done!");
   QApplication::processEvents();
@@ -2377,7 +2401,7 @@ void Form::on_browse_depth_image_button_clicked() {
   QString file_name;
   QFileDialog dialog(this);
   dialog.setFileMode(QFileDialog::ExistingFile);
-  dialog.setFilter(tr("Stereocamera depth image PCL file (*.pcd)"));
+  dialog.setFilter(tr("Stereocamera depth PNG image (*.png)"));
   if (dialog.exec()) {
     file_name = dialog.selectedFiles().first();
   } else {
@@ -2395,14 +2419,12 @@ void Form::on_browse_depth_image_button_clicked() {
     this->m_ui->status_bar->showMessage("Reading file... ");
     QApplication::processEvents();
 
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr depth_point_cloud(
-        new pcl::PointCloud<pcl::PointXYZRGB>);
-    m_crossbar->readPCL(file_name.toStdString().c_str(), depth_point_cloud);
+    VTK_NEW(vtkPNGReader, png_reader);
+    png_reader->SetFileName(file_name.toStdString().c_str());
+    png_reader->Update();
+    m_stereo_depth_image = png_reader->GetOutput();
 
-    m_crossbar->PCLxyzrgbToVTKPolyData(depth_point_cloud, m_stereo_depth_image);
-
-    m_renderer->RemoveAllViewProps();
-    renderDepthImage();
+    render2DImageData(m_stereo_depth_image);
 
     this->m_ui->status_bar->showMessage("Reading file... done!");
     QApplication::processEvents();
@@ -2554,11 +2576,10 @@ void Form::on_save_depth_image_button_clicked() {
     this->m_ui->status_bar->showMessage("Writing data to file... ");
     QApplication::processEvents();
 
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr depth_point_cloud(
-        new pcl::PointCloud<pcl::PointXYZRGB>);
-    m_crossbar->VTKPolyDataToPCLxyzrgb(m_stereo_depth_image, depth_point_cloud);
-
-    m_crossbar->writePCL(depth_point_cloud, file_name.toStdString().c_str());
+    VTK_NEW(vtkPNGWriter, png_writer);
+    png_writer->SetInput(m_stereo_depth_image);
+    png_writer->SetFileName(file_name.toStdString().c_str());
+    png_writer->Write();
 
     m_waiting_response = false;
     updateUIStates();
