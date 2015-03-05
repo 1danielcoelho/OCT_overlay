@@ -62,6 +62,31 @@ void Crossbar::writeVector(std::vector<uint32_t> &input, const char *filepath,
   }
 }
 
+void Crossbar::writeVector(std::vector<float> &input, const char *filepath,
+                           bool append) {
+  std::FILE *output_file;
+  if (append) {
+    output_file = std::fopen(filepath, "ab");  // write, binary
+  } else {
+    output_file = std::fopen(filepath, "wb");  // append, binary
+  }
+
+  if (output_file == NULL) {
+    std::cerr << "Could not write file at " << filepath << std::endl;
+    return;
+  }
+
+  uint32_t bytes_written =
+      fwrite(&(input[0]), sizeof(float), input.size(), output_file);
+
+  fclose(output_file);
+
+  // Check to see if we wrote everything
+  if (bytes_written != input.size()) {
+    std::cerr << "Could not write everything to " << filepath << std::endl;
+  }
+}
+
 void Crossbar::readVector(const char *filepath, std::vector<uint8_t> &output) {
   std::FILE *input_file;
   input_file = std::fopen(filepath, "rb");
@@ -111,6 +136,34 @@ void Crossbar::readVector(const char *filepath, std::vector<uint32_t> &output) {
 
   // Check to see if we read everything
   if ((bytes_read * sizeof(uint32_t)) != file_size) {
+    std::cerr << "Could not read everything from " << filepath << std::endl;
+  }
+}
+
+
+void Crossbar::readVector(const char *filepath, std::vector<float> &output) {
+  std::FILE *input_file;
+  input_file = std::fopen(filepath, "rb");
+
+  if (input_file == NULL) {
+    std::cerr << "Could not open file at " << filepath << std::endl;
+    return;
+  }
+
+  // Get the file size
+  std::fseek(input_file, 0, SEEK_END);
+  int file_size = std::ftell(input_file);
+  std::rewind(input_file);
+
+  // Read the file into data
+  output.resize(file_size);
+  int bytes_read =
+      std::fread(&(output[0]), sizeof(float), file_size, input_file);
+
+  std::fclose(input_file);
+
+  // Check to see if we read everything
+  if ((bytes_read * sizeof(float)) != file_size) {
     std::cerr << "Could not read everything from " << filepath << std::endl;
   }
 }
@@ -417,4 +470,21 @@ void Crossbar::imageData2DtoIntVector(vtkSmartPointer<vtkImageData> input,
       memcpy(&(output[x + y * cols + 2]), &pixel[0], 3);
     }
   }
+}
+
+void Crossbar::floatVectorToCvMat(std::vector<float> input, cv::Mat &output)
+{
+    assert("Input float vector is empty!" && input.size() > 0);
+
+    float rows_f, cols_f;
+    memcpy(&rows, &input[0], 4);
+    memcpy(&cols, &input[1], 4);
+
+    uint32_t rows = (int)rows_f;
+    uint32_t cols = (int)cols_f;
+
+    output.create(rows, cols, CV_32FC3);
+    output = cv::Mat::zeros(rows, cols, CV_32FC3);
+
+
 }

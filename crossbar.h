@@ -15,6 +15,11 @@ Helper class for many I/O and conversion functions
 
 #include <memory>
 
+#include <cv.h>
+#include <opencv2/opencv.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+
 #include <vtkSmartPointer.h>
 #include <vtkPolyData.h>
 #include <vtkImageData.h>
@@ -39,8 +44,11 @@ class Crossbar {
                    bool append = false);
   void writeVector(std::vector<uint32_t>& input, const char* filepath,
                    bool append = false);
+  void writeVector(std::vector<float>& input, const char* filepath,
+                   bool append = false);
   void readVector(const char* filepath, std::vector<uint8_t>& output);
   void readVector(const char* filepath, std::vector<uint32_t>& output);
+  void readVector(const char* filepath, std::vector<float>& output);
 
   // VTK
   void writePolyData(vtkSmartPointer<vtkPolyData> input, const char* filepath,
@@ -74,6 +82,8 @@ class Crossbar {
 
   void imageData2DtoIntVector(vtkSmartPointer<vtkImageData> input,
                               std::vector<uint32_t>& output);
+
+  void floatVectorToCvMat(std::vector<float> input, cv::Mat& output);
 };
 
 #endif  // FILEMANAGER_H

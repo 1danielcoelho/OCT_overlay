@@ -143,6 +143,8 @@ Q_SIGNALS:  // Same as 'signals'
   uint32_t m_accu_count;
   uint32_t m_accu_size;
 
+  sensor_msgs::Image test_depth;
+
   cv::Mat m_left_accu;
   cv::Mat m_right_accu;
   cv::Mat m_disp_accu;

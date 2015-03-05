@@ -26,8 +26,6 @@
 #define VIS_TRANS_CACHE_PATH CACHE_PATH "vis_trans.cache"
 //"/opt/imesLS_ROS/laser_interface_new/octCamRegistration.yaml"
 
-#define STEREO_TEST_CACHE "stereo_test.cache"
-
 //-------------------------------TUMOR SEGMENTATION-----------------------------
 // Low pass cutoff frequency for when we convert the entire volume to frequency
 // domain. DEFAULT: 2, 2, 2
