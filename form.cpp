@@ -1841,6 +1841,27 @@ void Form::on_over_depth_checkbox_clicked() {
 
 //    renderDepthImage();
 
+    if(m_stereo_left_image == NULL
+            || m_stereo_left_image->GetNumberOfPoints() == 0)
+    {
+        ROS_WARN("Need to have a stereocamera left image loaded!");
+        m_ui->over_depth_checkbox->setChecked(false);
+        return;
+    }
+    if(m_stereo_depth_image == NULL ||
+            m_stereo_depth_image->GetNumberOfPoints() == 0)
+    {
+        ROS_WARN("Need to have a stereocamera depth image loaded!");
+        m_ui->over_depth_checkbox->setChecked(false);
+        return;
+    }
+
+    VTK_NEW(vtkPolyData, stereo_reconstr);
+
+    //continue here
+
+
+
   } else {
     this->m_ui->status_bar->showMessage(
         "Remove stereocamera depth map from"
