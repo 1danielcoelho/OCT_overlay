@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
     <node pkg="oct_client" type="oct_client" name="oct_client" output="screen">
-        <param name="serverIP" type="string" value="130.75.144.214"/>
+        <param name="serverIP" type="string" value="130.75.144.209"/>
     </node>
 
     <node pkg="OCT_segmentation" type="OCT_segmentation_node" 
@@ -85,7 +85,7 @@
 		<param name="leftImageTopicName" type="string" value="/stereocamera/left/image"/>
 		<param name="rightImageTopicName" type="string" value="/stereocamera/right/image"/>
 
-		<param name="visualizationOn" type="bool" value="true"/>
+		<param name="visualizationOn" type="bool" value="false"/>
 		<param name="publishRectifiedImages" type="bool" value="true"/>
 		<param name="publishDispMap" type="bool" value="true"/>
 		<param name="publishDepthMap" type="bool" value="true"/>

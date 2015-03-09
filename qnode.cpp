@@ -108,10 +108,6 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
                           const sensor_msgs::ImageConstPtr &msg_depth) {
   //ROS_INFO("imageCallback called");
 
-    int depth_height = msg_depth->height;
-    int depth_width = msg_depth->width;
-    std::cout << "Received depth height: " << depth_height << ", width: " << depth_width << std::endl;
-
   // Accumulator is not full yet; Accumulate
   if (m_accu_count < m_accu_size) {
     ROS_INFO("Accumulating images: %u of %u", m_accu_count, m_accu_size);
@@ -445,8 +441,25 @@ void QNode::requestRegistration() {
   //Convert the vector to a ROS image message
   cv::Mat depth_mat;
   m_crossbar->floatVectorToCvMat(depth_vector, depth_mat);
+
+  //Don't think I can do this from a separate thread
+//  cv::Mat visDepthMap;
+//  cv::namedWindow("depthMap",CV_WINDOW_AUTOSIZE);
+//  cv::normalize(depth_mat,visDepthMap,0,255,cv::NORM_MINMAX,CV_8UC3);
+//  cv::imshow("depthMap",visDepthMap);
+
+  //CvImagePtr is a typedef of boost::shared_ptr<CvImage>
   cv_bridge::CvImagePtr depth_cv_image_ptr;
+  depth_cv_image_ptr.reset(new cv_bridge::CvImage());
+
   depth_cv_image_ptr->image = depth_mat;
+  int rows = depth_cv_image_ptr->image.rows;
+  int cols = depth_cv_image_ptr->image.cols;
+
+  Continue here
+  std::cout << "==================================rows: " << rows << ", " << cols << std::endl;
+
+  depth_cv_image_ptr->encoding = "32FC3";
   sensor_msgs::ImagePtr depth_ros_image_msg = depth_cv_image_ptr->toImageMsg();
 
   // Read OCT surface PCL and create a PointCloud2 with it

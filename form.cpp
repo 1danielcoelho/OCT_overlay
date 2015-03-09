@@ -1136,34 +1136,29 @@ void Form::renderDepthImage() {
 }
 
 void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data) {
+
   if(image_data->GetScalarType() == VTK_FLOAT)
   {
       std::cout << "Input 2D Image data is not of float"
                    " type. Casting to uchar..." << std::endl;
 
-      double minmax[2];
-      image_data->GetScalarRange(minmax);
+      double ranges[2];
+      image_data->GetScalarRange(ranges);
 
-      float max_output = 255;
-      float min_output = 0;
+      std::cout << "Scalar ranges: " << ranges[0] << " to " << ranges[1] << std::endl;
 
-      double dimensions[3];
-      image_data->GetDimensions(dimensions);
-      int cols = dimensions[0];
-      int rows = dimensions[1];
+      VTK_NEW(vtkImageShiftScale, cast_filter);
+      cast_filter->SetInput(image_data);
+      cast_filter->SetShift(-ranges[0]);
+      cast_filter->SetScale(1);
+      cast_filter->SetOutputScalarTypeToUnsignedChar();
+      cast_filter->Update();
 
-      for(int y = 0; y < rows; y++)
-      {
-          for(int x = 0; x < cols; x++)
-          {
-              float *pixel = static_cast<float *>(
-                  output->GetScalarPointer(x, y, 0));
-                Parei aqui. Terminar a normalization
-
-          }
-      }
+      image_data = cast_filter->GetOutput();
 
 
+      image_data->GetScalarRange(ranges);
+      std::cout << "Scalar ranges after scaling: " << ranges[0] << " to " << ranges[1] << std::endl;
   }
 
   // Calculate the image and window's aspect ratios
