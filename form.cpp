@@ -2030,7 +2030,7 @@ void Form::on_save_oct_surf_button_clicked() {
   QString file_name;
   QFileDialog dialog(this);
   dialog.setFileMode(QFileDialog::AnyFile);
-  dialog.setDefaultSuffix(".surf");
+  dialog.setDefaultSuffix("surf");
   dialog.setFilter(tr("OCT surface file (*.surf)"));
   if (dialog.exec()) {
     file_name = dialog.selectedFiles().first();
@@ -2108,7 +2108,7 @@ void Form::on_save_oct_mass_button_clicked() {
   QString file_name;
   QFileDialog dialog(this);
   dialog.setFileMode(QFileDialog::AnyFile);
-  dialog.setDefaultSuffix(".mass");
+  dialog.setDefaultSuffix("mass");
   dialog.setFilter(tr("OCT mass file (*.mass)"));
   if (dialog.exec()) {
     file_name = dialog.selectedFiles().first();
@@ -2396,7 +2396,7 @@ void Form::on_browse_depth_image_button_clicked() {
   QString file_name;
   QFileDialog dialog(this);
   dialog.setFileMode(QFileDialog::ExistingFile);
-  dialog.setFilter(tr("Stereocamera depth PNG image (*.png)"));
+  dialog.setFilter(tr("Stereocamera depth PNG image (*.depth)"));
   if (dialog.exec()) {
     file_name = dialog.selectedFiles().first();
   } else {
@@ -2414,10 +2414,9 @@ void Form::on_browse_depth_image_button_clicked() {
     this->m_ui->status_bar->showMessage("Reading file... ");
     QApplication::processEvents();
 
-    VTK_NEW(vtkPNGReader, png_reader);
-    png_reader->SetFileName(file_name.toStdString().c_str());
-    png_reader->Update();
-    m_stereo_depth_image = png_reader->GetOutput();
+    std::vector<float> depth_vector;
+    m_crossbar->readVector(file_name.toStdString().c_str(), depth_vector);
+    m_crossbar->floatVectorToImageData2D(depth_vector, m_stereo_depth_image);
 
     render2DImageData(m_stereo_depth_image);
 
@@ -2553,8 +2552,8 @@ void Form::on_save_depth_image_button_clicked() {
   QString file_name;
   QFileDialog dialog(this);
   dialog.setFileMode(QFileDialog::AnyFile);
-  dialog.setDefaultSuffix("pcd");
-  dialog.setFilter(tr("Stereocamera depth image PCL file (*.pcd)"));
+  dialog.setDefaultSuffix("depth");
+  dialog.setFilter(tr("Stereocamera depth image PCL file (*.depth)"));
   if (dialog.exec()) {
     file_name = dialog.selectedFiles().first();
   } else {
@@ -2571,10 +2570,9 @@ void Form::on_save_depth_image_button_clicked() {
     this->m_ui->status_bar->showMessage("Writing data to file... ");
     QApplication::processEvents();
 
-    VTK_NEW(vtkPNGWriter, png_writer);
-    png_writer->SetInput(m_stereo_depth_image);
-    png_writer->SetFileName(file_name.toStdString().c_str());
-    png_writer->Write();
+    std::vector<float> depth_vector;
+    m_crossbar->imageData2DToFloatVector(m_stereo_depth_image, depth_vector);
+    m_crossbar->writeVector(depth_vector, file_name.toStdString().c_str(), false);
 
     m_waiting_response = false;
     updateUIStates();

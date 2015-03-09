@@ -214,15 +214,10 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
     m_crossbar->writeVector(header, STEREO_DISP_CACHE_PATH, false);
     m_crossbar->writeVector(disp, STEREO_DISP_CACHE_PATH, true);
 
-    std::vector<float> header_depth, depth;
-    float rows_f = (float)rows;
-    float cols_f = (float)cols;
+    std::vector<float> depth;
 
-    header_depth.clear();
-    header_depth.resize(2);
-    memcpy(&header_depth[0], &rows_f, 4);
-    memcpy(&header_depth[1], &cols_f, 4);
-
+    //    memcpy(&header_depth[0], &rows_f, 4);
+    //    memcpy(&header_depth[1], &cols_f, 4);
     depth.reserve(rows * cols * 3); //3-channel
 
     for (uint32_t i = 0; i < rows; i++) {
@@ -238,30 +233,8 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
       }
     }
 
-    m_crossbar->writeVector(header_depth, STEREO_DEPTH_CACHE_PATH, false);
+    m_crossbar->writeVector(header, STEREO_DEPTH_CACHE_PATH, false);
     m_crossbar->writeVector(depth, STEREO_DEPTH_CACHE_PATH, true);
-
-//    // Now we write the depth image separately
-//    pcl::PointCloud<pcl::PointXYZRGB>::Ptr pts(
-//        new pcl::PointCloud<pcl::PointXYZRGB>);
-
-//    // Build a PCL cloud out of the depth map
-//    for (uint32_t idx = 0; idx < cols; idx++) {
-//      for (uint32_t idy = 0; idy < rows; idy++) {
-//        pcl::PointXYZRGB point;
-//        point.x = m_depth_accu.at<cv::Vec3f>(idy, idx)[0];
-//        point.y = m_depth_accu.at<cv::Vec3f>(idy, idx)[1];
-//        point.z = m_depth_accu.at<cv::Vec3f>(idy, idx)[2];
-//        uint32_t rgb = (m_left_accu.at<cv::Vec3b>(idy, idx)[0] << 16 |
-//                        m_left_accu.at<cv::Vec3b>(idy, idx)[1] << 8 |
-//                        m_left_accu.at<cv::Vec3b>(idy, idx)[2]);
-//        point.rgb = *reinterpret_cast<float *>(&rgb);
-//        pts->points.push_back(point);
-//      }
-//    }
-
-//    // Write PCL cloud to disk
-//    m_crossbar->writePCL(pts, STEREO_DEPTH_CACHE_PATH);
 
     //Lets Form know it can read the stereo images from the cache locations
     Q_EMIT receivedStereoImages();
@@ -442,23 +415,11 @@ void QNode::requestRegistration() {
   cv::Mat depth_mat;
   m_crossbar->floatVectorToCvMat(depth_vector, depth_mat);
 
-  //Don't think I can do this from a separate thread
-//  cv::Mat visDepthMap;
-//  cv::namedWindow("depthMap",CV_WINDOW_AUTOSIZE);
-//  cv::normalize(depth_mat,visDepthMap,0,255,cv::NORM_MINMAX,CV_8UC3);
-//  cv::imshow("depthMap",visDepthMap);
-
   //CvImagePtr is a typedef of boost::shared_ptr<CvImage>
   cv_bridge::CvImagePtr depth_cv_image_ptr;
   depth_cv_image_ptr.reset(new cv_bridge::CvImage());
 
   depth_cv_image_ptr->image = depth_mat;
-  int rows = depth_cv_image_ptr->image.rows;
-  int cols = depth_cv_image_ptr->image.cols;
-
-  Continue here
-  std::cout << "==================================rows: " << rows << ", " << cols << std::endl;
-
   depth_cv_image_ptr->encoding = "32FC3";
   sensor_msgs::ImagePtr depth_ros_image_msg = depth_cv_image_ptr->toImageMsg();
 

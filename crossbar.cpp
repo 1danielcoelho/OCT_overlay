@@ -417,8 +417,8 @@ void Crossbar::intVectorToImageData2D(std::vector<uint32_t> &input,
 
   // Parse the first 8 bytes to determine dimensions
   uint32_t rows, cols;
-  memcpy(&rows, &input[0], 4);
-  memcpy(&cols, &input[1], 4);
+  memcpy(&rows, &input[0], sizeof(uint32_t));
+  memcpy(&cols, &input[1], sizeof(uint32_t));
 
   output->SetDimensions(cols, rows, 1);
   output->SetNumberOfScalarComponents(3);
@@ -456,8 +456,8 @@ void Crossbar::imageData2DtoIntVector(vtkSmartPointer<vtkImageData> input,
 
   uint32_t rows = dimensions[1];
   uint32_t cols = dimensions[2];
-  memcpy(&output[0], &rows, 4);
-  memcpy(&output[1], &cols, 4);
+  memcpy(&output[0], &rows, sizeof(uint32_t));
+  memcpy(&output[1], &cols, sizeof(uint32_t));
 
   for (uint32_t y = 0; y < rows; y++) {
     for (uint32_t x = 0; x < cols; x++) {
@@ -476,12 +476,12 @@ void Crossbar::floatVectorToCvMat(std::vector<float>& input, cv::Mat& output)
 {
     assert("Input float vector is empty!" && input.size() > 0);
 
-    float rows_f, cols_f;
-    memcpy(&rows_f, &input[0], 4);
-    memcpy(&cols_f, &input[1], 4);
+    uint32_t rows, cols;
 
-    uint32_t rows = (int)rows_f;
-    uint32_t cols = (int)cols_f;
+    memcpy(&rows, &input[0], sizeof(uint32_t));
+    memcpy(&cols, &input[1], sizeof(uint32_t));
+
+    std::cout << "FLOAT VECTOR TO CV MAT: rows: " << rows << ", cols: " << cols <<std::endl;
 
     output.create(rows, cols, CV_32FC3);
     output = cv::Mat::zeros(rows, cols, CV_32FC3);
@@ -490,9 +490,9 @@ void Crossbar::floatVectorToCvMat(std::vector<float>& input, cv::Mat& output)
     {
         for(int j = 0; j < cols; j++)
         {
-            cv::Vec3f& color = output.at<cv::Vec3f>(j,i);
+            cv::Vec3f& color = output.at<cv::Vec3f>(i,j);
 
-            color[0] = input[3*j + i*cols*3 + 2]; //skip 2 header floats
+            color[0] = input[3*j +   i*cols*3 + 2]; //skip 2 header floats
             color[1] = input[3*j+1 + i*cols*3 + 2];
             color[2] = input[3*j+2 + i*cols*3 + 2];
         }
@@ -508,12 +508,10 @@ void Crossbar::floatVectorToImageData2D(std::vector<float>& input,
       output = vtkSmartPointer<vtkImageData>::New();
     }
 
-    float rows_f, cols_f;
-    memcpy(&rows_f, &input[0], 4);
-    memcpy(&cols_f, &input[1], 4);
+    uint32_t rows, cols;
 
-    uint32_t rows = (int)rows_f;
-    uint32_t cols = (int)cols_f;
+    memcpy(&rows, &input[0], sizeof(uint32_t));
+    memcpy(&cols, &input[1], sizeof(uint32_t));
 
     output->SetDimensions(cols, rows, 1);
     output->SetNumberOfScalarComponents(3);
@@ -551,8 +549,12 @@ void Crossbar::imageData2DToFloatVector(vtkSmartPointer<vtkImageData> input,
     int dimensions[3];
     input->GetDimensions(dimensions);
 
-    float rows = (float)dimensions[1];
-    float cols = (float)dimensions[2];
+    uint32_t rows = dimensions[1];
+    uint32_t cols = dimensions[0];
+
+    //Here we build our header, with rows/cols. They should always be uint32_t
+    //so we hard copy them in. This is ok, since we read them again
+    //in the exact same way
     memcpy(&output[0], &rows, 4);
     memcpy(&output[1], &cols, 4);
 
