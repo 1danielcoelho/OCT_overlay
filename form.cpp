@@ -1092,6 +1092,8 @@ void Form::renderOCTSurface() {
   delaunay_filter->SetInput(m_oct_surf_poly_data);
   delaunay_filter->SetTolerance(0.001);
 
+  //Applies the transform received from registration. Should be the
+  //identity transform in case we haven't performed it yet
   VTK_NEW(vtkTransformFilter, trans_filter)
   trans_filter->SetInputConnection(delaunay_filter->GetOutputPort());
   trans_filter->SetTransform(m_oct_stereo_trans);
@@ -1615,14 +1617,20 @@ void Form::on_calc_transform_button_clicked() {
   Q_EMIT requestRegistration();
 
   this->m_ui->status_bar->showMessage(
-      "Waiting for OCT registration "
-      "transform... ");
+      "Waiting for OCT registration transform... ");
   QApplication::processEvents();
 }
 
 void Form::on_print_transform_button_clicked() {
 
-  this->m_ui->status_bar->showMessage("Printing transform to console... ");
+  if(m_has_transform == false)
+  {
+      ROS_WARN("No transform has been calculated yet!");
+      return;
+  }
+
+  this->m_ui->status_bar->showMessage("Printing transform to console... ",
+                                      3000);
   QApplication::processEvents();
 
   for (int row = 0; row < 4; row++) {
@@ -1854,7 +1862,7 @@ void Form::on_over_oct_axes_checkbox_clicked() {
   if (m_ui->over_oct_axes_checkbox->isChecked()) {
     this->m_ui->status_bar->showMessage(
         "Adding OCT axes actor to overlay "
-        "view...");
+        "view...", 3000);
     QApplication::processEvents();
 
     VTK_NEW(vtkTransform, trans);
@@ -1886,7 +1894,7 @@ void Form::on_over_depth_checkbox_clicked() {
   if (m_ui->over_depth_checkbox->isChecked()) {
     this->m_ui->status_bar->showMessage(
         "Adding stereocamera reconstruction to"
-        " overlay view...");
+        " overlay view...", 3000);
     QApplication::processEvents();
 
     //Check to see if we have everything we need
@@ -1933,7 +1941,7 @@ void Form::on_over_trans_axes_checkbox_clicked() {
   if (m_ui->over_trans_axes_checkbox->isChecked()) {
     this->m_ui->status_bar->showMessage(
         "Adding transformed axes actor to overlay "
-        "view...");
+        "view...", 3000);
     QApplication::processEvents();
 
     renderAxes(m_trans_axes_actor, m_oct_stereo_trans);
@@ -2046,8 +2054,16 @@ void Form::receivedRegistration() {
   }
   m_oct_stereo_trans->SetMatrix(elements);
 
+  this->m_ui->status_bar->showMessage(
+      "Waiting for OCT registration transform... done!");
+  QApplication::processEvents();
+
+  m_waiting_response = false;
   m_has_transform = true;
   updateUIStates();
+
+  //Manually calls the print button callback to print the transform to console
+  on_print_transform_button_clicked();
 }
 
 void Form::on_browse_oct_surf_button_clicked() {
