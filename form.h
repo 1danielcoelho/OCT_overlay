@@ -171,10 +171,9 @@ class Form : public QMainWindow {
   // m_vis_threshold
   void renderOCTVolumePolyData();
 
-
   void renderOCTSurface();
 
-  void renderDepthImage();
+  void renderStereocameraReconstruction();
 
   // Clears m_renderer from actors and renders either the left, right or
   // displacement map vtkImageData objects from by load2DVectorCacheToImageData
@@ -314,6 +313,7 @@ Q_SLOTS:
   vtkSmartPointer<vtkPolyData> m_oct_poly_data;
   vtkSmartPointer<vtkPolyData> m_oct_mass_poly_data;
   vtkSmartPointer<vtkPolyData> m_oct_surf_poly_data;
+  vtkSmartPointer<vtkPolyData> m_stereo_reconstr_poly_data;
   vtkSmartPointer<vtkImageData> m_stereo_left_image;
   vtkSmartPointer<vtkImageData> m_stereo_right_image;
   vtkSmartPointer<vtkImageData> m_stereo_disp_image;
@@ -324,7 +324,7 @@ Q_SLOTS:
   vtkSmartPointer<vtkActor> m_oct_vol_actor;
   vtkSmartPointer<vtkActor> m_oct_surf_actor;
   vtkSmartPointer<vtkActor> m_oct_mass_actor;
-  vtkSmartPointer<vtkActor> m_stereo_depth_actor;
+  vtkSmartPointer<vtkActor> m_stereo_reconstr_actor;
   vtkSmartPointer<vtkActor2D> m_stereo_2d_actor;
   vtkSmartPointer<vtkAxesActor> m_oct_axes_actor;
   vtkSmartPointer<vtkAxesActor> m_trans_axes_actor;

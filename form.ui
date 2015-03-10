@@ -16,7 +16,7 @@
   <widget class="QWidget" name="centralWidget">
    <layout class="QGridLayout" name="gridLayout_3">
     <item row="0" column="1">
-     <widget class="QVTKWidget" name="qvtkWidget"/>
+     <widget class="QVTKWidget" name="qvtkWidget" native="true"/>
     </item>
    </layout>
   </widget>
@@ -26,7 +26,7 @@
      <x>0</x>
      <y>0</y>
      <width>996</width>
-     <height>22</height>
+     <height>25</height>
     </rect>
    </property>
   </widget>
@@ -72,7 +72,7 @@
         </sizepolicy>
        </property>
        <property name="currentIndex">
-        <number>0</number>
+        <number>2</number>
        </property>
        <widget class="QWidget" name="OCT">
         <attribute name="title">
@@ -2304,7 +2304,7 @@ QGroupBox::title {
                    </size>
                   </property>
                   <property name="text">
-                   <string>Transformed OCT coordinate system axes</string>
+                   <string>Stereocamera CS axes</string>
                   </property>
                  </widget>
                 </item>
@@ -2539,7 +2539,7 @@ QGroupBox::title {
                    </size>
                   </property>
                   <property name="text">
-                   <string>Stereocamera depth map</string>
+                   <string>Stereocamera reconstruction</string>
                   </property>
                  </widget>
                 </item>
@@ -2677,7 +2677,7 @@ QGroupBox::title {
                    </size>
                   </property>
                   <property name="text">
-                   <string>Original OCT coordinate system axes</string>
+                   <string>OCT CS axes</string>
                   </property>
                  </widget>
                 </item>

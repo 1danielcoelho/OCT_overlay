@@ -92,6 +92,7 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_oct_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_oct_surf_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_oct_mass_poly_data = vtkSmartPointer<vtkPolyData>::New();
+  m_stereo_reconstr_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_left_image = vtkSmartPointer<vtkImageData>::New();
   m_stereo_right_image = vtkSmartPointer<vtkImageData>::New();
   m_stereo_disp_image = vtkSmartPointer<vtkImageData>::New();
@@ -103,7 +104,7 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_oct_surf_actor = vtkSmartPointer<vtkActor>::New();
   m_oct_mass_actor = vtkSmartPointer<vtkActor>::New();
   m_stereo_2d_actor = vtkSmartPointer<vtkActor2D>::New();
-  m_stereo_depth_actor = vtkSmartPointer<vtkActor>::New();
+  m_stereo_reconstr_actor = vtkSmartPointer<vtkActor>::New();
   m_oct_axes_actor = vtkSmartPointer<vtkAxesActor>::New();
   m_trans_axes_actor = vtkSmartPointer<vtkAxesActor>::New();
   // Others
@@ -1077,6 +1078,10 @@ void Form::renderOCTVolumePolyData() {
 }
 
 void Form::renderOCTSurface() {
+
+  m_waiting_response = true;
+  updateUIStates();
+
   assert("Input vtkPolyData is NULL!" && m_oct_surf_poly_data != NULL);
 
   int num_pts = m_oct_surf_poly_data->GetNumberOfPoints();
@@ -1106,36 +1111,82 @@ void Form::renderOCTSurface() {
 
   this->statusBar()->showMessage("Rendering OCT surface... done!");
   QApplication::processEvents();
+
+  m_waiting_response = false;
+  updateUIStates();
 }
 
-void Form::renderDepthImage() {
-  assert("Input vtkPolyData is NULL!" && m_stereo_depth_image != NULL);
+void Form::renderStereocameraReconstruction() {
 
-  int num_pts = m_stereo_depth_image->GetNumberOfPoints();
+  m_waiting_response = true;
+  updateUIStates();
 
-  assert("Input vtkPolyData is NULL!" && num_pts > 0);
+  this->statusBar()->showMessage("Rendering stereocamera reconstruction... done!");
+  QApplication::processEvents();
+
+  int dimensions[3];
+  m_stereo_left_image->GetDimensions(dimensions);
+
+  uint32_t rows = dimensions[1];
+  uint32_t cols = dimensions[0];
+
+  VTK_NEW(vtkTypeUInt8Array, color_array);
+  color_array->SetNumberOfComponents(3);
+  color_array->SetNumberOfTuples(rows * cols);
+  color_array->SetName("Colors");
+
+  VTK_NEW(vtkPoints, points);
+  points->SetNumberOfPoints(rows * cols);
+
+  vtkIdType point_id = 0;
+  for(int i = 0; i < rows; i++)
+  {
+      for(int j = 0; j < cols; j++)
+      {
+          float* coords = static_cast<float*>(
+                      m_stereo_depth_image->GetScalarPointer(j, i, 0));
+          uint8_t* color = static_cast<uint8_t*>(
+                      m_stereo_left_image->GetScalarPointer(j, i, 0));
+
+          float color_float[3];
+          color_float[0] = (float)color[0];
+          color_float[1] = (float)color[1];
+          color_float[2] = (float)color[2];
+
+          points->SetPoint(point_id, coords[0], coords[1], coords[2]);
+          color_array->SetTuple(point_id, color_float);
+
+          point_id++;
+      }
+  }
+
+  m_stereo_reconstr_poly_data->SetPoints(points);
+  m_stereo_reconstr_poly_data->GetPointData()->SetScalars(color_array);
 
   VTK_NEW(vtkVertexGlyphFilter, vert_filter);
-  vert_filter->SetInput(m_stereo_depth_image);
+  vert_filter->SetInput(m_stereo_reconstr_poly_data);
 
   VTK_NEW(vtkPolyDataMapper, mapper);
   mapper->SetInputConnection(vert_filter->GetOutputPort());
 
-  m_stereo_depth_actor->SetMapper(mapper);
+  m_stereo_reconstr_actor->SetMapper(mapper);
 
-  m_renderer->AddActor(m_stereo_depth_actor);
-
-  this->statusBar()->showMessage("Rendering depth map... ");
-  QApplication::processEvents();
+  m_renderer->AddActor(m_stereo_reconstr_actor);
 
   this->m_ui->qvtkWidget->update();
   QApplication::processEvents();
 
-  this->statusBar()->showMessage("Rendering depth map... done!");
+  this->statusBar()->showMessage("Rendering stereocamera reconstruction... done!");
   QApplication::processEvents();
+
+  m_waiting_response = false;
+  updateUIStates();
 }
 
 void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data) {
+
+  m_waiting_response = true;
+  updateUIStates();
 
   if(image_data->GetScalarType() == VTK_FLOAT)
   {
@@ -1210,6 +1261,10 @@ void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data) {
 
   this->statusBar()->showMessage("Rendering 2D Image... done!");
   QApplication::processEvents();
+
+  m_waiting_response = true;
+  updateUIStates();
+
 }
 
 void Form::renderOCTMass() {
@@ -1830,17 +1885,11 @@ void Form::on_over_depth_checkbox_clicked() {
 
   if (m_ui->over_depth_checkbox->isChecked()) {
     this->m_ui->status_bar->showMessage(
-        "Adding stereocamera depth map to"
+        "Adding stereocamera reconstruction to"
         " overlay view...");
     QApplication::processEvents();
 
-//    pcl::PointCloud<pcl::PointXYZRGB>::Ptr depth_point_cloud(
-//        new pcl::PointCloud<pcl::PointXYZRGB>);
-//    m_crossbar->readPCL(STEREO_DEPTH_CACHE_PATH, depth_point_cloud);
-//    m_crossbar->PCLxyzrgbToVTKPolyData(depth_point_cloud, m_stereo_depth_image);
-
-//    renderDepthImage();
-
+    //Check to see if we have everything we need
     if(m_stereo_left_image == NULL
             || m_stereo_left_image->GetNumberOfPoints() == 0)
     {
@@ -1856,19 +1905,15 @@ void Form::on_over_depth_checkbox_clicked() {
         return;
     }
 
-    VTK_NEW(vtkPolyData, stereo_reconstr);
+    renderStereocameraReconstruction();
 
-    //continue here
-
-
-
-  } else {
+    } else {
     this->m_ui->status_bar->showMessage(
-        "Remove stereocamera depth map from"
+        "Removing stereocamera reconstruction from"
         " overlay view...",
         3000);
     QApplication::processEvents();
-    m_renderer->RemoveActor(m_stereo_depth_actor);
+    m_renderer->RemoveActor(m_stereo_reconstr_actor);
     this->m_ui->qvtkWidget->update();
   }
 
