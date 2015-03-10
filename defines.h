@@ -61,4 +61,7 @@
 #define WARP_FACTOR_Y 0
 #define WARP_FACTOR_Z 0
 
+//------------------------------------OVERLAY----------------------------------
+#define WINDOW_NAME "Stereocamera left image with overlay"
+
 #endif  // DEFINES_H

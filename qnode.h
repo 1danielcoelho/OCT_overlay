@@ -146,6 +146,9 @@ Q_SIGNALS:  // Same as 'signals'
 
   sensor_msgs::Image test_depth;
 
+  //ROS node update rate. We change this when we go into overlay display mode
+  double m_update_rate;
+
   cv::Mat m_left_accu;
   cv::Mat m_right_accu;
   cv::Mat m_disp_accu;

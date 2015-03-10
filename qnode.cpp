@@ -1,10 +1,13 @@
 #include "qnode.h"
 
+
 QNode::QNode(int argc, char **argv) : no_argc(argc), no_argv(argv) {
+
   m_shutdown = false;
   m_crossbar = new Crossbar;
 
   m_accu_size = 1;
+  float m_update_rate = 1.0d;
 }
 
 QNode::~QNode() {
@@ -134,6 +137,8 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
     cv::accumulate(image_disp, m_disp_accu);
     cv::accumulate(image_depth, m_depth_accu);
 
+    cv::imshow("test", image_left);
+
     m_accu_count++;
 
     Q_EMIT accumulated((1.0f*m_accu_count)/m_accu_size);
@@ -261,7 +266,7 @@ void QNode::process() {
   connectToMaster();
 
   while (!m_shutdown) {
-    static ros::Rate loop_rate(1);
+    static ros::Rate loop_rate(m_update_rate);
     loop_rate.sleep();
 
     // ROS_INFO("Executing");

@@ -1,24 +1,24 @@
 /*  TODO:
-* 
-* -The view functions should setup pipelines that can be updated by checking a checkbox
-*  which changes a transform from identity to the registration transform, making it easy
-*  to view its effects with a single click
-*
-* -Cleanup Form.h, Form.cpp, qnode.h, qnode.cpp, crossbar, etc. Re-order functions and so on
-*
-* -Bring the Raw OCT inputs to the same style as the others: Bring the browse button
-*  down, maybe the request and save buttons too. Allow saving an image file as another?
-*
-* -Find the correct way of intializing/zeroing the accs in resetAccumulators
-*
-* -See how the inversion of x and y impacts the OCT registration
-*
+
+-Cleanup Form.h, Form.cpp, qnode.h, qnode.cpp, crossbar, etc. Re-order functions and so on
+
+-Use QNode for the actual overlay, ironically
+   -User clicks a "Begin overlaying in real time" button
+   -Create an OpenCV window named WINDOW_NAME
+   -Send a signal from Form to Qnode that it can show images on window called WINDOW_NAME
+   -QNode changes it's update frequency and goes into a function like "renderOverlay"
+       -Load the OCT visualization from a file one, enter an infinite loop
+          -Read the left and depth image from the subscriptions
+          -Determine the placement on the left image for the OCT visualization somehow
+           either by reconstructing the entire stereocamera surface and displaying that,
+           or by just somehow keeping track of the 3d position of every pixel in the left image
+          -Add the OCT visualization to the image
+          -Use cv::imgshow(WINDOW_NAME, overlayed_image); to display it
+          -Check for events. If Form has sent a terminate signal, change back update frequency and
+           resume normal operation. Form then kills the window
 * */
 
 /* NEXT EXPERIMENT:
-* -Test stereocamera images, saving, loading
-*
-* -Test and setup registration
 *
 * */
 
