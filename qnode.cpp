@@ -6,8 +6,8 @@ QNode::QNode(int argc, char **argv) : no_argc(argc), no_argv(argv) {
   m_shutdown = false;
   m_crossbar = new Crossbar;
 
+  m_overlaying = false;
   m_accu_size = 1;
-  float m_update_rate = 1.0d;
 }
 
 QNode::~QNode() {
@@ -111,8 +111,25 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
                           const sensor_msgs::ImageConstPtr &msg_depth) {
   //ROS_INFO("imageCallback called");
 
-  // Accumulator is not full yet; Accumulate
-  if (m_accu_count < m_accu_size) {
+  //If we're in overlaying mode, just display the images
+  if(m_overlaying)
+  {
+      cv::Mat image_left;
+
+      // Convert our image message to a cv::Mat
+      cv_bridge::CvImagePtr cv_image_ptr;
+
+      cv_image_ptr = cv_bridge::toCvCopy(msg_left, enc::RGB8);
+      image_left = cv_image_ptr->image;
+
+      cv::imshow(WINDOW_NAME, image_left);
+  }
+
+  //We're not overlaying: Accumulate and write images to disk
+  else
+  {
+    // Accumulator is not full yet; Accumulate
+    if (m_accu_count < m_accu_size) {
     ROS_INFO("Accumulating images: %u of %u", m_accu_count, m_accu_size);
 
     cv::Mat image_left, image_right, image_disp, image_depth;
@@ -136,8 +153,6 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
     cv::accumulate(image_right, m_right_accu);
     cv::accumulate(image_disp, m_disp_accu);
     cv::accumulate(image_depth, m_depth_accu);
-
-    cv::imshow("test", image_left);
 
     m_accu_count++;
 
@@ -205,7 +220,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
     // Disp map is CV_32FC1; Here we scale it down to CV_8UC1 while normalizing
     // it so the largest value in m_disp_accu gets mapped to 255, and the lowest
     // to 0. We won't use the disp map for anything really, it will just be
-    // displayed, so this is fine
+    // displayed for debugging, so this is fine
     cv::Mat result;
     cv::normalize(m_disp_accu, result, 0, 255, cv::NORM_MINMAX, CV_8U);
 
@@ -243,6 +258,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
 
     //Lets Form know it can read the stereo images from the cache locations
     Q_EMIT receivedStereoImages();
+    }
   }
 }
 
@@ -266,7 +282,7 @@ void QNode::process() {
   connectToMaster();
 
   while (!m_shutdown) {
-    static ros::Rate loop_rate(m_update_rate);
+    static ros::Rate loop_rate(1);
     loop_rate.sleep();
 
     // ROS_INFO("Executing");
@@ -491,4 +507,31 @@ void QNode::resetAccumulators() {
   m_depth_accu = cv::Mat::zeros(rows, cols, CV_32FC3);
 
   m_accu_count = 0;
+}
+
+void QNode::startOverlay()
+{
+    m_overlaying = true;
+
+    ROS_INFO("Loading visualization mesh");
+
+    while(m_overlaying)
+    {
+        static ros::Rate loop_rate(10);
+        loop_rate.sleep();
+
+        //Checks our subscriptions
+        ros::spinOnce();
+
+        // Check for signals
+        QCoreApplication::processEvents();
+    }
+
+    //Let's Form know it can destroy the window
+    Q_EMIT stoppedOverlay();
+}
+
+void QNode::stopOverlay()
+{
+    m_overlaying = false;
 }

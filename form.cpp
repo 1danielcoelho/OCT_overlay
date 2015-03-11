@@ -30,6 +30,7 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_has_depth_image = false;
   m_has_transform = false;
   m_viewing_overlay = false;
+  m_viewing_realtime_overlay = false;
   updateUIStates();
 
   // Creates qnode and it's thread, connecting signals and slots
@@ -73,8 +74,18 @@ Form::Form(int argc, char** argv, QWidget* parent)
   connect(this, SIGNAL(setAccumulatorSize(uint)), m_qnode,
           SLOT(setAccumulatorSize(uint)), Qt::QueuedConnection);
 
-  connect(this, SIGNAL(resetAccumulators()), m_qnode, SLOT(resetAccumulators()),
+  connect(this, SIGNAL(resetAccumulators()), m_qnode,SLOT(resetAccumulators()),
           Qt::QueuedConnection);
+
+  connect(this, SIGNAL(startOverlay()), m_qnode, SLOT(startOverlay()),
+          Qt::QueuedConnection);
+
+  connect(this, SIGNAL(stopOverlay()), m_qnode, SLOT(stopOverlay()),
+          Qt::QueuedConnection);
+
+  //This is a response from QNode, letting us know we can kill the cv window
+  connect(m_qnode, SIGNAL(stoppedOverlay()), this,
+          SLOT(stoppedOverlay()), Qt::QueuedConnection);
 
   // Wire up qnode and it's thread. Don't touch this unless absolutely
   // necessary. It allows both to quit gracefully
@@ -226,6 +237,10 @@ void Form::updateUIStates() {
                                           !m_waiting_response);
   m_ui->print_transform_button->setEnabled(m_has_transform &&
                                            !m_waiting_response);
+  m_ui->over_start_button->setEnabled(m_has_stereo_cache &&
+                                      !m_waiting_response &&
+                                      !m_viewing_realtime_overlay);
+  m_ui->over_stop_button->setEnabled(m_viewing_realtime_overlay);
 
   // Clear the overlay selections if we go back to viewing something else
   if (!m_viewing_overlay) {
@@ -2675,3 +2690,37 @@ void Form::on_accu_reset_button_clicked() {
   Q_EMIT resetAccumulators();
 }
 
+
+void Form::on_over_start_button_clicked()
+{
+    this->m_ui->status_bar->showMessage("Opening overlayed leftcamera"
+                                        "image feed... ", 3000);
+    QApplication::processEvents();
+
+    m_viewing_realtime_overlay = true;
+    m_waiting_response = true;
+    updateUIStates();
+
+    cv::namedWindow(WINDOW_NAME);
+    Q_EMIT startOverlay();
+}
+
+void Form::on_over_stop_button_clicked()
+{
+    Q_EMIT stopOverlay();
+}
+
+void Form::stoppedOverlay()
+{
+    this->m_ui->status_bar->showMessage("Stopping overlayed leftcamera"
+                                        "image feed... ", 3000);
+
+    //We use another callback to tell QNode to shut down. It answers with
+    //a signal that leads us here, so we can know it won't try to use the
+    //window again after we destroy it, preventing a race condition
+    cv::destroyWindow(WINDOW_NAME);
+
+    m_viewing_realtime_overlay = false;
+    m_waiting_response = false;
+    updateUIStates();
+}

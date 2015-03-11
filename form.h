@@ -186,25 +186,44 @@ class Form : public QMainWindow {
 
  private
 Q_SLOTS:
-  void on_browse_button_clicked();
-  void on_connected_master_checkbox_clicked(bool checked);
 
+  void on_connected_master_checkbox_clicked(bool checked);
+  void on_reset_params_button_clicked();
   void on_dep_steps_spinbox_editingFinished();
   void on_dep_range_spinbox_editingFinished();
 
-  void on_request_scan_button_clicked();
-  void on_save_button_clicked();
-  void on_reset_params_button_clicked();
-
+  void on_browse_button_clicked();
   void on_view_raw_oct_button_clicked();
-  void on_calc_oct_surf_button_clicked();
+  void on_save_button_clicked();
+  void on_request_scan_button_clicked();
+
   void on_view_oct_surf_button_clicked();
+  void on_view_oct_mass_button_clicked();
+  void on_calc_oct_surf_button_clicked();
   void on_calc_oct_mass_button_clicked();
+  void on_browse_oct_surf_button_clicked();
+  void on_browse_oct_mass_button_clicked();
+  void on_save_oct_surf_button_clicked();
+  void on_save_oct_mass_button_clicked();
+
+  void on_accu_reset_button_clicked();
 
   void on_view_left_image_button_clicked();
   void on_view_right_image_button_clicked();
   void on_view_disp_image_button_clicked();
   void on_view_depth_image_button_clicked();
+  void on_request_left_image_button_clicked();
+  void on_request_right_image_button_clicked();
+  void on_request_disp_image_button_clicked();
+  void on_request_depth_image_button_clicked();
+  void on_browse_left_image_button_clicked();
+  void on_browse_right_image_button_clicked();
+  void on_browse_disp_image_button_clicked();
+  void on_browse_depth_image_button_clicked();
+  void on_save_left_image_button_clicked();
+  void on_save_right_image_button_clicked();
+  void on_save_disp_image_button_clicked();
+  void on_save_depth_image_button_clicked();
 
   void on_calc_transform_button_clicked();
   void on_print_transform_button_clicked();
@@ -230,6 +249,9 @@ Q_SLOTS:
   void on_over_oct_axes_checkbox_clicked();
   void on_over_trans_axes_checkbox_clicked();
 
+  void on_over_start_button_clicked();
+  void on_over_stop_button_clicked();
+
   //------------QNODE CALLBACKS-------------------------------------------------
 
   void receivedRawOCTData(OCTinfo params);
@@ -237,49 +259,16 @@ Q_SLOTS:
   void receivedStereoImages();
   void receivedRegistration();
   void accumulated(float new_ratio);
+  void stoppedOverlay();
 
-  void on_browse_oct_surf_button_clicked();
-
-  void on_save_oct_surf_button_clicked();
-
-  void on_browse_oct_mass_button_clicked();
-
-  void on_save_oct_mass_button_clicked();
-
-  void on_view_oct_mass_button_clicked();
-
-  void on_request_left_image_button_clicked();
-
-  void on_request_right_image_button_clicked();
-
-  void on_request_disp_image_button_clicked();
-
-  void on_request_depth_image_button_clicked();
-
-  void on_browse_left_image_button_clicked();
-
-  void on_browse_right_image_button_clicked();
-
-  void on_browse_disp_image_button_clicked();
-
-  void on_browse_depth_image_button_clicked();
-
-  void on_save_left_image_button_clicked();
-
-  void on_save_right_image_button_clicked();
-
-  void on_save_disp_image_button_clicked();
-
-  void on_save_depth_image_button_clicked();
-
-  void on_accu_reset_button_clicked();
-
-  Q_SIGNALS:
+Q_SIGNALS:
   void requestScan(OCTinfo);
   void requestSegmentation(OCTinfo);
   void requestRegistration();
   void setAccumulatorSize(unsigned int);
   void resetAccumulators();
+  void startOverlay();
+  void stopOverlay();
 
  private:
   Ui::Form* m_ui;
@@ -305,6 +294,7 @@ Q_SLOTS:
   bool m_has_depth_image;
   bool m_has_transform;
   bool m_viewing_overlay;
+  bool m_viewing_realtime_overlay;
 
   // Holds our current raw oct parameters (steps, ranges, offsets)
   OCTinfo m_current_params;

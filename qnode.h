@@ -118,6 +118,13 @@ Q_SLOTS:
   // images held by them, as well as fetching new right and disp images
   void resetAccumulators();
 
+  // Loads the visualization mesh from file and begins overlaying it on top
+  // of the captured stereocamera left image
+  void startOverlay();
+
+  //Interrupts the overlay loop and goes back into normal mode
+  void stopOverlay();
+
 Q_SIGNALS:  // Same as 'signals'
   void rosMasterChanged(bool);
   void finished();
@@ -126,6 +133,7 @@ Q_SIGNALS:  // Same as 'signals'
   void accumulated(float new_ratio);
   void receivedStereoImages();
   void receivedRegistration();
+  void stoppedOverlay();
 
  private:
   ros::NodeHandle* m_nh;
@@ -141,13 +149,12 @@ Q_SIGNALS:  // Same as 'signals'
   // Turns true when its time to shutdown
   bool m_shutdown;
 
+  bool m_overlaying;
+
   uint32_t m_accu_count;
   uint32_t m_accu_size;
 
   sensor_msgs::Image test_depth;
-
-  //ROS node update rate. We change this when we go into overlay display mode
-  double m_update_rate;
 
   cv::Mat m_left_accu;
   cv::Mat m_right_accu;
