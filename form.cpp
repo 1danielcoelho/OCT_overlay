@@ -580,7 +580,19 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
     surf->GetPoint(i, coords);
 
     height_plane[int(coords[0] / length_incrm)][int(coords[1] / width_incrm)] =
-        coords[2];
+        coords[2] + SURFACE_THICKNESS;
+  }
+
+  std::cout << "Printing height plane:\n";
+
+  for(int i = 0; i < m_current_params.length_steps; i++)
+  {
+      for(int j = 0; j < m_current_params.width_steps; j++)
+      {
+          std::cout << height_plane[i][j] << ", ";
+      }
+
+      std::cout << "\n\n";
   }
 
   // Lets release the surface since we don't need it anymore. We re-read it from
@@ -751,8 +763,26 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
 
   SliceViewer::view3dImageData(dilate_filt->GetOutput());
 
+  this->statusBar()->showMessage("Normalizing to 0-255 range... ");
+  QApplication::processEvents();
+
+  double ranges[2];
+  dilate_filt->GetOutput()->GetScalarRange(ranges);
+
+  VTK_NEW(vtkImageShiftScale, cast_filter);
+  cast_filter->SetInput(dilate_filt->GetOutput());
+  cast_filter->SetShift(-ranges[0]);
+  cast_filter->SetScale(255.0 / (ranges[1] - ranges[0]));
+  cast_filter->SetOutputScalarTypeToUnsignedChar();
+  cast_filter->Update();
+
+  SliceViewer::view3dImageData(cast_filter->GetOutput());
+
+  this->statusBar()->showMessage("Determining number of meshes... ");
+  QApplication::processEvents();
+
   VTK_NEW(vtkImageMarchingCubes, cubes_filter);
-  cubes_filter->SetInput(dilate_filt->GetOutput());
+  cubes_filter->SetInput(cast_filter->GetOutput());
   cubes_filter->SetValue(0, CUBES_VALUE);
   cubes_filter->ComputeGradientsOff();
   cubes_filter->ComputeNormalsOff();
@@ -761,12 +791,10 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
 
   SliceViewer::viewPolyData(cubes_filter->GetOutput());
 
-  this->statusBar()->showMessage("Determining number of meshes... ");
-  QApplication::processEvents();
-
   // Initially we use this to get the total number of regions
   VTK_NEW(vtkPolyDataConnectivityFilter, con_filter);
   con_filter->SetInputConnection(cubes_filter->GetOutputPort());
+  con_filter->ColorRegionsOn();
   con_filter->SetScalarConnectivity(0);
   con_filter->SetExtractionModeToAllRegions();
   con_filter->Update();
@@ -1294,10 +1322,10 @@ void Form::renderOCTMass() {
   VTK_NEW(vtkPolyDataMapper, mapper);
   mapper->SetInput(m_oct_mass_poly_data);
   mapper->SetScalarModeToDefault();
-  mapper->SetScalarVisibility(0);
+  mapper->SetScalarVisibility(1);
 
   m_oct_mass_actor->SetMapper(mapper);
-  m_oct_mass_actor->GetProperty()->SetColor(0.8d, 0.8d, 1.0d);
+  //m_oct_mass_actor->GetProperty()->SetColor(0.8d, 0.8d, 1.0d);
 
   m_renderer->AddActor(m_oct_mass_actor);
 

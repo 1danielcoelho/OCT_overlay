@@ -27,6 +27,10 @@
 //"/opt/imesLS_ROS/laser_interface_new/octCamRegistration.yaml"
 
 //-------------------------------TUMOR SEGMENTATION-----------------------------
+//The segmented OCT surface sits at the very top of the surface. This indicates
+//how deep below that we should also discard (we discard everything ABOVE the
+//surface during the tumour segmentation)
+#define SURFACE_THICKNESS 0.1
 // Low pass cutoff frequency for when we convert the entire volume to frequency
 // domain. DEFAULT: 2, 2, 2
 #define FFT_LOWPASS_CUTOFF_X 2
@@ -37,18 +41,21 @@
 #define DISCARD_SIDES_PERCENT_X 0.02
 #define DISCARD_SIDES_PERCENT_Y 0.02
 // Kernel size for the erode and dilate algorithms. DEFAULT: 7,7,7  5,5,5
-#define ERODE_KERNEL_X 7
-#define ERODE_KERNEL_Y 7
-#define ERODE_KERNEL_Z 7
-#define DILATE_KERNEL_X 5
-#define DILATE_KERNEL_Y 5
-#define DILATE_KERNEL_Z 5
+#define ERODE_KERNEL_X 8
+#define ERODE_KERNEL_Y 8
+#define ERODE_KERNEL_Z 8
+#define DILATE_KERNEL_X 8
+#define DILATE_KERNEL_Y 8
+#define DILATE_KERNEL_Z 8
 // Value of the isosurface used to generate a contour with marching cubes.
 // DEFAULT: 30
-#define CUBES_VALUE 30
+#define CUBES_VALUE 110
 // Meshes that have an estimated volume below this value are discarded (air
 // bubbles, anomalies, etc). DEFAULT: 0.02
 #define MIN_VOLUME 0.02
+// Minimum ammount of similarity necessary for classes to be fused together.
+// 0.25 seems to be a good default
+#define SIMILAR_THRESHOLD 0.3
 // The mesh generated is always larger than ideal by a constant factor. We
 // calculate the center of mass of the meshes, translate to origin, scale by
 // this amount, then translate back. DEFAULT: 0.9
