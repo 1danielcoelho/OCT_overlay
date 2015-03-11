@@ -583,18 +583,6 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
         coords[2] + SURFACE_THICKNESS;
   }
 
-  std::cout << "Printing height plane:\n";
-
-  for(int i = 0; i < m_current_params.length_steps; i++)
-  {
-      for(int j = 0; j < m_current_params.width_steps; j++)
-      {
-          std::cout << height_plane[i][j] << ", ";
-      }
-
-      std::cout << "\n\n";
-  }
-
   // Lets release the surface since we don't need it anymore. We re-read it from
   // the .cache file whenever we need it anyway
   surf = NULL;
