@@ -30,7 +30,7 @@
 //The segmented OCT surface sits at the very top of the surface. This indicates
 //how deep below that we should also discard (we discard everything ABOVE the
 //surface during the tumour segmentation)
-#define SURFACE_THICKNESS 0.1
+#define SURFACE_THICKNESS 0.2
 // Low pass cutoff frequency for when we convert the entire volume to frequency
 // domain. DEFAULT: 2, 2, 2
 #define FFT_LOWPASS_CUTOFF_X 2
@@ -47,15 +47,12 @@
 #define DILATE_KERNEL_X 8
 #define DILATE_KERNEL_Y 8
 #define DILATE_KERNEL_Z 8
-// Value of the isosurface used to generate a contour with marching cubes.
-// DEFAULT: 30
-#define CUBES_VALUE 110
 // Meshes that have an estimated volume below this value are discarded (air
 // bubbles, anomalies, etc). DEFAULT: 0.02
 #define MIN_VOLUME 0.02
 // Minimum ammount of similarity necessary for classes to be fused together.
 // 0.25 seems to be a good default
-#define SIMILAR_THRESHOLD 0.3
+#define SIMILAR_THRESHOLD 0.25
 // The mesh generated is always larger than ideal by a constant factor. We
 // calculate the center of mass of the meshes, translate to origin, scale by
 // this amount, then translate back. DEFAULT: 0.9
