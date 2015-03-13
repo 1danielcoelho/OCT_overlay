@@ -1454,6 +1454,11 @@ QGroupBox::title {
                     <height>20</height>
                    </size>
                   </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
+                  </property>
                   <property name="text">
                    <string>Request</string>
                   </property>
@@ -1478,6 +1483,11 @@ QGroupBox::title {
                     <width>50</width>
                     <height>20</height>
                    </size>
+                  </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
                   </property>
                   <property name="text">
                    <string>Browse</string>
@@ -1504,6 +1514,11 @@ QGroupBox::title {
                     <height>20</height>
                    </size>
                   </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
+                  </property>
                   <property name="text">
                    <string>Save</string>
                   </property>
@@ -1528,6 +1543,11 @@ QGroupBox::title {
                     <width>50</width>
                     <height>20</height>
                    </size>
+                  </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
                   </property>
                   <property name="text">
                    <string>View</string>
@@ -1601,6 +1621,11 @@ QGroupBox::title {
                     <height>20</height>
                    </size>
                   </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
+                  </property>
                   <property name="text">
                    <string>Request</string>
                   </property>
@@ -1625,6 +1650,11 @@ QGroupBox::title {
                     <width>50</width>
                     <height>20</height>
                    </size>
+                  </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
                   </property>
                   <property name="text">
                    <string>Browse</string>
@@ -1651,6 +1681,11 @@ QGroupBox::title {
                     <height>20</height>
                    </size>
                   </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
+                  </property>
                   <property name="text">
                    <string>Save</string>
                   </property>
@@ -1675,6 +1710,11 @@ QGroupBox::title {
                     <width>50</width>
                     <height>20</height>
                    </size>
+                  </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
                   </property>
                   <property name="text">
                    <string>View</string>
@@ -1748,6 +1788,11 @@ QGroupBox::title {
                     <height>20</height>
                    </size>
                   </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
+                  </property>
                   <property name="text">
                    <string>Request</string>
                   </property>
@@ -1772,6 +1817,11 @@ QGroupBox::title {
                     <width>50</width>
                     <height>20</height>
                    </size>
+                  </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
                   </property>
                   <property name="text">
                    <string>Browse</string>
@@ -1798,6 +1848,11 @@ QGroupBox::title {
                     <height>20</height>
                    </size>
                   </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
+                  </property>
                   <property name="text">
                    <string>Save</string>
                   </property>
@@ -1822,6 +1877,11 @@ QGroupBox::title {
                     <width>50</width>
                     <height>20</height>
                    </size>
+                  </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
                   </property>
                   <property name="text">
                    <string>View</string>
@@ -1895,6 +1955,11 @@ QGroupBox::title {
                     <height>20</height>
                    </size>
                   </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
+                  </property>
                   <property name="text">
                    <string>Request</string>
                   </property>
@@ -1919,6 +1984,11 @@ QGroupBox::title {
                     <width>50</width>
                     <height>20</height>
                    </size>
+                  </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
                   </property>
                   <property name="text">
                    <string>Browse</string>
@@ -1945,6 +2015,11 @@ QGroupBox::title {
                     <height>20</height>
                    </size>
                   </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
+                  </property>
                   <property name="text">
                    <string>Save</string>
                   </property>
@@ -1969,6 +2044,11 @@ QGroupBox::title {
                     <width>50</width>
                     <height>20</height>
                    </size>
+                  </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
                   </property>
                   <property name="text">
                    <string>View</string>
@@ -2102,6 +2182,11 @@ QGroupBox::title {
                   <width>50</width>
                   <height>20</height>
                  </size>
+                </property>
+                <property name="font">
+                 <font>
+                  <pointsize>8</pointsize>
+                 </font>
                 </property>
                 <property name="text">
                  <string>Reset</string>
@@ -2793,17 +2878,94 @@ QGroupBox::title {
             <item row="1" column="0">
              <layout class="QHBoxLayout" name="horizontalLayout_13">
               <item>
-               <spacer name="horizontalSpacer_14">
-                <property name="orientation">
-                 <enum>Qt::Horizontal</enum>
+               <widget class="QPushButton" name="calc_transform_button">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
                 </property>
-                <property name="sizeHint" stdset="0">
+                <property name="minimumSize">
                  <size>
-                  <width>40</width>
+                  <width>50</width>
                   <height>20</height>
                  </size>
                 </property>
-               </spacer>
+                <property name="maximumSize">
+                 <size>
+                  <width>50</width>
+                  <height>20</height>
+                 </size>
+                </property>
+                <property name="font">
+                 <font>
+                  <pointsize>8</pointsize>
+                 </font>
+                </property>
+                <property name="text">
+                 <string>Request</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="browse_transform_button">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>50</width>
+                  <height>20</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>50</width>
+                  <height>20</height>
+                 </size>
+                </property>
+                <property name="font">
+                 <font>
+                  <pointsize>8</pointsize>
+                 </font>
+                </property>
+                <property name="text">
+                 <string>Browse</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="save_transform_button">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>50</width>
+                  <height>20</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>50</width>
+                  <height>20</height>
+                 </size>
+                </property>
+                <property name="font">
+                 <font>
+                  <pointsize>8</pointsize>
+                 </font>
+                </property>
+                <property name="text">
+                 <string>Save</string>
+                </property>
+               </widget>
               </item>
               <item>
                <widget class="QPushButton" name="print_transform_button">
@@ -2815,43 +2977,23 @@ QGroupBox::title {
                 </property>
                 <property name="minimumSize">
                  <size>
-                  <width>70</width>
+                  <width>50</width>
                   <height>20</height>
                  </size>
                 </property>
                 <property name="maximumSize">
                  <size>
-                  <width>70</width>
+                  <width>50</width>
                   <height>20</height>
                  </size>
+                </property>
+                <property name="font">
+                 <font>
+                  <pointsize>8</pointsize>
+                 </font>
                 </property>
                 <property name="text">
                  <string>Print</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QPushButton" name="calc_transform_button">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="minimumSize">
-                 <size>
-                  <width>70</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>70</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string>Request</string>
                 </property>
                </widget>
               </item>
@@ -2912,15 +3054,20 @@ QGroupBox::title {
                 </property>
                 <property name="minimumSize">
                  <size>
-                  <width>70</width>
+                  <width>50</width>
                   <height>20</height>
                  </size>
                 </property>
                 <property name="maximumSize">
                  <size>
-                  <width>70</width>
+                  <width>50</width>
                   <height>20</height>
                  </size>
+                </property>
+                <property name="font">
+                 <font>
+                  <pointsize>8</pointsize>
+                 </font>
                 </property>
                 <property name="text">
                  <string>Stop</string>
@@ -2937,15 +3084,20 @@ QGroupBox::title {
                 </property>
                 <property name="minimumSize">
                  <size>
-                  <width>70</width>
+                  <width>50</width>
                   <height>20</height>
                  </size>
                 </property>
                 <property name="maximumSize">
                  <size>
-                  <width>70</width>
+                  <width>50</width>
                   <height>20</height>
                  </size>
+                </property>
+                <property name="font">
+                 <font>
+                  <pointsize>8</pointsize>
+                 </font>
                 </property>
                 <property name="text">
                  <string>Start</string>

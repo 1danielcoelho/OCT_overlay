@@ -87,6 +87,31 @@ void Crossbar::writeVector(std::vector<float> &input, const char *filepath,
   }
 }
 
+void Crossbar::writeVector(std::vector<double> &input, const char *filepath,
+                           bool append) {
+  std::FILE *output_file;
+  if (append) {
+    output_file = std::fopen(filepath, "ab");  // write, binary
+  } else {
+    output_file = std::fopen(filepath, "wb");  // append, binary
+  }
+
+  if (output_file == NULL) {
+    std::cerr << "Could not write file at " << filepath << std::endl;
+    return;
+  }
+
+  uint32_t bytes_written =
+      fwrite(&(input[0]), sizeof(double), input.size(), output_file);
+
+  fclose(output_file);
+
+  // Check to see if we wrote everything
+  if (bytes_written != input.size()) {
+    std::cerr << "Could not write everything to " << filepath << std::endl;
+  }
+}
+
 void Crossbar::readVector(const char *filepath, std::vector<uint8_t> &output) {
   std::FILE *input_file;
   input_file = std::fopen(filepath, "rb");
@@ -168,6 +193,33 @@ void Crossbar::readVector(const char *filepath, std::vector<float> &output) {
   }
 }
 
+void Crossbar::readVector(const char *filepath, std::vector<double> &output) {
+  std::FILE *input_file;
+  input_file = std::fopen(filepath, "rb");
+
+  if (input_file == NULL) {
+    std::cerr << "Could not open file at " << filepath << std::endl;
+    return;
+  }
+
+  // Get the file size
+  std::fseek(input_file, 0, SEEK_END);
+  int file_size = std::ftell(input_file);
+  std::rewind(input_file);
+
+  // Read the file into data
+  output.resize(file_size);
+  int bytes_read =
+      std::fread(&(output[0]), sizeof(double), file_size, input_file);
+
+  std::fclose(input_file);
+
+  // Check to see if we read everything
+  if ((bytes_read * sizeof(double)) != file_size) {
+    std::cerr << "Could not read everything from " << filepath << std::endl;
+  }
+}
+
 void Crossbar::writePolyData(vtkSmartPointer<vtkPolyData> input,
                              const char *filepath, bool append) {
   VTK_NEW(vtkXMLPolyDataWriter, writer);
@@ -194,6 +246,53 @@ void Crossbar::readPolyData(const char *filepath,
   reader->Update();
 
   input->ShallowCopy(reader->GetOutput());
+}
+
+void Crossbar::writeTransform(vtkSmartPointer<vtkTransform> input,
+                              const char *filepath)
+{
+    assert("Can't write a transform if it's NULL!" && input != NULL);
+
+    VTK_NEW(vtkMatrix4x4, mat);
+    input->GetMatrix(mat);
+
+    std::vector<double> elements;
+    for(int i = 0; i<4; i++)
+    {
+        for(int j = 0; j<4; j++)
+        {
+           std::cout << "Pushing element " << i << ", " << j << " to " << mat->GetElement(i, j) << "\n";
+           elements.push_back(mat->GetElement(i, j));
+        }
+    }
+    std::cout << "Writing " << elements.size() << " doubles\n";
+
+    std::ofstream file(filepath, std::ios::out | std::ios::binary);
+    file.write((char*)&(elements[0]), sizeof(elements));
+
+    file.close();
+
+}
+
+void Crossbar::readTransform(const char *filepath,
+                             vtkSmartPointer<vtkTransform> output)
+{
+    std::vector<double> elements(16);
+
+    std::ifstream file(filepath, std::ios::in | std::ios::binary);
+    file.read((char*)&(elements[0]), sizeof(elements));
+    file.close();
+
+    std::cout << "Read " << elements.size() << " floats from " << filepath << std::endl;
+
+    VTK_NEW(vtkMatrix4x4, mat);
+    for(int i = 0; i < elements.size(); i++)
+    {
+        std::cout << "Setting element " << (int)(i/4) << ", " << (int)(i%4) << " to " << elements[i] << "\n";
+        mat->SetElement(i/4, i%4, elements[i]);
+    }
+
+    output->SetMatrix(mat);
 }
 
 void Crossbar::writePCL(pcl::PointCloud<pcl::PointXYZ>::Ptr input,

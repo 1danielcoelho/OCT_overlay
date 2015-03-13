@@ -667,7 +667,7 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
   // Discard sides of the imagedata (harsh gradient)
   vtkSmartPointer<vtkImageData> grad_output = gradmag_filt->GetOutput();
 
-  SliceViewer::view3dImageData(grad_output);
+  //SliceViewer::view3dImageData(grad_output);
   discardImageSides(grad_output, DISCARD_SIDES_PERCENT_X,
                     DISCARD_SIDES_PERCENT_Y);
 
@@ -731,7 +731,7 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
   this->statusBar()->showMessage("Dilating... ");
   QApplication::processEvents();
 
-  SliceViewer::view3dImageData(erode_filt->GetOutput());
+  //SliceViewer::view3dImageData(erode_filt->GetOutput());
 
   // Enlarges our contour again, which helps to generate less meshes when using
   // marching cubes
@@ -740,7 +740,7 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
   dilate_filt->SetKernelSize(DILATE_KERNEL_X, DILATE_KERNEL_Y, DILATE_KERNEL_Z);
   dilate_filt->Update();  
 
-  SliceViewer::view3dImageData(dilate_filt->GetOutput());
+  //SliceViewer::view3dImageData(dilate_filt->GetOutput());
 
   // After dilation, our contour is connected into a single blob, so we erode
   // again to shrink small anomalies that we merged. This does not cleave the
@@ -750,7 +750,7 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
   erode_filt2->SetKernelSize(6, 6, 6);
   erode_filt2->Update();
 
-  SliceViewer::view3dImageData(erode_filt2->GetOutput());
+  //SliceViewer::view3dImageData(erode_filt2->GetOutput());
 
   this->statusBar()->showMessage("Normalizing to 0-255 range... ");
   QApplication::processEvents();
@@ -765,7 +765,7 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
   cast_filter->SetOutputScalarTypeToUnsignedChar();
   cast_filter->Update();
 
-  std::cout << "The final contour level will be chosen for marching cubes!\n";
+  //std::cout << "The final contour level will be chosen for marching cubes!\n";
   double thresh = SliceViewer::view3dImageData(cast_filter->GetOutput());
 
   this->statusBar()->showMessage("Applying marching cubes... ");
@@ -779,7 +779,7 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
   cubes_filter->ComputeScalarsOff();
   cubes_filter->Update();
 
-  SliceViewer::viewPolyData(cubes_filter->GetOutput());
+  //SliceViewer::viewPolyData(cubes_filter->GetOutput());
 
   this->statusBar()->showMessage("Determining number of meshes... ");
   QApplication::processEvents();
@@ -2744,4 +2744,80 @@ void Form::stoppedOverlay()
     m_viewing_realtime_overlay = false;
     m_waiting_response = false;
     updateUIStates();
+}
+
+void Form::on_browse_transform_button_clicked()
+{
+    // getOpenFileName displays a file dialog and returns the full file path of
+    // the selected file, or an empty string if the user canceled the dialog
+    // The tr() function makes the dialog language proof (chinese characters)
+    QString file_name;
+    QFileDialog dialog(this);
+    dialog.setFileMode(QFileDialog::ExistingFile);
+    dialog.setFilter(tr("OCT to stereocamera transform binary file (*.trans)"));
+    if (dialog.exec()) {
+      file_name = dialog.selectedFiles().first();
+    } else {
+      return;
+    }
+
+    if (!file_name.isEmpty()) {
+      m_waiting_response = true;
+      m_viewing_overlay = false;
+      updateUIStates();
+
+      // Allows the file dialog to close before moving on
+      QApplication::processEvents(QEventLoop::ExcludeSocketNotifiers, 10);
+
+      this->m_ui->status_bar->showMessage("Reading transform binary file... ");
+      QApplication::processEvents();
+
+      m_crossbar->readTransform(file_name.toStdString().c_str(),
+                                m_oct_stereo_trans);
+
+      this->m_ui->status_bar->showMessage("Reading transform binary file... "
+                                          "done!");
+      QApplication::processEvents();
+
+      m_has_transform = true;
+      m_waiting_response = false;
+      updateUIStates();
+    }
+
+}
+
+void Form::on_save_transform_button_clicked()
+{
+    QString file_name;
+    QFileDialog dialog(this);
+    dialog.setFileMode(QFileDialog::AnyFile);
+    dialog.setDefaultSuffix("trans");
+    dialog.setFilter(tr("OCT to stereocamera transform binary file (*.trans)"));
+    if (dialog.exec()) {
+      file_name = dialog.selectedFiles().first();
+    } else {
+      return;
+    }
+
+    if (!file_name.isEmpty()) {
+      m_waiting_response = true;
+      updateUIStates();
+
+      // Allows the file dialog to close before resuming computations
+      QApplication::processEvents(QEventLoop::ExcludeSocketNotifiers, 10);
+
+      this->m_ui->status_bar->showMessage("Writing transform data to binary "
+                                          "file...");
+      QApplication::processEvents();
+
+      m_crossbar->writeTransform(m_oct_stereo_trans,
+                                 file_name.toStdString().c_str());
+
+      this->m_ui->status_bar->showMessage("Writing transform data to binary "
+                                          "file... done!");
+      QApplication::processEvents();
+
+      m_waiting_response = false;
+      updateUIStates();
+    }
 }

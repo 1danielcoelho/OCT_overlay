@@ -29,7 +29,7 @@
     </node>
 
     <node name="OCT_overlay" pkg="OCT_overlay" type="OCT_overlay" 
-        output="screen" launch-prefix="gdb -ex run --args">
+        output="screen"> <!--launch-prefix="gdb -ex run dashdash args"-->
         <param name="leftImageTopicName" type="string" value="/stereomatching/
             image_left"/>
         <param name="rightImageTopicName" type="string" value="/stereomatching/
@@ -85,7 +85,7 @@
 		<param name="leftImageTopicName" type="string" value="/stereocamera/left/image"/>
 		<param name="rightImageTopicName" type="string" value="/stereocamera/right/image"/>
 
-		<param name="visualizationOn" type="bool" value="false"/>
+		<param name="visualizationOn" type="bool" value="true"/>
 		<param name="publishRectifiedImages" type="bool" value="true"/>
 		<param name="publishDispMap" type="bool" value="true"/>
 		<param name="publishDepthMap" type="bool" value="true"/>

@@ -52,7 +52,7 @@
 #define MIN_VOLUME 0.02
 // Minimum ammount of similarity necessary for classes to be fused together.
 // 0.25 seems to be a good default
-#define SIMILAR_THRESHOLD 0.25
+#define SIMILAR_THRESHOLD 0.15
 // The mesh generated is always larger than ideal by a constant factor. We
 // calculate the center of mass of the meshes, translate to origin, scale by
 // this amount, then translate back. DEFAULT: 0.9

@@ -9,6 +9,8 @@ Helper class for many I/O and conversion functions
 
 #include <stdio.h>
 #include <iostream>
+#include <iostream>
+#include <fstream>
 #include <stdint.h>
 #include <stdio.h>
 #include <vector>
@@ -27,6 +29,7 @@ Helper class for many I/O and conversion functions
 #include <vtkTypeUInt8Array.h>
 #include <vtkXMLPolyDataReader.h>
 #include <vtkXMLPolyDataWriter.h>
+#include <vtkTransform.h>
 
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
@@ -46,14 +49,21 @@ class Crossbar {
                    bool append = false);
   void writeVector(std::vector<float>& input, const char* filepath,
                    bool append = false);
+  void writeVector(std::vector<double>& input, const char* filepath,
+                   bool append = false);
   void readVector(const char* filepath, std::vector<uint8_t>& output);
   void readVector(const char* filepath, std::vector<uint32_t>& output);
   void readVector(const char* filepath, std::vector<float>& output);
+  void readVector(const char* filepath, std::vector<double>& output);
 
   // VTK
   void writePolyData(vtkSmartPointer<vtkPolyData> input, const char* filepath,
                      bool append = false);
   void readPolyData(const char* filepath, vtkSmartPointer<vtkPolyData> input);
+  void writeTransform(vtkSmartPointer<vtkTransform> input,
+                      const char* filepath);
+  void readTransform(const char* filepath,
+                     vtkSmartPointer<vtkTransform> output);
 
   // PCL
   void writePCL(pcl::PointCloud<pcl::PointXYZ>::Ptr input,

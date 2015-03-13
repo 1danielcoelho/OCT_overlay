@@ -225,9 +225,6 @@ Q_SLOTS:
   void on_save_disp_image_button_clicked();
   void on_save_depth_image_button_clicked();
 
-  void on_calc_transform_button_clicked();
-  void on_print_transform_button_clicked();
-
   void on_raw_min_vis_spinbox_editingFinished();
   void on_raw_max_vis_spinbox_editingFinished();
   void on_raw_min_vis_slider_valueChanged(int value);
@@ -249,6 +246,11 @@ Q_SLOTS:
   void on_over_oct_axes_checkbox_clicked();
   void on_over_trans_axes_checkbox_clicked();
 
+  void on_print_transform_button_clicked();
+  void on_calc_transform_button_clicked();
+  void on_browse_transform_button_clicked();
+  void on_save_transform_button_clicked();
+
   void on_over_start_button_clicked();
   void on_over_stop_button_clicked();
 
@@ -260,6 +262,7 @@ Q_SLOTS:
   void receivedRegistration();
   void accumulated(float new_ratio);
   void stoppedOverlay();
+
 
 Q_SIGNALS:
   void requestScan(OCTinfo);
