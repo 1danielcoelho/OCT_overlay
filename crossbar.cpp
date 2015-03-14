@@ -50,11 +50,10 @@ void Crossbar::writeTransform(vtkSmartPointer<vtkTransform> input,
     input->GetMatrix(mat);
 
     std::vector<double> elements;
-    for(int i = 0; i<4; i++)
+    for(uint32_t i = 0; i<4; i++)
     {
-        for(int j = 0; j<4; j++)
+        for(uint32_t j = 0; j<4; j++)
         {
-           std::cout << "Pushing element " << i << ", " << j << " to " << mat->GetElement(i, j) << "\n";
            elements.push_back(mat->GetElement(i, j));
         }
     }
@@ -68,16 +67,15 @@ void Crossbar::readTransform(const char *filepath,
 {
     if(output == NULL) output = vtkSmartPointer<vtkTransform>::New();
 
-    std::vector<double> elements(16);
+    std::vector<double> elements;
     this->readVector(filepath, elements);
 
     assert("Transform file contains more than 16 doubles!" &&
-           elements.size() != 16);
+           elements.size() == 16);
 
     VTK_NEW(vtkMatrix4x4, mat);
-    for(int i = 0; i < elements.size(); i++)
+    for(uint32_t i = 0; i < elements.size(); i++)
     {
-        std::cout << "Setting element " << (int)(i/4) << ", " << (int)(i%4) << " to " << elements[i] << "\n";
         mat->SetElement(i/4, i%4, elements[i]);
     }
 
@@ -374,9 +372,9 @@ void Crossbar::floatVectorToCvMat(std::vector<float>& input, cv::Mat& output)
     output.create(rows, cols, CV_32FC3);
     output = cv::Mat::zeros(rows, cols, CV_32FC3);
 
-    for(int i = 0; i < rows; i++)
+    for(uint32_t i = 0; i < rows; i++)
     {
-        for(int j = 0; j < cols; j++)
+        for(uint32_t j = 0; j < cols; j++)
         {
             cv::Vec3f& color = output.at<cv::Vec3f>(i,j);
 
