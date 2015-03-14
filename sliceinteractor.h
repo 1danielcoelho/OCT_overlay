@@ -135,8 +135,7 @@ class vtkImageInteractionCallback : public vtkCommand {
       this->Slicing = 0;    
     } else if (event == vtkCommand::MouseMoveEvent) {
       if (this->Slicing) {
-        vtkImageReslice *reslice = this->ImageReslice;
-        vtkMarchingSquares* squares = this->MarchingSquares;
+        vtkImageReslice *reslice = this->ImageReslice;        
         vtkRenderer* renderer = this->Renderer;
 
         // Increment slice position by deltaY of mouse

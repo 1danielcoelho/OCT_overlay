@@ -42,19 +42,68 @@ class Crossbar {
   // Deletes all of our cache files
   void clearAllFiles();
 
-  // Byte vectors
-  void writeVector(std::vector<uint8_t>& input, const char* filepath,
-                   bool append = false);
-  void writeVector(std::vector<uint32_t>& input, const char* filepath,
-                   bool append = false);
-  void writeVector(std::vector<float>& input, const char* filepath,
-                   bool append = false);
-  void writeVector(std::vector<double>& input, const char* filepath,
-                   bool append = false);
-  void readVector(const char* filepath, std::vector<uint8_t>& output);
-  void readVector(const char* filepath, std::vector<uint32_t>& output);
-  void readVector(const char* filepath, std::vector<float>& output);
-  void readVector(const char* filepath, std::vector<double>& output);
+  // Vectors to binary files
+  template<typename T>
+  void writeVector(std::vector<T>& input, const char* filepath,
+                   bool append = false)
+  {
+      assert("Can't write input vector: No elements!" && input.size() != 0);
+
+      std::FILE *output_file;
+      if (append) {
+        output_file = std::fopen(filepath, "ab");  // append, binary
+      } else {
+        output_file = std::fopen(filepath, "wb");  // write, binary
+      }
+
+      if (output_file == NULL) {
+        std::cerr << "Could not write file at " << filepath << std::endl;
+        return;
+      }
+
+      uint32_t elements_written = fwrite(&(input[0]), sizeof(T), input.size(),
+                                    output_file);
+
+      fclose(output_file);
+
+      // Check to see if we wrote everything
+      if (elements_written != input.size()) {
+        std::cerr << "Could not write everything to " << filepath << std::endl;
+      }
+  }
+
+  template<typename T>
+  void readVector(const char* filepath, std::vector<T>& output)
+  {
+      std::FILE *input_file;
+      input_file = std::fopen(filepath, "rb");
+
+      if (input_file == NULL) {
+        std::cerr << "Could not open file at " << filepath << std::endl;
+        return;
+      }
+
+      // Get the file size in bytes
+      std::fseek(input_file, 0, SEEK_END);
+      int file_size = std::ftell(input_file);
+      std::rewind(input_file);
+
+      // Get the number of elements in the file
+      uint32_t element_count = file_size / sizeof(T);
+
+      // Read the file into data
+      output.resize(element_count);
+      uint32_t elements_read = std::fread(&(output[0]), sizeof(T),
+                                          element_count, input_file);
+
+      std::fclose(input_file);
+
+      // Check to see if we read everything
+      if (elements_read != element_count) {
+        std::cerr << "Could not read everything from " << filepath <<
+                     std::endl;
+      }
+  }
 
   // VTK
   void writePolyData(vtkSmartPointer<vtkPolyData> input, const char* filepath,

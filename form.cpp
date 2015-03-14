@@ -233,10 +233,15 @@ void Form::updateUIStates() {
                                         !m_waiting_response);
   m_ui->over_trans_axes_checkbox->setEnabled(m_has_transform &&
                                              !m_waiting_response);
-  m_ui->calc_transform_button->setEnabled(m_has_oct_surf && m_has_depth_image &&
-                                          !m_waiting_response);
+
+  m_ui->calc_transform_button->setEnabled(m_has_oct_surf && m_has_depth_image
+                                          && !m_waiting_response);
   m_ui->print_transform_button->setEnabled(m_has_transform &&
                                            !m_waiting_response);
+  m_ui->browse_transform_button->setEnabled(!m_waiting_response);
+  m_ui->save_transform_button->setEnabled(!m_waiting_response &&
+                                          m_has_transform);
+
   m_ui->over_start_button->setEnabled(m_has_stereo_cache &&
                                       !m_waiting_response &&
                                       !m_viewing_realtime_overlay);
@@ -1177,9 +1182,9 @@ void Form::renderStereocameraReconstruction() {
   points->SetNumberOfPoints(rows * cols);
 
   vtkIdType point_id = 0;
-  for(int i = 0; i < rows; i++)
+  for(uint32_t i = 0; i < rows; i++)
   {
-      for(int j = 0; j < cols; j++)
+      for(uint32_t j = 0; j < cols; j++)
       {
           float* coords = static_cast<float*>(
                       m_stereo_depth_image->GetScalarPointer(j, i, 0));
@@ -1312,8 +1317,14 @@ void Form::renderOCTMass() {
   assert("m_oct_mass_poly_data is empty!" &&
          m_oct_mass_poly_data->GetNumberOfCells() > 0);
 
+  //Applies the transform received from registration. Should be the
+  //identity transform in case we haven't performed it yet
+  VTK_NEW(vtkTransformFilter, trans_filter)
+  trans_filter->SetInput(m_oct_mass_poly_data);
+  trans_filter->SetTransform(m_oct_stereo_trans);
+
   VTK_NEW(vtkPolyDataMapper, mapper);
-  mapper->SetInput(m_oct_mass_poly_data);
+  mapper->SetInputConnection(trans_filter->GetOutputPort());
   mapper->SetScalarModeToDefault();
   mapper->SetScalarVisibility(1);
 
@@ -2287,7 +2298,6 @@ void Form::on_request_left_image_button_clicked() {
 
   std::vector<uint32_t> left_vector;
   m_crossbar->readVector(STEREO_LEFT_CACHE_PATH, left_vector);
-
   m_crossbar->intVectorToImageData2D(left_vector, m_stereo_left_image);
 
   render2DImageData(m_stereo_left_image);
@@ -2310,7 +2320,6 @@ void Form::on_request_right_image_button_clicked() {
 
   std::vector<uint32_t> right_vector;
   m_crossbar->readVector(STEREO_RIGHT_CACHE_PATH, right_vector);
-
   m_crossbar->intVectorToImageData2D(right_vector, m_stereo_right_image);
 
   render2DImageData(m_stereo_right_image);
@@ -2333,7 +2342,6 @@ void Form::on_request_disp_image_button_clicked() {
 
   std::vector<uint32_t> disp_vector;
   m_crossbar->readVector(STEREO_DISP_CACHE_PATH, disp_vector);
-
   m_crossbar->intVectorToImageData2D(disp_vector, m_stereo_disp_image);
 
   render2DImageData(m_stereo_disp_image);
