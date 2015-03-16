@@ -72,7 +72,7 @@
         </sizepolicy>
        </property>
        <property name="currentIndex">
-        <number>0</number>
+        <number>2</number>
        </property>
        <widget class="QWidget" name="OCT">
         <attribute name="title">
@@ -2290,145 +2290,7 @@ QGroupBox::title {
            <property name="title">
             <string>Inputs</string>
            </property>
-           <layout class="QGridLayout" name="gridLayout_10">
-            <item row="1" column="0">
-             <layout class="QVBoxLayout" name="verticalLayout_9">
-              <property name="spacing">
-               <number>0</number>
-              </property>
-              <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_18">
-                <item>
-                 <spacer name="horizontalSpacer_25">
-                  <property name="orientation">
-                   <enum>Qt::Horizontal</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>68</width>
-                    <height>20</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
-                <item>
-                 <widget class="QLabel" name="over_oct_surf_label">
-                  <property name="maximumSize">
-                   <size>
-                    <width>16777215</width>
-                    <height>14</height>
-                   </size>
-                  </property>
-                  <property name="text">
-                   <string>OCT surface</string>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_19">
-                <item>
-                 <spacer name="horizontalSpacer_26">
-                  <property name="orientation">
-                   <enum>Qt::Horizontal</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>40</width>
-                    <height>20</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
-                <item>
-                 <widget class="QCheckBox" name="over_oct_surf_checkbox">
-                  <property name="font">
-                   <font>
-                    <pointsize>8</pointsize>
-                   </font>
-                  </property>
-                  <property name="layoutDirection">
-                   <enum>Qt::RightToLeft</enum>
-                  </property>
-                  <property name="text">
-                   <string>Visible</string>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </item>
-             </layout>
-            </item>
-            <item row="6" column="0">
-             <layout class="QVBoxLayout" name="verticalLayout_14">
-              <property name="spacing">
-               <number>0</number>
-              </property>
-              <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_36">
-                <item>
-                 <spacer name="horizontalSpacer_33">
-                  <property name="orientation">
-                   <enum>Qt::Horizontal</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>68</width>
-                    <height>20</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
-                <item>
-                 <widget class="QLabel" name="over_trans_axes_label">
-                  <property name="maximumSize">
-                   <size>
-                    <width>16777215</width>
-                    <height>14</height>
-                   </size>
-                  </property>
-                  <property name="text">
-                   <string>Stereocamera CS axes</string>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_37">
-                <item>
-                 <spacer name="horizontalSpacer_34">
-                  <property name="orientation">
-                   <enum>Qt::Horizontal</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>40</width>
-                    <height>20</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
-                <item>
-                 <widget class="QCheckBox" name="over_trans_axes_checkbox">
-                  <property name="font">
-                   <font>
-                    <pointsize>8</pointsize>
-                   </font>
-                  </property>
-                  <property name="layoutDirection">
-                   <enum>Qt::RightToLeft</enum>
-                  </property>
-                  <property name="text">
-                   <string>Visible</string>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </item>
-             </layout>
-            </item>
+           <layout class="QGridLayout" name="gridLayout_8">
             <item row="0" column="0">
              <layout class="QVBoxLayout" name="verticalLayout_11">
               <property name="spacing">
@@ -2595,15 +2457,15 @@ QGroupBox::title {
               </item>
              </layout>
             </item>
-            <item row="4" column="0">
-             <layout class="QVBoxLayout" name="verticalLayout_12">
+            <item row="1" column="0">
+             <layout class="QVBoxLayout" name="verticalLayout_9">
               <property name="spacing">
                <number>0</number>
               </property>
               <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_30">
+               <layout class="QHBoxLayout" name="horizontalLayout_18">
                 <item>
-                 <spacer name="horizontalSpacer_29">
+                 <spacer name="horizontalSpacer_25">
                   <property name="orientation">
                    <enum>Qt::Horizontal</enum>
                   </property>
@@ -2616,7 +2478,7 @@ QGroupBox::title {
                  </spacer>
                 </item>
                 <item>
-                 <widget class="QLabel" name="over_depth_label">
+                 <widget class="QLabel" name="over_oct_surf_label">
                   <property name="maximumSize">
                    <size>
                     <width>16777215</width>
@@ -2624,16 +2486,16 @@ QGroupBox::title {
                    </size>
                   </property>
                   <property name="text">
-                   <string>Stereocamera reconstruction</string>
+                   <string>OCT surface</string>
                   </property>
                  </widget>
                 </item>
                </layout>
               </item>
               <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_31">
+               <layout class="QHBoxLayout" name="horizontalLayout_19">
                 <item>
-                 <spacer name="horizontalSpacer_30">
+                 <spacer name="horizontalSpacer_26">
                   <property name="orientation">
                    <enum>Qt::Horizontal</enum>
                   </property>
@@ -2646,7 +2508,7 @@ QGroupBox::title {
                  </spacer>
                 </item>
                 <item>
-                 <widget class="QCheckBox" name="over_depth_checkbox">
+                 <widget class="QCheckBox" name="over_oct_surf_checkbox">
                   <property name="font">
                    <font>
                     <pointsize>8</pointsize>
@@ -2733,6 +2595,159 @@ QGroupBox::title {
               </item>
              </layout>
             </item>
+            <item row="3" column="0">
+             <layout class="QVBoxLayout" name="verticalLayout_16">
+              <property name="spacing">
+               <number>0</number>
+              </property>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_33">
+                <item>
+                 <spacer name="horizontalSpacer_35">
+                  <property name="orientation">
+                   <enum>Qt::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>68</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+                <item>
+                 <widget class="QLabel" name="over_stereo_left_label">
+                  <property name="maximumSize">
+                   <size>
+                    <width>16777215</width>
+                    <height>14</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string>Left stereocamera image</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_39">
+                <item>
+                 <spacer name="horizontalSpacer_36">
+                  <property name="orientation">
+                   <enum>Qt::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>40</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="over_camera_checkbox">
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
+                  </property>
+                  <property name="layoutDirection">
+                   <enum>Qt::RightToLeft</enum>
+                  </property>
+                  <property name="text">
+                   <string>Lock camera</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="over_left_checkbox">
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
+                  </property>
+                  <property name="layoutDirection">
+                   <enum>Qt::RightToLeft</enum>
+                  </property>
+                  <property name="text">
+                   <string>Visible</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+             </layout>
+            </item>
+            <item row="4" column="0">
+             <layout class="QVBoxLayout" name="verticalLayout_12">
+              <property name="spacing">
+               <number>0</number>
+              </property>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_30">
+                <item>
+                 <spacer name="horizontalSpacer_29">
+                  <property name="orientation">
+                   <enum>Qt::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>68</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+                <item>
+                 <widget class="QLabel" name="over_depth_label">
+                  <property name="maximumSize">
+                   <size>
+                    <width>16777215</width>
+                    <height>14</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string>Stereocamera reconstruction</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_31">
+                <item>
+                 <spacer name="horizontalSpacer_30">
+                  <property name="orientation">
+                   <enum>Qt::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>40</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="over_depth_checkbox">
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
+                  </property>
+                  <property name="layoutDirection">
+                   <enum>Qt::RightToLeft</enum>
+                  </property>
+                  <property name="text">
+                   <string>Visible</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+             </layout>
+            </item>
             <item row="5" column="0">
              <layout class="QVBoxLayout" name="verticalLayout_13">
               <property name="spacing">
@@ -2802,9 +2817,79 @@ QGroupBox::title {
               </item>
              </layout>
             </item>
+            <item row="6" column="0">
+             <layout class="QVBoxLayout" name="verticalLayout_14">
+              <property name="spacing">
+               <number>0</number>
+              </property>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_36">
+                <item>
+                 <spacer name="horizontalSpacer_33">
+                  <property name="orientation">
+                   <enum>Qt::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>68</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+                <item>
+                 <widget class="QLabel" name="over_trans_axes_label">
+                  <property name="maximumSize">
+                   <size>
+                    <width>16777215</width>
+                    <height>14</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string>Stereocamera CS axes</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_37">
+                <item>
+                 <spacer name="horizontalSpacer_34">
+                  <property name="orientation">
+                   <enum>Qt::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>40</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="over_trans_axes_checkbox">
+                  <property name="font">
+                   <font>
+                    <pointsize>8</pointsize>
+                   </font>
+                  </property>
+                  <property name="layoutDirection">
+                   <enum>Qt::RightToLeft</enum>
+                  </property>
+                  <property name="text">
+                   <string>Visible</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+             </layout>
+            </item>
            </layout>
            <zorder></zorder>
            <zorder></zorder>
+           <zorder>layoutWidget</zorder>
           </widget>
          </item>
          <item row="1" column="0">

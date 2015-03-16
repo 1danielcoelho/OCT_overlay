@@ -556,10 +556,11 @@ void QNode::startOverlay()
 
     while(m_overlaying)
     {
-        static ros::Rate loop_rate(10);
+        // Cameras run at 30 fps
+        static ros::Rate loop_rate(30);
         loop_rate.sleep();
 
-        //Checks our subscriptions
+        // Checks our subscriptions
         ros::spinOnce();
 
         // Check for signals

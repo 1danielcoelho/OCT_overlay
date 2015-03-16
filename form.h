@@ -264,6 +264,10 @@ Q_SLOTS:
   void stoppedOverlay();
 
 
+  void on_over_left_checkbox_clicked();
+
+  void on_over_camera_checkbox_clicked();
+
 Q_SIGNALS:
   void requestScan(OCTinfo);
   void requestSegmentation(OCTinfo);
@@ -312,6 +316,7 @@ Q_SIGNALS:
   vtkSmartPointer<vtkImageData> m_stereo_disp_image;
   vtkSmartPointer<vtkImageData> m_stereo_depth_image;
   vtkSmartPointer<vtkTransform> m_oct_stereo_trans;
+  vtkSmartPointer<vtkTransform> m_stereo_left_proj_trans;
   // Actors are kept since we need their references when we add/remove actors in
   // the Overlay section of the program
   vtkSmartPointer<vtkActor> m_oct_vol_actor;

@@ -110,6 +110,8 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_stereo_depth_image = vtkSmartPointer<vtkImageData>::New();
   m_oct_stereo_trans = vtkSmartPointer<vtkTransform>::New();
   m_oct_stereo_trans->Identity();
+  m_stereo_left_proj_trans = vtkSmartPointer<vtkTransform>::New();
+  m_stereo_left_proj_trans->Identity();
   // Actors
   m_oct_vol_actor = vtkSmartPointer<vtkActor>::New();
   m_oct_surf_actor = vtkSmartPointer<vtkActor>::New();
@@ -128,6 +130,28 @@ Form::Form(int argc, char** argv, QWidget* parent)
 
   // Adds our renderer to the QVTK widget
   this->m_ui->qvtkWidget->GetRenderWindow()->AddRenderer(m_renderer);
+
+  //Try to read the left camera calibration file and parse the projection trans
+  cv::Mat test = cv::Mat_<uchar>::eye (3, 4);
+  cv::FileStorage fs(LEFT_CALIBRATION_FILE, cv::FileStorage::READ);
+  fs["P"] >> test;
+
+  cv::Mat camera;
+  cv::Mat camera_rot = cv::Mat_<uchar>::zeros (3, 3);
+  cv::Mat camera_pos = cv::Mat_<uchar>::zeros (1, 4);
+  cv::decomposeProjectionMatrix(test,camera,camera_rot,camera_pos);
+
+//  VTK_NEW(vtkMatrix4x4, mat);
+//  for(uint32_t i = 0; i<3; i++)
+//  {
+//      for(uint32_t j = 0; j<4; j++)
+//      {
+//          std::cout << "Mat " << i << ", " << j << ": " << test.at<double>(i,j) << std::endl;
+//          mat->SetElement(i, j, test.at<double>(i,j));
+//      }
+//  }
+
+  std::cout << "test: " << test << "Camera: " << camera << "Camera pos: "<< camera_pos << ", camera rot: " << camera_rot << std::endl;
 }
 
 Form::~Form() {
@@ -2828,4 +2852,14 @@ void Form::on_save_transform_button_clicked()
       m_waiting_response = false;
       updateUIStates();
     }
+}
+
+void Form::on_over_left_checkbox_clicked()
+{
+
+}
+
+void Form::on_over_camera_checkbox_clicked()
+{
+
 }

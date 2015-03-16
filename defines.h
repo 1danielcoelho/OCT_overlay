@@ -67,5 +67,6 @@
 
 //------------------------------------OVERLAY----------------------------------
 #define WINDOW_NAME "Stereocamera left image with overlay"
+#define LEFT_CALIBRATION_FILE "/opt/imesLS_ROS/cameracalibration/launch/SOMIKON/calib_full_left.yaml"
 
 #endif  // DEFINES_H
