@@ -486,7 +486,7 @@ void Crossbar::imageData2DToPolyData(vtkSmartPointer<vtkImageData> input,
         // We need to invert the vertical coordinate since we use different
         // origins
         uint8_t *pixel = static_cast<uint8_t *>(
-            input->GetScalarPointer(x, y, 0));
+            input->GetScalarPointer(x, (rows - 1) - y, 0));
 
         float color_float[3];
         color_float[0] = (float)pixel[0];
@@ -508,35 +508,35 @@ void Crossbar::imageData2DToPolyData(vtkSmartPointer<vtkImageData> input,
 
 void Crossbar::cvMatToPolyData(cv::Mat &input, vtkSmartPointer<vtkPolyData> output)
 {
-    uint32_t rows = input.rows;
-    uint32_t cols = input.cols;
-    uint32_t num_pts = rows * cols;
+    int rows = input.rows;
+    int cols = input.cols;
+    int num_pts = rows * cols;
 
     VTK_NEW(vtkPoints, points);
     points->SetNumberOfPoints(num_pts);
 
     VTK_NEW(vtkTypeUInt8Array, color_array);
-    polydata_color_array->SetNumberOfComponents(3);
-    polydata_color_array->SetNumberOfTuples(num_pts);
-    polydata_color_array->SetName("Colors");
+    color_array->SetNumberOfComponents(3);
+    color_array->SetNumberOfTuples(num_pts);
+    color_array->SetName("Colors");
 
-    uint32_t point_id = 0;
-    for (uint32_t i = 0; i < rows; i++) {
-      for (uint32_t j = 0; j < cols; j++) {
+    int point_id = 0;
+    for (int i = 0; i < rows; i++) {
+      for (int j = 0; j < cols; j++) {
 
         float color_float[3];
-        color_float[0] = (float) m_left_accu.at<cv::Vec3b>(i, j)[0];
-        color_float[1] = (float) m_left_accu.at<cv::Vec3b>(i, j)[1];
-        color_float[2] = (float) m_left_accu.at<cv::Vec3b>(i, j)[2];
+        color_float[0] = (float) input.at<cv::Vec3b>(i, j)[0];
+        color_float[1] = (float) input.at<cv::Vec3b>(i, j)[1];
+        color_float[2] = (float) input.at<cv::Vec3b>(i, j)[2];
 
         // The two first uint32_t are the header
-        polydata_points->SetPoint(point_id, j, i, 0);
-        polydata_color_array->SetTuple(point_id, color_float);
+        points->SetPoint(point_id, j, i, 0);
+        color_array->SetTuple(point_id, color_float);
 
         point_id++;
       }
     }
 
-    output->SetPoints(polydata_points);
-    output->GetPointData()->SetScalars(polydata_color_array);
+    output->SetPoints(points);
+    output->GetPointData()->SetScalars(color_array);
 }

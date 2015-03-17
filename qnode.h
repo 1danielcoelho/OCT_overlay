@@ -61,6 +61,7 @@ namespace enc = sensor_msgs::image_encodings;
 // signals and slots
 Q_DECLARE_METATYPE(OCTinfo)
 Q_DECLARE_METATYPE(std::vector<uint8_t>)
+Q_DECLARE_METATYPE(vtkSmartPointer<vtkPolyData>)
 
 class QNode : public QObject {
   Q_OBJECT
@@ -133,7 +134,7 @@ Q_SIGNALS:  // Same as 'signals'
   void accumulated(float new_ratio);
   void receivedStereoImages();
   void receivedRegistration();
-  void stoppedOverlay();
+  void leftImage(vtkSmartPointer<vtkPolyData> left);
 
  private:
   ros::NodeHandle* m_nh;

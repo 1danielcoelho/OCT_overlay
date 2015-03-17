@@ -122,9 +122,10 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
       cv_image_ptr = cv_bridge::toCvCopy(msg_left, enc::RGB8);
       image_left = cv_image_ptr->image;
 
+      VTK_NEW(vtkPolyData, left_poly);
+      m_crossbar->cvMatToPolyData(image_left, left_poly);
 
-
-      cv::imshow(WINDOW_NAME, image_left);
+      Q_EMIT leftImage(left_poly);
   }
 
   //We're not overlaying: Accumulate and write images to disk
@@ -529,9 +530,6 @@ void QNode::startOverlay()
         // Check for signals
         QCoreApplication::processEvents();
     }
-
-    //Let's Form know it can destroy the window
-    Q_EMIT stoppedOverlay();
 }
 
 void QNode::stopOverlay()

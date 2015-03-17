@@ -172,8 +172,11 @@ class Form : public QMainWindow {
   // m_vis_threshold
   void renderOCTVolumePolyData();
 
+  // Renders the surface received from the OCT_segmentation node
   void renderOCTSurface();
 
+  // Renders the reconstruction of the surface observed by the stereocamera, by
+  // combining both a left and depth images
   void renderStereocameraReconstruction();
 
   // Clears m_renderer from actors and renders either the left, right or
@@ -182,6 +185,10 @@ class Form : public QMainWindow {
 
   // Renders the mesh stored in m_oct_mass_poly_data as a triangular mesh
   void renderOCTMass();
+
+  // Renders the left stereocamera image in 3D space, with m_left_proj_trans
+  // applied
+  void renderLeftImage();
 
   //--------------UI CALLBACKS--------------------------------------------------
 
@@ -193,26 +200,22 @@ Q_SLOTS:
   void on_dep_steps_spinbox_editingFinished();
   void on_dep_range_spinbox_editingFinished();
 
-  void on_browse_button_clicked();
-  void on_view_raw_oct_button_clicked();
-  void on_save_button_clicked();
   void on_request_scan_button_clicked();
+  void on_browse_button_clicked();
+  void on_save_button_clicked();
+  void on_view_raw_oct_button_clicked();
 
-  void on_view_oct_surf_button_clicked();
-  void on_view_oct_mass_button_clicked();
   void on_calc_oct_surf_button_clicked();
   void on_calc_oct_mass_button_clicked();
   void on_browse_oct_surf_button_clicked();
   void on_browse_oct_mass_button_clicked();
   void on_save_oct_surf_button_clicked();
   void on_save_oct_mass_button_clicked();
+  void on_view_oct_surf_button_clicked();
+  void on_view_oct_mass_button_clicked();
 
   void on_accu_reset_button_clicked();
 
-  void on_view_left_image_button_clicked();
-  void on_view_right_image_button_clicked();
-  void on_view_disp_image_button_clicked();
-  void on_view_depth_image_button_clicked();
   void on_request_left_image_button_clicked();
   void on_request_right_image_button_clicked();
   void on_request_disp_image_button_clicked();
@@ -225,6 +228,10 @@ Q_SLOTS:
   void on_save_right_image_button_clicked();
   void on_save_disp_image_button_clicked();
   void on_save_depth_image_button_clicked();
+  void on_view_left_image_button_clicked();
+  void on_view_right_image_button_clicked();
+  void on_view_disp_image_button_clicked();
+  void on_view_depth_image_button_clicked();
 
   void on_raw_min_vis_spinbox_editingFinished();
   void on_raw_max_vis_spinbox_editingFinished();
@@ -242,14 +249,15 @@ Q_SLOTS:
 
   void on_over_raw_checkbox_clicked();
   void on_over_oct_surf_checkbox_clicked();
-  void on_over_oct_mass_checkbox_clicked();
+  void on_over_oct_mass_checkbox_clicked();  
+  void on_over_left_checkbox_clicked();
   void on_over_depth_checkbox_clicked();
   void on_over_oct_axes_checkbox_clicked();
   void on_over_trans_axes_checkbox_clicked();
 
-  void on_print_transform_button_clicked();
   void on_calc_transform_button_clicked();
   void on_browse_transform_button_clicked();
+  void on_print_transform_button_clicked();
   void on_save_transform_button_clicked();
 
   void on_over_start_button_clicked();
@@ -262,10 +270,7 @@ Q_SLOTS:
   void receivedStereoImages();
   void receivedRegistration();
   void accumulated(float new_ratio);
-  void stoppedOverlay();
-
-
-  void on_over_left_checkbox_clicked();
+  void newLeftImage(vtkSmartPointer<vtkPolyData> left);
 
 Q_SIGNALS:
   void requestScan(OCTinfo);
@@ -309,6 +314,7 @@ Q_SIGNALS:
   vtkSmartPointer<vtkPolyData> m_oct_poly_data;
   vtkSmartPointer<vtkPolyData> m_oct_mass_poly_data;
   vtkSmartPointer<vtkPolyData> m_oct_surf_poly_data;
+  vtkSmartPointer<vtkPolyData> m_stereo_left_poly_data;
   vtkSmartPointer<vtkPolyData> m_stereo_reconstr_poly_data;
   vtkSmartPointer<vtkImageData> m_stereo_left_image;
   vtkSmartPointer<vtkImageData> m_stereo_right_image;
@@ -316,12 +322,13 @@ Q_SIGNALS:
   vtkSmartPointer<vtkImageData> m_stereo_depth_image;
   vtkSmartPointer<vtkTransform> m_oct_stereo_trans;
   vtkSmartPointer<vtkTransform> m_left_pos_rot_trans;
-  vtkSmartPointer<vtkTransform> m_stereo_left_proj_trans;
+  vtkSmartPointer<vtkTransform> m_left_proj_trans;
   // Actors are kept since we need their references when we add/remove actors in
   // the Overlay section of the program
   vtkSmartPointer<vtkActor> m_oct_vol_actor;
   vtkSmartPointer<vtkActor> m_oct_surf_actor;
   vtkSmartPointer<vtkActor> m_oct_mass_actor;
+  vtkSmartPointer<vtkActor> m_stereo_left_actor;
   vtkSmartPointer<vtkActor> m_stereo_reconstr_actor;
   vtkSmartPointer<vtkActor2D> m_stereo_2d_actor;
   vtkSmartPointer<vtkAxesActor> m_oct_axes_actor;
