@@ -29,7 +29,7 @@
     </node>
 
     <node name="OCT_overlay" pkg="OCT_overlay" type="OCT_overlay" 
-        output="screen"> <!--launch-prefix="gdb -ex run dashdash args"-->
+        output="screen" launch-prefix="gdb -ex run --args">
         <param name="leftImageTopicName" type="string" value="/stereomatching/
             image_left"/>
         <param name="rightImageTopicName" type="string" value="/stereomatching/

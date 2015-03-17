@@ -2646,21 +2646,6 @@ QGroupBox::title {
                  </spacer>
                 </item>
                 <item>
-                 <widget class="QCheckBox" name="over_camera_checkbox">
-                  <property name="font">
-                   <font>
-                    <pointsize>8</pointsize>
-                   </font>
-                  </property>
-                  <property name="layoutDirection">
-                   <enum>Qt::RightToLeft</enum>
-                  </property>
-                  <property name="text">
-                   <string>Lock camera</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
                  <widget class="QCheckBox" name="over_left_checkbox">
                   <property name="font">
                    <font>
@@ -2889,7 +2874,6 @@ QGroupBox::title {
            </layout>
            <zorder></zorder>
            <zorder></zorder>
-           <zorder>layoutWidget</zorder>
           </widget>
          </item>
          <item row="1" column="0">

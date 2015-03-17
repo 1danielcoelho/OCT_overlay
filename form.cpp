@@ -110,6 +110,8 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_stereo_depth_image = vtkSmartPointer<vtkImageData>::New();
   m_oct_stereo_trans = vtkSmartPointer<vtkTransform>::New();
   m_oct_stereo_trans->Identity();
+  m_left_pos_rot_trans = vtkSmartPointer<vtkTransform>::New();
+  m_left_pos_rot_trans->Identity();
   m_stereo_left_proj_trans = vtkSmartPointer<vtkTransform>::New();
   m_stereo_left_proj_trans->Identity();
   // Actors
@@ -132,26 +134,53 @@ Form::Form(int argc, char** argv, QWidget* parent)
   this->m_ui->qvtkWidget->GetRenderWindow()->AddRenderer(m_renderer);
 
   //Try to read the left camera calibration file and parse the projection trans
-  cv::Mat test = cv::Mat_<uchar>::eye (3, 4);
-  cv::FileStorage fs(LEFT_CALIBRATION_FILE, cv::FileStorage::READ);
-  fs["P"] >> test;
-
-  cv::Mat camera;
+  //and camera position/rotation
+  cv::FileStorage stereo_file(CALIB_STEREO_FILE, cv::FileStorage::READ);
+  cv::FileStorage left_file(CALIB_LEFT_FILE, cv::FileStorage::READ);
   cv::Mat camera_rot = cv::Mat_<uchar>::zeros (3, 3);
-  cv::Mat camera_pos = cv::Mat_<uchar>::zeros (1, 4);
-  cv::decomposeProjectionMatrix(test,camera,camera_rot,camera_pos);
+  stereo_file["R"] >> camera_rot;
+  cv::Mat camera_pos = cv::Mat_<uchar>::zeros (3, 1);
+  stereo_file["T"] >> camera_pos;
+  cv::Mat proj;
+  left_file["P"] >> proj;
 
-//  VTK_NEW(vtkMatrix4x4, mat);
-//  for(uint32_t i = 0; i<3; i++)
-//  {
-//      for(uint32_t j = 0; j<4; j++)
-//      {
-//          std::cout << "Mat " << i << ", " << j << ": " << test.at<double>(i,j) << std::endl;
-//          mat->SetElement(i, j, test.at<double>(i,j));
-//      }
-//  }
+  VTK_NEW(vtkMatrix4x4, mat);
+  for(uint32_t i = 0; i<4; i++)
+  {
+      for(uint32_t j = 0; j<4; j++)
+      {
+          double element;
 
-  std::cout << "test: " << test << "Camera: " << camera << "Camera pos: "<< camera_pos << ", camera rot: " << camera_rot << std::endl;
+          if(i < 3 && j < 3) { element = camera_rot.at<double>(i,j);}
+          else if (i < 3 && j == 3) { element = camera_pos.at<double>(i, 0); }
+          else if (j == 3 && i == 3) { element = 1; }
+          else { element = 0; }
+
+          //std::cout << "Mat " << i << ", " << j << ": " << element << std::endl;
+          mat->SetElement(i, j, element);
+      }
+  }
+  //vtkMatrix4x4::Invert(mat, mat);
+  m_left_pos_rot_trans->SetMatrix(mat);
+
+  VTK_NEW(vtkMatrix4x4, mat2);
+  for(uint32_t i = 0; i<4; i++)
+  {
+    for(uint32_t j = 0; j<4; j++)
+    {
+        double element;
+
+        if(i == 3 && j == 3) element = 1;
+        else if(i == 3) element = 0;
+        else {
+            element = proj.at<double>(i,j);
+        }
+        mat->SetElement(i, j, element);
+    }
+  }
+  m_stereo_left_proj_trans->SetMatrix(mat2);
+
+  //std::cout << "Camera pos: "<< camera_pos << ", camera rot: " << camera_rot << std::endl;
 }
 
 Form::~Form() {
@@ -1239,6 +1268,8 @@ void Form::renderStereocameraReconstruction() {
   m_stereo_reconstr_actor->SetMapper(mapper);
 
   m_renderer->AddActor(m_stereo_reconstr_actor);
+
+  m_renderer->GetActiveCamera()->ApplyTransform(m_left_pos_rot_trans);
 
   this->m_ui->qvtkWidget->update();
   QApplication::processEvents();
@@ -2856,10 +2887,35 @@ void Form::on_save_transform_button_clicked()
 
 void Form::on_over_left_checkbox_clicked()
 {
+    VTK_NEW(vtkPolyData, left_poly);
+    m_crossbar->imageData2DToPolyData(m_stereo_left_image, left_poly);
 
+    VTK_NEW(vtkTransformFilter, trans_filt);
+    trans_filt->SetTransform(m_stereo_left_proj_trans);
+    trans_filt->SetInput(left_poly);
+
+    VTK_NEW(vtkVertexGlyphFilter, vert);
+    vert->SetInputConnection(trans_filt->GetOutputPort());
+
+    VTK_NEW(vtkPolyDataMapper, mapper);
+    mapper->SetInputConnection(vert->GetOutputPort());
+
+    VTK_NEW(vtkActor, actor);
+    actor->SetMapper(mapper);
+
+    //m_renderer->RemoveAllViewProps();
+    //m_renderer->AddActor2D(m_stereo_2d_actor);
+    m_renderer->AddActor(actor);
+
+    this->statusBar()->showMessage("Rendering 2D Image... ");
+    QApplication::processEvents();
+
+    this->m_ui->qvtkWidget->update();
+
+    this->statusBar()->showMessage("Rendering 2D Image... done!");
+    QApplication::processEvents();
+
+    m_waiting_response = true;
+    updateUIStates();
 }
 
-void Form::on_over_camera_checkbox_clicked()
-{
-
-}

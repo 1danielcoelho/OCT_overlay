@@ -149,6 +149,9 @@ class Crossbar {
 
   void imageData2DToFloatVector(vtkSmartPointer<vtkImageData> output,
                                 std::vector<float>& input);
+  void imageData2DToPolyData(vtkSmartPointer<vtkImageData> input,
+                             vtkSmartPointer<vtkPolyData> output);
+  void cvMatToPolyData(cv::Mat& input, vtkSmartPointer<vtkPolyData> output);
 };
 
 #endif  // FILEMANAGER_H
