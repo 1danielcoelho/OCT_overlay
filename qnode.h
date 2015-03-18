@@ -63,6 +63,7 @@ Q_DECLARE_METATYPE(OCTinfo)
 Q_DECLARE_METATYPE(std::vector<uint8_t>)
 Q_DECLARE_METATYPE(vtkSmartPointer<vtkPolyData>)
 Q_DECLARE_METATYPE(vtkSmartPointer<vtkImageData>)
+Q_DECLARE_METATYPE(std::vector<float>)
 
 class QNode : public QObject {
   Q_OBJECT
@@ -137,6 +138,7 @@ Q_SIGNALS:  // Same as 'signals'
   void receivedRegistration();
   void newSurface(vtkSmartPointer<vtkPolyData> surf);
   void newBackground(vtkSmartPointer<vtkImageData> back);
+  void newEdges(std::vector<float>);
 
  private:
   ros::NodeHandle* m_nh;

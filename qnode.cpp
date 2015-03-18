@@ -142,13 +142,58 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
       left_imagedata->SetScalarTypeToUnsignedChar();
       left_imagedata->AllocateScalars();
 
+      std::vector<float> edges(12, -1);
+
+      int leftmost_top = cols;
+      int leftmost_top_id;
+
+      int rightmost_top = 0;
+      int rightmost_top_id;
+
+      int leftmost_bot = cols;
+      int leftmost_bot_id;
+
+      int rightmost_bot = 0;
+      int rightmost_bot_id;
+
       int point_id = 0;
       for (uint32_t i = 0; i < rows; i++) {
         for (uint32_t j = 0; j < cols; j++) {
-
             float pt_x = image_depth.at<cv::Vec3f>(i,j)[0];
             float pt_y = image_depth.at<cv::Vec3f>(i,j)[1];
             float pt_z = image_depth.at<cv::Vec3f>(i,j)[2];
+
+            //If it's a valid point
+            if(pt_z != -1)
+            {
+                //Grab the leftmost element of the top three rows
+                if(i < 3 && j < leftmost_top)
+                {
+                    leftmost_top = j;
+                    leftmost_top_id = point_id;
+                }
+
+                //Rightmost element of the top three rows
+                if(i < 3 && j > rightmost_top)
+                {
+                    rightmost_top = j;
+                    rightmost_top_id = point_id;
+                }
+
+                //Leftmost element of the bottom fifteen rows
+                if(i > rows-16 && j < leftmost_bot)
+                {
+                    leftmost_bot = j;
+                    leftmost_bot_id = point_id;
+                }
+
+                //Rightmost element of the bottom fifteen rows
+                if(i > rows-16 && j > rightmost_bot)
+                {
+                    rightmost_bot = j;
+                    rightmost_bot_id = point_id;
+                }
+            }
 
             unsigned char color[3];
             color[0] = image_left.at<cv::Vec3b>(i, j)[0];
@@ -171,6 +216,28 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
         }
       }
 
+      //Pack our edge points into the edge vector in the ugliest way possible
+      double coords[3];
+      points->GetPoint(leftmost_top_id, coords);
+      edges[0] = coords[0];
+      edges[1] = coords[1];
+      edges[2] = coords[2];
+
+      points->GetPoint(rightmost_top_id, coords);
+      edges[3] = coords[0];
+      edges[4] = coords[1];
+      edges[5] = coords[2];
+
+      points->GetPoint(rightmost_bot_id, coords);
+      edges[6] = coords[0];
+      edges[7] = coords[1];
+      edges[8] = coords[2];
+
+      points->GetPoint(leftmost_bot_id, coords);
+      edges[9] = coords[0];
+      edges[10] = coords[1];
+      edges[11] = coords[2];
+
       VTK_NEW(vtkPolyData, surf_poly);
       surf_poly->SetPoints(points);
       surf_poly->GetPointData()->SetScalars(color_array);
@@ -178,6 +245,8 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
       Q_EMIT newSurface(surf_poly);
 
       Q_EMIT newBackground(left_imagedata);
+
+      Q_EMIT newEdges(edges);
   }
 
   //We're not overlaying: Accumulate and write images to disk

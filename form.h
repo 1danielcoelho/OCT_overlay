@@ -274,6 +274,7 @@ Q_SLOTS:
   void accumulated(float new_ratio);
   void newSurface(vtkSmartPointer<vtkPolyData> surf);
   void newBackground(vtkSmartPointer<vtkImageData> back);
+  void newEdges(std::vector<float>);
 
   void on_over_background_checkbox_clicked();
 
@@ -295,6 +296,8 @@ Q_SIGNALS:
   // Controls minimum displayed intensity value when viewing raw OCT
   uint8_t m_min_vis_thresh;
   uint8_t m_max_vis_thresh;
+
+  double m_quad_edges[6];
 
   // State booleans
   bool m_connected_to_master;

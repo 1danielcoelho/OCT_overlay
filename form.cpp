@@ -42,6 +42,7 @@ Form::Form(int argc, char** argv, QWidget* parent)
   // Allows us to use OCTinfo structs in signals/slots
   qRegisterMetaType<OCTinfo>();
   qRegisterMetaType<std::vector<uint8_t> >();
+  qRegisterMetaType<std::vector<float> >();
   qRegisterMetaType<vtkSmartPointer<vtkPolyData> >();
   qRegisterMetaType<vtkSmartPointer<vtkImageData> >();
 
@@ -77,6 +78,10 @@ Form::Form(int argc, char** argv, QWidget* parent)
 
   connect(m_qnode, SIGNAL(newBackground(vtkSmartPointer<vtkImageData>)), this,
           SLOT(newBackground(vtkSmartPointer<vtkImageData>)),
+          Qt::QueuedConnection);
+
+  connect(m_qnode, SIGNAL(newEdges(std::vector<float>)), this,
+          SLOT(newEdges(std::vector<float>)),
           Qt::QueuedConnection);
 
   connect(m_qnode, SIGNAL(receivedRegistration()), this,
@@ -139,40 +144,6 @@ Form::Form(int argc, char** argv, QWidget* parent)
 
   // Adds our renderer to the QVTK widget
   this->m_ui->qvtkWidget->GetRenderWindow()->AddRenderer(m_renderer);
-
-  //Create our quad, used for rendering the background while overlaying
-  VTK_NEW(vtkPoints, points);
-  points->InsertNextPoint(0.0, 0.0, 0.0);
-  points->InsertNextPoint(1.0, 0.0, 0.0);
-  points->InsertNextPoint(1.0, 1.0, 0.0);
-  points->InsertNextPoint(0.0, 2.0, 0.0);
-
-  VTK_NEW(vtkPolygon, polygon);
-  polygon->GetPointIds()->SetNumberOfIds(4); //make a quad
-  polygon->GetPointIds()->SetId(0, 0);
-  polygon->GetPointIds()->SetId(1, 1);
-  polygon->GetPointIds()->SetId(2, 2);
-  polygon->GetPointIds()->SetId(3, 3);
-
-  VTK_NEW(vtkCellArray, polygons);
-  polygons->InsertNextCell(polygon);
-
-  VTK_NEW(vtkFloatArray, tex_coords);
-  tex_coords->SetNumberOfComponents(3);
-  tex_coords->SetName("TextureCoordinates");
-
-  float tuple[3] = {0.0, 0.0, 0.0};
-  tex_coords->InsertNextTuple(tuple);
-  tuple[0] = 1.0; tuple[1] = 0.0; tuple[2] = 0.0;
-  tex_coords->InsertNextTuple(tuple);
-  tuple[0] = 1.0; tuple[1] = 1.0; tuple[2] = 0.0;
-  tex_coords->InsertNextTuple(tuple);
-  tuple[0] = 0.0; tuple[1] = 2.0; tuple[2] = 0.0;
-  tex_coords->InsertNextTuple(tuple);
-
-  m_tex_quad_poly_data->SetPoints(points);
-  m_tex_quad_poly_data->SetPolys(polygons);
-  m_tex_quad_poly_data->GetPointData()->SetTCoords(tex_coords);
 }
 
 Form::~Form() {
@@ -1403,9 +1374,9 @@ void Form::renderReadyStereoSurface()
     m_renderer->GetActiveCamera()->GetPosition(position);
     orientation = m_renderer->GetActiveCamera()->GetOrientation();
 
-    std::cout << "Camera pos: " << position[0] << ", " << position[1] << ", " << position[2]
-              << ", orientation: " << orientation[0] << ", " << orientation[1] << ", " <<
-                 ", " << orientation[2] << std::endl;
+//    std::cout << "Camera pos: " << position[0] << ", " << position[1] << ", " << position[2]
+//              << ", orientation: " << orientation[0] << ", " << orientation[1] << ", " <<
+//                 ", " << orientation[2] << std::endl;
 
     this->m_ui->qvtkWidget->update();
     QApplication::processEvents();
@@ -2926,12 +2897,64 @@ void Form::newBackground(vtkSmartPointer<vtkImageData> back)
 {
     if(m_viewing_background)
     {
+
+//        std::cout << "Before drawing edges: "
+//                  << m_quad_edges[0] << ", "
+//                  << m_quad_edges[1] << ", "
+//                  << m_quad_edges[2] << ", "
+//                  << m_quad_edges[3] << ", "
+//                  << m_quad_edges[4] << ", "
+//                  << m_quad_edges[5] << ", "
+//                  << m_quad_edges[6] << ", "
+//                  << m_quad_edges[7] << ", "
+//                  << m_quad_edges[8] << ", "
+//                  << m_quad_edges[9] << ", "
+//                  << m_quad_edges[10] << ", "
+//                  << m_quad_edges[11] << std::endl;
+
+        //Create our quad, used for rendering the background while overlaying
+        VTK_NEW(vtkPoints, points);
+        points->InsertNextPoint(m_quad_edges[0], m_quad_edges[1], m_quad_edges[2]+5.0f);
+        points->InsertNextPoint(m_quad_edges[3], m_quad_edges[4], m_quad_edges[5]+5.0f);
+        points->InsertNextPoint(m_quad_edges[6], m_quad_edges[7], m_quad_edges[8]+5.0f);
+        points->InsertNextPoint(m_quad_edges[9], m_quad_edges[10], m_quad_edges[11]+5.0f);
+
+        VTK_NEW(vtkPolygon, polygon);
+        polygon->GetPointIds()->SetNumberOfIds(4); //make a quad
+        polygon->GetPointIds()->SetId(0, 0);
+        polygon->GetPointIds()->SetId(1, 1);
+        polygon->GetPointIds()->SetId(2, 2);
+        polygon->GetPointIds()->SetId(3, 3);
+
+        VTK_NEW(vtkCellArray, polygons);
+        polygons->InsertNextCell(polygon);
+
+        VTK_NEW(vtkFloatArray, tex_coords);
+        tex_coords->SetNumberOfComponents(3);
+        tex_coords->SetName("TextureCoordinates");
+
+        float tuple[3] = {1.0, 1.0, 0.0};
+        tex_coords->InsertNextTuple(tuple);
+        tuple[0] = 1.0; tuple[1] = 0.0; tuple[2] = 0.0;
+        tex_coords->InsertNextTuple(tuple);
+        tuple[0] = 0.0; tuple[1] = 0.0; tuple[2] = 0.0;
+        tex_coords->InsertNextTuple(tuple);
+        tuple[0] = 0.0; tuple[1] = 1.0; tuple[2] = 0.0;
+        tex_coords->InsertNextTuple(tuple);
+
+        m_tex_quad_poly_data->SetPoints(points);
+        m_tex_quad_poly_data->SetPolys(polygons);
+        m_tex_quad_poly_data->GetPointData()->SetTCoords(tex_coords);
+
         VTK_NEW(vtkTexture, texture);
         texture->SetInput(back);
 
+        VTK_NEW(vtkTransform, trans);
+        trans->Scale(1.0, 1.0, 1.0);
+
         VTK_NEW(vtkTransformFilter, trans_filter)
         trans_filter->SetInput(m_tex_quad_poly_data);
-        trans_filter->SetTransform(m_oct_stereo_trans);
+        trans_filter->SetTransform(trans);
 
         VTK_NEW(vtkPolyDataMapper, mapper);
         mapper->SetInputConnection(trans_filter->GetOutputPort());
@@ -2959,6 +2982,20 @@ void Form::on_over_background_checkbox_clicked()
           "Adding stereocamera background to overlay view...");
       QApplication::processEvents();
 
+      m_quad_edges[ 0] = 0;
+      m_quad_edges[ 1] = 0;
+      m_quad_edges[ 2] = 0;
+      m_quad_edges[ 3] = 0;
+      m_quad_edges[ 4] = 0;
+      m_quad_edges[ 5] = 0;
+      m_quad_edges[ 6] = 0;
+      m_quad_edges[ 7] = 0;
+      m_quad_edges[ 8] = 0;
+      m_quad_edges[ 9] = 0;
+      m_quad_edges[10] = 0;
+      m_quad_edges[11] = 0;
+
+      m_renderer->GetActiveCamera()->SetParallelProjection(1);
       m_viewing_background = true;
       updateUIStates();
 
@@ -2970,7 +3007,29 @@ void Form::on_over_background_checkbox_clicked()
       m_viewing_background = false;
       updateUIStates();
 
+      m_renderer->GetActiveCamera()->SetParallelProjection(0);
       m_renderer->RemoveActor(m_background_actor);
       this->m_ui->qvtkWidget->update();
     }
+}
+
+void Form::newEdges(std::vector<float> new_edges)
+{
+    //If the new quad edges belong to a more wide-spread quad, then we
+    //take them
+    if(new_edges[ 0] < m_quad_edges[ 0]) m_quad_edges[ 0] = new_edges[ 0];
+    if(new_edges[ 1] < m_quad_edges[ 1]) m_quad_edges[ 1] = new_edges[ 1];
+    if(new_edges[ 2] > m_quad_edges[ 2]) m_quad_edges[ 2] = new_edges[ 2];
+
+    if(new_edges[ 3] > m_quad_edges[ 3]) m_quad_edges[ 3] = new_edges[ 3];
+    if(new_edges[ 4] < m_quad_edges[ 4]) m_quad_edges[ 4] = new_edges[ 4];
+    if(new_edges[ 5] > m_quad_edges[ 5]) m_quad_edges[ 5] = new_edges[ 5];
+
+    if(new_edges[ 6] > m_quad_edges[ 6]) m_quad_edges[ 6] = new_edges[ 6];
+    if(new_edges[ 7] > m_quad_edges[ 7]) m_quad_edges[ 7] = new_edges[ 7];
+    if(new_edges[ 8] > m_quad_edges[ 8]) m_quad_edges[ 8] = new_edges[ 8];
+
+    if(new_edges[ 9] < m_quad_edges[ 9]) m_quad_edges[ 9] = new_edges[ 9];
+    if(new_edges[10] > m_quad_edges[10]) m_quad_edges[10] = new_edges[10];
+    if(new_edges[11] > m_quad_edges[11]) m_quad_edges[11] = new_edges[11];
 }
