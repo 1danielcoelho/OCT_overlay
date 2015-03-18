@@ -38,8 +38,8 @@
 #define FFT_LOWPASS_CUTOFF_Z 2
 // We discard the sides of the volume whenever we take the gradient since the
 // algorithm used always produces harsh gradients at edges. DEFAULT: 0.02, 0.02
-#define DISCARD_SIDES_PERCENT_X 0.02
-#define DISCARD_SIDES_PERCENT_Y 0.02
+#define DISCARD_SIDES_PERCENT_X 0.04
+#define DISCARD_SIDES_PERCENT_Y 0.04
 // Kernel size for the erode and dilate algorithms. DEFAULT: 7,7,7  5,5,5
 #define ERODE_KERNEL_X 8
 #define ERODE_KERNEL_Y 8
@@ -47,6 +47,9 @@
 #define DILATE_KERNEL_X 8
 #define DILATE_KERNEL_Y 8
 #define DILATE_KERNEL_Z 8
+#define SECOND_ERODE_KERNEL_X 4
+#define SECOND_ERODE_KERNEL_Y 4
+#define SECOND_ERODE_KERNEL_Z 4
 // Meshes that have an estimated volume below this value are discarded (air
 // bubbles, anomalies, etc). DEFAULT: 0.02
 #define MIN_VOLUME 0.02

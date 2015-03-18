@@ -31,6 +31,7 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_has_transform = false;
   m_viewing_overlay = false;
   m_viewing_realtime_overlay = false;
+  m_viewing_background = false;
   updateUIStates();
 
   // Creates qnode and it's thread, connecting signals and slots
@@ -42,6 +43,7 @@ Form::Form(int argc, char** argv, QWidget* parent)
   qRegisterMetaType<OCTinfo>();
   qRegisterMetaType<std::vector<uint8_t> >();
   qRegisterMetaType<vtkSmartPointer<vtkPolyData> >();
+  qRegisterMetaType<vtkSmartPointer<vtkImageData> >();
 
   // Connect signals and slots
   connect(m_qnode, SIGNAL(rosMasterChanged(bool)), this,
@@ -69,7 +71,12 @@ Form::Form(int argc, char** argv, QWidget* parent)
   connect(m_qnode, SIGNAL(accumulated(float)), this, SLOT(accumulated(float)),
           Qt::QueuedConnection);
 
-  connect(m_qnode, SIGNAL(leftImage(vtkSmartPointer<vtkPolyData>)), this, SLOT(newLeftImage(vtkSmartPointer<vtkPolyData>)),
+  connect(m_qnode, SIGNAL(newSurface(vtkSmartPointer<vtkPolyData>)), this,
+          SLOT(newSurface(vtkSmartPointer<vtkPolyData>)),
+          Qt::QueuedConnection);
+
+  connect(m_qnode, SIGNAL(newBackground(vtkSmartPointer<vtkImageData>)), this,
+          SLOT(newBackground(vtkSmartPointer<vtkImageData>)),
           Qt::QueuedConnection);
 
   connect(m_qnode, SIGNAL(receivedRegistration()), this,
@@ -105,20 +112,18 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_oct_mass_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_left_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_reconstr_poly_data = vtkSmartPointer<vtkPolyData>::New();
+  m_tex_quad_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_left_image = vtkSmartPointer<vtkImageData>::New();
   m_stereo_right_image = vtkSmartPointer<vtkImageData>::New();
   m_stereo_disp_image = vtkSmartPointer<vtkImageData>::New();
   m_stereo_depth_image = vtkSmartPointer<vtkImageData>::New();
   m_oct_stereo_trans = vtkSmartPointer<vtkTransform>::New();
   m_oct_stereo_trans->Identity();
-  m_left_pos_rot_trans = vtkSmartPointer<vtkTransform>::New();
-  m_left_pos_rot_trans->Identity();
-  m_left_proj_trans = vtkSmartPointer<vtkTransform>::New();
-  m_left_proj_trans->Identity();
   // Actors
   m_oct_vol_actor = vtkSmartPointer<vtkActor>::New();
   m_oct_surf_actor = vtkSmartPointer<vtkActor>::New();
   m_oct_mass_actor = vtkSmartPointer<vtkActor>::New();
+  m_background_actor = vtkSmartPointer<vtkActor>::New();
   m_stereo_2d_actor = vtkSmartPointer<vtkActor2D>::New();
   m_stereo_reconstr_actor = vtkSmartPointer<vtkActor>::New();
   m_stereo_left_actor = vtkSmartPointer<vtkActor>::New();
@@ -135,85 +140,39 @@ Form::Form(int argc, char** argv, QWidget* parent)
   // Adds our renderer to the QVTK widget
   this->m_ui->qvtkWidget->GetRenderWindow()->AddRenderer(m_renderer);
 
-  //Try to read the left camera calibration file and parse the projection trans
-  //and camera position/rotation
-//  cv::FileStorage stereo_file(CALIB_STEREO_FILE, cv::FileStorage::READ);
-//  cv::FileStorage left_file(CALIB_LEFT_FILE, cv::FileStorage::READ);
-//  cv::Mat camera_rot = cv::Mat_<uchar>::zeros (3, 3);
-//  stereo_file["R"] >> camera_rot;
-//  cv::Mat camera_pos = cv::Mat_<uchar>::zeros (3, 1);
-//  stereo_file["T"] >> camera_pos;
-//  cv::Mat proj;
-//  left_file["P"] >> proj;
+  //Create our quad, used for rendering the background while overlaying
+  VTK_NEW(vtkPoints, points);
+  points->InsertNextPoint(0.0, 0.0, 0.0);
+  points->InsertNextPoint(1.0, 0.0, 0.0);
+  points->InsertNextPoint(1.0, 1.0, 0.0);
+  points->InsertNextPoint(0.0, 2.0, 0.0);
 
+  VTK_NEW(vtkPolygon, polygon);
+  polygon->GetPointIds()->SetNumberOfIds(4); //make a quad
+  polygon->GetPointIds()->SetId(0, 0);
+  polygon->GetPointIds()->SetId(1, 1);
+  polygon->GetPointIds()->SetId(2, 2);
+  polygon->GetPointIds()->SetId(3, 3);
 
-//  VTK_NEW(vtkMatrix4x4, mat);
-//  for(uint32_t i = 0; i<4; i++)
-//  {
-//      for(uint32_t j = 0; j<4; j++)
-//      {
-//          double element;
+  VTK_NEW(vtkCellArray, polygons);
+  polygons->InsertNextCell(polygon);
 
-//          if(i < 3 && j < 3) { element = camera_rot.at<double>(i,j);}
-//          else if (i < 3 && j == 3) { element = camera_pos.at<double>(i, 0); }
-//          else if (j == 3 && i == 3) { element = 1; }
-//          else { element = 0; }
+  VTK_NEW(vtkFloatArray, tex_coords);
+  tex_coords->SetNumberOfComponents(3);
+  tex_coords->SetName("TextureCoordinates");
 
-//          //std::cout << "Mat " << i << ", " << j << ": " << element << std::endl;
-//          mat->SetElement(i, j, element);
-//      }
-//  }
-  //vtkMatrix4x4::Invert(mat, mat);
-  double left_P[] = {654.93728456, 0.00000000, 275.52497101, 0.00000000,
-                     0.00000000, 654.93728456, 264.49638748, 0.00000000,
-                     0.00000000, 0.00000000,    1.00000000, 0.00000000,
-                     0.00000000, 0.00000000, 0.00000000, 1.00000000};
-  VTK_NEW(vtkMatrix4x4, mat);
-  for(int i = 0; i < 4; i++)
-  {
-      for(int j = 0; j < 4; j++)
-      {
-          mat->SetElement(i,j, left_P[j + i*4]);
-      }
-  }
+  float tuple[3] = {0.0, 0.0, 0.0};
+  tex_coords->InsertNextTuple(tuple);
+  tuple[0] = 1.0; tuple[1] = 0.0; tuple[2] = 0.0;
+  tex_coords->InsertNextTuple(tuple);
+  tuple[0] = 1.0; tuple[1] = 1.0; tuple[2] = 0.0;
+  tex_coords->InsertNextTuple(tuple);
+  tuple[0] = 0.0; tuple[1] = 2.0; tuple[2] = 0.0;
+  tex_coords->InsertNextTuple(tuple);
 
-  m_left_proj_trans->SetMatrix(mat);
-
-
-//  cv::Mat proj_rot = cv::Mat_<double>::zeros(3, 3);
-//  for(int i = 0; i < 3; i++)
-//  {
-//      for(int j = 0; j < 3; j++)
-//      {
-//          proj_rot.at<double>(i, j) = left_Rt[j + i*4];
-//      }
-//  }
-
-//  cv::Mat rot_vector;
-//  cv::Rodrigues(proj_rot,rot_vector);
-//  std::cout << "proj: " << proj_rot << "\n\n\nRODRIGUES:" << rot_vector << std::endl;
-
-
-
-  //
-
-//  VTK_NEW(vtkMatrix4x4, mat2);
-//  for(uint32_t i = 0; i<4; i++)
-//  {
-//    for(uint32_t j = 0; j<4; j++)
-//    {
-//        double element;
-
-//        if(i == 3 && j == 3) element = 1;
-//        else if(i == 3) element = 0;
-//        else {
-//            element = proj.at<double>(i,j);
-//        }
-//        mat->SetElement(i, j, element);
-//    }
-//  }
-
-  //std::cout << "Camera pos: "<< camera_pos << ", camera rot: " << camera_rot << std::endl;
+  m_tex_quad_poly_data->SetPoints(points);
+  m_tex_quad_poly_data->SetPolys(polygons);
+  m_tex_quad_poly_data->GetPointData()->SetTCoords(tex_coords);
 }
 
 Form::~Form() {
@@ -319,8 +278,6 @@ void Form::updateUIStates() {
                                         !m_waiting_response);
   m_ui->over_trans_axes_checkbox->setEnabled(m_has_transform &&
                                              !m_waiting_response);
-  m_ui->over_left_checkbox->setEnabled(m_has_left_image &&
-                                       !m_waiting_response);
 
   m_ui->calc_transform_button->setEnabled(m_has_oct_surf && m_has_depth_image
                                           && !m_waiting_response);
@@ -809,8 +766,6 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
     }
   }
 
-  SliceViewer::view3dImageData(grad_output);
-
   this->statusBar()->showMessage("Eroding... ");
   QApplication::processEvents();
 
@@ -824,8 +779,6 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
   this->statusBar()->showMessage("Dilating... ");
   QApplication::processEvents();
 
-  //SliceViewer::view3dImageData(erode_filt->GetOutput());
-
   // Enlarges our contour again, which helps to generate less meshes when using
   // marching cubes
   VTK_NEW(vtkImageContinuousDilate3D, dilate_filt);
@@ -833,17 +786,14 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
   dilate_filt->SetKernelSize(DILATE_KERNEL_X, DILATE_KERNEL_Y, DILATE_KERNEL_Z);
   dilate_filt->Update();  
 
-  //SliceViewer::view3dImageData(dilate_filt->GetOutput());
-
   // After dilation, our contour is connected into a single blob, so we erode
   // again to shrink small anomalies that we merged. This does not cleave the
   // larger segments of our contour
   VTK_NEW(vtkImageContinuousErode3D, erode_filt2);
   erode_filt2->SetInputConnection(dilate_filt->GetOutputPort());
-  erode_filt2->SetKernelSize(6, 6, 6);
+  erode_filt2->SetKernelSize(SECOND_ERODE_KERNEL_X, SECOND_ERODE_KERNEL_Y,
+                             SECOND_ERODE_KERNEL_Z);
   erode_filt2->Update();
-
-  //SliceViewer::view3dImageData(erode_filt2->GetOutput());
 
   this->statusBar()->showMessage("Normalizing to 0-255 range... ");
   QApplication::processEvents();
@@ -858,7 +808,6 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
   cast_filter->SetOutputScalarTypeToUnsignedChar();
   cast_filter->Update();
 
-  //std::cout << "The final contour level will be chosen for marching cubes!\n";
   double thresh = SliceViewer::view3dImageData(cast_filter->GetOutput());
 
   this->statusBar()->showMessage("Applying marching cubes... ");
@@ -1434,28 +1383,29 @@ void Form::renderOCTMass() {
   updateUIStates();
 }
 
-void Form::renderLeftImage()
+void Form::renderReadyStereoSurface()
 {
     m_waiting_response = true;
     updateUIStates();
 
-    VTK_NEW(vtkTransformFilter, trans_filt);
-    trans_filt->SetTransform(m_left_proj_trans);
-    trans_filt->SetInput(m_stereo_left_poly_data);
-
     VTK_NEW(vtkVertexGlyphFilter, vert);
-    vert->SetInputConnection(trans_filt->GetOutputPort());
+    vert->SetInput(m_stereo_reconstr_poly_data);
 
     VTK_NEW(vtkPolyDataMapper, mapper);
     mapper->SetInputConnection(vert->GetOutputPort());
 
-    m_stereo_left_actor->SetMapper(mapper);
+    m_stereo_reconstr_actor->SetMapper(mapper);
 
-    m_renderer->AddActor(m_stereo_left_actor);
+    m_renderer->AddActor(m_stereo_reconstr_actor);
 
-    //m_renderer->ResetCamera();
-    //m_renderer->GetActiveCamera()->ApplyTransform(m_left_pos_rot_trans);
-    //m_renderer->GetActiveCamera()->GetUserTransform()
+    double position[3];
+    double* orientation;
+    m_renderer->GetActiveCamera()->GetPosition(position);
+    orientation = m_renderer->GetActiveCamera()->GetOrientation();
+
+    std::cout << "Camera pos: " << position[0] << ", " << position[1] << ", " << position[2]
+              << ", orientation: " << orientation[0] << ", " << orientation[1] << ", " <<
+                 ", " << orientation[2] << std::endl;
 
     this->m_ui->qvtkWidget->update();
     QApplication::processEvents();
@@ -2585,41 +2535,6 @@ void Form::on_over_oct_mass_checkbox_clicked() {
   updateUIStates();
 }
 
-void Form::on_over_left_checkbox_clicked()
-{
-    // If we started viewing overlay from another tab, then clear actors
-    if (!m_viewing_overlay) {
-      m_renderer->RemoveAllViewProps();
-      m_viewing_overlay = true;
-    }
-
-    m_waiting_response = true;
-    updateUIStates();
-
-    if (m_ui->over_left_checkbox->isChecked()) {
-      this->m_ui->status_bar->showMessage(
-          "Adding left image to overlay view...", 3000);
-      QApplication::processEvents();
-
-    m_crossbar->imageData2DToPolyData(m_stereo_left_image,
-                                      m_stereo_left_poly_data);
-
-    renderLeftImage();
-    }
-
-    else {
-      this->m_ui->status_bar->showMessage(
-          "Removing left image to overlay view...", 3000);
-      QApplication::processEvents();
-
-      m_renderer->RemoveActor(m_stereo_left_actor);
-      this->m_ui->qvtkWidget->update();
-    }
-
-    m_waiting_response = false;
-    updateUIStates();
-}
-
 void Form::on_over_depth_checkbox_clicked() {
   // If we started viewing overlay from another tab, then clear actors
   if (!m_viewing_overlay) {
@@ -2858,6 +2773,12 @@ void Form::on_over_start_button_clicked()
                                         "image feed... ", 3000);
     QApplication::processEvents();
 
+    m_renderer->GetActiveCamera()->SetPosition(0, 0, -30);
+    m_renderer->GetActiveCamera()->SetFocalPoint(0, 0, 0);
+    m_renderer->GetActiveCamera()->Yaw(0);
+    m_renderer->GetActiveCamera()->Pitch(0);
+    m_renderer->GetActiveCamera()->Roll(180);
+
     m_viewing_realtime_overlay = true;
     m_waiting_response = true;
     updateUIStates();
@@ -2875,9 +2796,9 @@ void Form::on_over_stop_button_clicked()
     m_waiting_response = false;
     updateUIStates();
 
-    m_renderer->RemoveActor(m_stereo_left_actor);
-    m_ui->over_left_checkbox->setChecked(false);
-    this->m_ui->qvtkWidget->update();
+    //m_renderer->RemoveActor(m_stereo_left_actor);
+    //m_ui->over_left_checkbox->setChecked(false);
+    //this->m_ui->qvtkWidget->update();
 }
 
 
@@ -2989,14 +2910,67 @@ void Form::receivedRegistration() {
   on_print_transform_button_clicked();
 }
 
-void Form::newLeftImage(vtkSmartPointer<vtkPolyData> left)
+void Form::newSurface(vtkSmartPointer<vtkPolyData> surf)
 {
     if(m_viewing_realtime_overlay)
     {
-        m_stereo_left_poly_data = left;
-        renderLeftImage();
+        m_stereo_reconstr_poly_data = surf;
+        renderReadyStereoSurface();
 
         m_waiting_response = true;
         updateUIStates();
+    }
+}
+
+void Form::newBackground(vtkSmartPointer<vtkImageData> back)
+{
+    if(m_viewing_background)
+    {
+        VTK_NEW(vtkTexture, texture);
+        texture->SetInput(back);
+
+        VTK_NEW(vtkTransformFilter, trans_filter)
+        trans_filter->SetInput(m_tex_quad_poly_data);
+        trans_filter->SetTransform(m_oct_stereo_trans);
+
+        VTK_NEW(vtkPolyDataMapper, mapper);
+        mapper->SetInputConnection(trans_filter->GetOutputPort());
+
+        m_background_actor->SetMapper(mapper);
+        m_background_actor->SetTexture(texture);
+
+        m_renderer->AddActor(m_background_actor);
+
+        this->m_ui->qvtkWidget->update();
+        QApplication::processEvents();
+    }
+}
+
+void Form::on_over_background_checkbox_clicked()
+{
+    // If we started viewing overlay from another tab, then clear actors
+    if (!m_viewing_overlay) {
+      m_renderer->RemoveAllViewProps();
+      m_viewing_overlay = true;
+    }
+
+    if (m_ui->over_background_checkbox->isChecked()) {
+      this->m_ui->status_bar->showMessage(
+          "Adding stereocamera background to overlay view...");
+      QApplication::processEvents();
+
+      m_viewing_background = true;
+      updateUIStates();
+
+    } else {
+      this->m_ui->status_bar->showMessage(
+          "Removing stereocamera background from overlay view...", 3000);
+      QApplication::processEvents();
+
+      m_viewing_background = false;
+      updateUIStates();
+
+      m_renderer->RemoveActor(m_background_actor);
+      this->m_ui->qvtkWidget->update();
     }
 }

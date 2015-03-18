@@ -36,6 +36,9 @@
 #include <vtkTransform.h>
 #include <vtkUnstructuredGrid.h>
 #include <vtkTypeFloat32Array.h>
+#include <vtkTexture.h>
+#include <vtkPolygon.h>
+#include <vtkFloatArray.h>
 // Filters
 #include <vtkContourFilter.h>
 #include <vtkVertexGlyphFilter.h>
@@ -68,7 +71,7 @@
 #include <vtkTransformPolyDataFilter.h>
 #include <vtkImageNormalize.h>
 #include <vtkImageCast.h>
-
+#include <vtkTextureMapToPlane.h>
 // Mappers
 #include <vtkPolyDataMapper.h>
 #include <vtkImageMapper.h>
@@ -93,6 +96,7 @@
 #include <vtkPNGReader.h>
 #include <vtkPNGWriter.h>
 #include <vtkCamera.h>
+#include <vtkPlaneSource.h>
 
 // Project files
 #include "qnode.h"
@@ -186,9 +190,8 @@ class Form : public QMainWindow {
   // Renders the mesh stored in m_oct_mass_poly_data as a triangular mesh
   void renderOCTMass();
 
-  // Renders the left stereocamera image in 3D space, with m_left_proj_trans
-  // applied
-  void renderLeftImage();
+  // Renders the stereocamera surface reconstructed by qnode
+  void renderReadyStereoSurface();
 
   //--------------UI CALLBACKS--------------------------------------------------
 
@@ -249,8 +252,7 @@ Q_SLOTS:
 
   void on_over_raw_checkbox_clicked();
   void on_over_oct_surf_checkbox_clicked();
-  void on_over_oct_mass_checkbox_clicked();  
-  void on_over_left_checkbox_clicked();
+  void on_over_oct_mass_checkbox_clicked();
   void on_over_depth_checkbox_clicked();
   void on_over_oct_axes_checkbox_clicked();
   void on_over_trans_axes_checkbox_clicked();
@@ -270,7 +272,10 @@ Q_SLOTS:
   void receivedStereoImages();
   void receivedRegistration();
   void accumulated(float new_ratio);
-  void newLeftImage(vtkSmartPointer<vtkPolyData> left);
+  void newSurface(vtkSmartPointer<vtkPolyData> surf);
+  void newBackground(vtkSmartPointer<vtkImageData> back);
+
+  void on_over_background_checkbox_clicked();
 
 Q_SIGNALS:
   void requestScan(OCTinfo);
@@ -306,6 +311,7 @@ Q_SIGNALS:
   bool m_has_transform;
   bool m_viewing_overlay;
   bool m_viewing_realtime_overlay;
+  bool m_viewing_background;
 
   // Holds our current raw oct parameters (steps, ranges, offsets)
   OCTinfo m_current_params;
@@ -316,13 +322,12 @@ Q_SIGNALS:
   vtkSmartPointer<vtkPolyData> m_oct_surf_poly_data;
   vtkSmartPointer<vtkPolyData> m_stereo_left_poly_data;
   vtkSmartPointer<vtkPolyData> m_stereo_reconstr_poly_data;
+  vtkSmartPointer<vtkPolyData> m_tex_quad_poly_data;
   vtkSmartPointer<vtkImageData> m_stereo_left_image;
   vtkSmartPointer<vtkImageData> m_stereo_right_image;
   vtkSmartPointer<vtkImageData> m_stereo_disp_image;
   vtkSmartPointer<vtkImageData> m_stereo_depth_image;
   vtkSmartPointer<vtkTransform> m_oct_stereo_trans;
-  vtkSmartPointer<vtkTransform> m_left_pos_rot_trans;
-  vtkSmartPointer<vtkTransform> m_left_proj_trans;
   // Actors are kept since we need their references when we add/remove actors in
   // the Overlay section of the program
   vtkSmartPointer<vtkActor> m_oct_vol_actor;
@@ -330,6 +335,7 @@ Q_SIGNALS:
   vtkSmartPointer<vtkActor> m_oct_mass_actor;
   vtkSmartPointer<vtkActor> m_stereo_left_actor;
   vtkSmartPointer<vtkActor> m_stereo_reconstr_actor;
+  vtkSmartPointer<vtkActor> m_background_actor;
   vtkSmartPointer<vtkActor2D> m_stereo_2d_actor;
   vtkSmartPointer<vtkAxesActor> m_oct_axes_actor;
   vtkSmartPointer<vtkAxesActor> m_trans_axes_actor;

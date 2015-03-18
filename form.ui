@@ -2596,75 +2596,6 @@ QGroupBox::title {
              </layout>
             </item>
             <item row="3" column="0">
-             <layout class="QVBoxLayout" name="verticalLayout_16">
-              <property name="spacing">
-               <number>0</number>
-              </property>
-              <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_33">
-                <item>
-                 <spacer name="horizontalSpacer_35">
-                  <property name="orientation">
-                   <enum>Qt::Horizontal</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>68</width>
-                    <height>20</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
-                <item>
-                 <widget class="QLabel" name="over_stereo_left_label">
-                  <property name="maximumSize">
-                   <size>
-                    <width>16777215</width>
-                    <height>14</height>
-                   </size>
-                  </property>
-                  <property name="text">
-                   <string>Left stereocamera image</string>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_39">
-                <item>
-                 <spacer name="horizontalSpacer_36">
-                  <property name="orientation">
-                   <enum>Qt::Horizontal</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>40</width>
-                    <height>20</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
-                <item>
-                 <widget class="QCheckBox" name="over_left_checkbox">
-                  <property name="font">
-                   <font>
-                    <pointsize>8</pointsize>
-                   </font>
-                  </property>
-                  <property name="layoutDirection">
-                   <enum>Qt::RightToLeft</enum>
-                  </property>
-                  <property name="text">
-                   <string>Visible</string>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </item>
-             </layout>
-            </item>
-            <item row="4" column="0">
              <layout class="QVBoxLayout" name="verticalLayout_12">
               <property name="spacing">
                <number>0</number>
@@ -2733,7 +2664,7 @@ QGroupBox::title {
               </item>
              </layout>
             </item>
-            <item row="5" column="0">
+            <item row="4" column="0">
              <layout class="QVBoxLayout" name="verticalLayout_13">
               <property name="spacing">
                <number>0</number>
@@ -2802,7 +2733,7 @@ QGroupBox::title {
               </item>
              </layout>
             </item>
-            <item row="6" column="0">
+            <item row="5" column="0">
              <layout class="QVBoxLayout" name="verticalLayout_14">
               <property name="spacing">
                <number>0</number>
@@ -3170,6 +3101,18 @@ QGroupBox::title {
                 </property>
                 <property name="text">
                  <string>Start</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QCheckBox" name="over_background_checkbox">
+                <property name="font">
+                 <font>
+                  <pointsize>8</pointsize>
+                 </font>
+                </property>
+                <property name="text">
+                 <string>Background</string>
                 </property>
                </widget>
               </item>

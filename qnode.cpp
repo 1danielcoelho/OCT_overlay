@@ -114,18 +114,70 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
   //If we're in overlaying mode, just display the images
   if(m_overlaying)
   {
-      cv::Mat image_left;
+      cv::Mat image_left, image_depth;
 
       // Convert our image message to a cv::Mat
       cv_bridge::CvImagePtr cv_image_ptr;
 
       cv_image_ptr = cv_bridge::toCvCopy(msg_left, enc::RGB8);
       image_left = cv_image_ptr->image;
+      cv_image_ptr = cv_bridge::toCvCopy(msg_depth, enc::TYPE_32FC3);
+      image_depth = cv_image_ptr->image;
 
-      VTK_NEW(vtkPolyData, left_poly);
-      m_crossbar->cvMatToPolyData(image_left, left_poly);
+      int rows = image_left.rows;
+      int cols = image_left.cols;
+      int num_pts = rows * cols;
 
-      Q_EMIT leftImage(left_poly);
+      VTK_NEW(vtkPoints, points);
+      points->SetNumberOfPoints(num_pts);
+
+      VTK_NEW(vtkTypeUInt8Array, color_array);
+      color_array->SetNumberOfComponents(3);
+      color_array->SetNumberOfTuples(num_pts);
+      color_array->SetName("Colors");
+
+      VTK_NEW(vtkImageData, left_imagedata);
+      left_imagedata->SetDimensions(cols, rows, 1);
+      left_imagedata->SetNumberOfScalarComponents(3);
+      left_imagedata->SetScalarTypeToUnsignedChar();
+      left_imagedata->AllocateScalars();
+
+      int point_id = 0;
+      for (uint32_t i = 0; i < rows; i++) {
+        for (uint32_t j = 0; j < cols; j++) {
+
+            float pt_x = image_depth.at<cv::Vec3f>(i,j)[0];
+            float pt_y = image_depth.at<cv::Vec3f>(i,j)[1];
+            float pt_z = image_depth.at<cv::Vec3f>(i,j)[2];
+
+            unsigned char color[3];
+            color[0] = image_left.at<cv::Vec3b>(i, j)[0];
+            color[1] = image_left.at<cv::Vec3b>(i, j)[1];
+            color[2] = image_left.at<cv::Vec3b>(i, j)[2];
+
+            float color_float[3];
+            color_float[0] = (float) color[0];
+            color_float[1] = (float) color[1];
+            color_float[2] = (float) color[2];
+
+            unsigned char *pixel = static_cast<unsigned char *>(
+                left_imagedata->GetScalarPointer(j, i, 0));
+
+            points->SetPoint(point_id, pt_x, pt_y, pt_z);
+            color_array->SetTuple(point_id, color_float);
+            memcpy(&pixel[0], &color[0], 3);
+
+            point_id++;
+        }
+      }
+
+      VTK_NEW(vtkPolyData, surf_poly);
+      surf_poly->SetPoints(points);
+      surf_poly->GetPointData()->SetScalars(color_array);
+
+      Q_EMIT newSurface(surf_poly);
+
+      Q_EMIT newBackground(left_imagedata);
   }
 
   //We're not overlaying: Accumulate and write images to disk
