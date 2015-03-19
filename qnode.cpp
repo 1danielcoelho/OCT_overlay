@@ -124,8 +124,8 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
       cv_image_ptr = cv_bridge::toCvCopy(msg_depth, enc::TYPE_32FC3);
       image_depth = cv_image_ptr->image;
 
-      int rows = 470;//image_left.rows;
-      int cols = 583;//image_left.cols;
+      int rows = image_left.rows;
+      int cols = image_left.cols;
       int num_pts = rows * cols;
 
       VTK_NEW(vtkPoints, points);
@@ -145,7 +145,6 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
       left_imagedata->SetScalarTypeToUnsignedChar();
       left_imagedata->AllocateScalars();
 
-      std::vector<double> edges(12, -1);
 
       int leftmost_top = cols;
       int leftmost_top_id;
@@ -159,6 +158,14 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
       int rightmost_bot = 0;
       int rightmost_bot_id;
 
+      std::vector<double> heights;
+      std::vector<int> heights_rows;
+
+      std::vector<double> widths;
+      std::vector<int> widths_cols;
+
+      double avg_depth = 0;
+
       int point_id = 0;
       for (uint32_t i = 0; i < rows; i++) {
         for (uint32_t j = 0; j < cols; j++) {
@@ -169,6 +176,17 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
             //If it's a valid point
             if(pt_z != -1)
             {
+                if(i == j || i == -j)
+                {
+                    heights.push_back(pt_y);
+                    heights_rows.push_back(i);
+
+                    widths.push_back(pt_x);
+                    widths_cols.push_back(j);
+
+                    avg_depth += pt_z;
+                }
+
                 //Grab the leftmost element of the top three rows
                 if(i < 3 && j < leftmost_top)
                 {
@@ -219,27 +237,96 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
         }
       }
 
+      double row_ratio = 0;
+      double col_ratio = 0;
+      int row_count = 0;
+      int col_count = 0;
+
+      int num_calib_pts = heights_rows.size();
+      for(int i = 0; i < num_calib_pts; i++)
+      {
+        for(int j = 0; j < num_calib_pts; j++)
+        {
+            double delta_row = heights_rows[i] - heights_rows[j];
+            double delta_col = widths_cols[i] - widths_cols[j];
+
+            if(delta_row != 0)
+            {
+                double delta_height = heights[i] - heights[j];
+                row_ratio += (delta_height / delta_row);
+                row_count++;
+            }
+
+            if(delta_col != 0)
+            {
+                double delta_width = widths[i] - widths[j];
+                col_ratio += (delta_width / delta_col);
+                col_count++;
+            }
+        }
+      }
+
+      row_ratio /= row_count;
+      col_ratio /= col_count;
+
+      avg_depth /= num_calib_pts;
+
+      std::vector<double> edges(12, -1);
+
+      for(int i = 0; i < num_calib_pts; i++)
+      {
+          edges[0] += widths[i] - widths_cols[i] *(col_ratio);
+          edges[1] += heights[i] - heights_rows[i] * (row_ratio);
+          edges[2] = avg_depth;
+
+          edges[3] += widths[i] + (cols - widths_cols[i]) * col_ratio;
+          edges[4] += heights[i] - heights_rows[i] * (row_ratio);
+          edges[5] = avg_depth;
+
+          edges[6] += widths[i] + (cols - widths_cols[i]) * col_ratio;
+          edges[7] += heights[i] + (rows - heights_rows[i]) * row_ratio;
+          edges[8] = avg_depth;
+
+          edges[9] += widths[i] - widths_cols[i] *(col_ratio);
+          edges[10] += heights[i] + (rows - heights_rows[i]) * row_ratio;
+          edges[11] = avg_depth;
+      }
+
+      edges[0] /= num_calib_pts;
+      edges[1] /= num_calib_pts;
+
+      edges[3] /= num_calib_pts;
+      edges[4] /= num_calib_pts;
+
+      edges[6] /= num_calib_pts;
+      edges[7] /= num_calib_pts;
+
+      edges[9] /= num_calib_pts;
+      edges[10] /= num_calib_pts;
+
+      //std::cout << "rowratio, colratio:" << row_ratio << ",\t\t" << col_ratio << std::endl;
+
       //Pack our edge points into the edge vector in the ugliest way possible
-      double coords[3];
-      points->GetPoint(leftmost_top_id, coords);
-      edges[0] = coords[0];
-      edges[1] = coords[1];
-      edges[2] = coords[2];
+//      double coords[3];
+//      points->GetPoint(leftmost_top_id, coords);
+//      edges[0] = coords[0];
+//      edges[1] = coords[1];
+//      edges[2] = coords[2];
 
-      points->GetPoint(rightmost_top_id, coords);
-      edges[3] = coords[0];
-      edges[4] = coords[1];
-      edges[5] = coords[2];
+//      points->GetPoint(rightmost_top_id, coords);
+//      edges[3] = coords[0];
+//      edges[4] = coords[1];
+//      edges[5] = coords[2];
 
-      points->GetPoint(rightmost_bot_id, coords);
-      edges[6] = coords[0];
-      edges[7] = coords[1];
-      edges[8] = coords[2];
+//      points->GetPoint(rightmost_bot_id, coords);
+//      edges[6] = coords[0];
+//      edges[7] = coords[1];
+//      edges[8] = coords[2];
 
-      points->GetPoint(leftmost_bot_id, coords);
-      edges[9] = coords[0];
-      edges[10] = coords[1];
-      edges[11] = coords[2];
+//      points->GetPoint(leftmost_bot_id, coords);
+//      edges[9] = coords[0];
+//      edges[10] = coords[1];
+//      edges[11] = coords[2];
 
       vtkPolyData* surf_poly = vtkPolyData::New();
       surf_poly->SetPoints(points);

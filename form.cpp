@@ -2901,10 +2901,10 @@ void Form::newBackground(vtkImageData* back)
     {
         //Create our quad, used for rendering the background while overlaying
         VTK_NEW(vtkPoints, points);
-        points->InsertNextPoint(m_quad_edges[0], m_quad_edges[1], m_quad_edges[2]+5.0f);
-        points->InsertNextPoint(m_quad_edges[3], m_quad_edges[4], m_quad_edges[5]+5.0f);
-        points->InsertNextPoint(m_quad_edges[6], m_quad_edges[7], m_quad_edges[8]+5.0f);
-        points->InsertNextPoint(m_quad_edges[9], m_quad_edges[10], m_quad_edges[11]+5.0f);
+        points->InsertNextPoint(m_quad_edges[0], m_quad_edges[1], m_quad_edges[2]+10.0f);
+        points->InsertNextPoint(m_quad_edges[3], m_quad_edges[4], m_quad_edges[5]+10.0f);
+        points->InsertNextPoint(m_quad_edges[6], m_quad_edges[7], m_quad_edges[8]+10.0f);
+        points->InsertNextPoint(m_quad_edges[9], m_quad_edges[10], m_quad_edges[11]+10.0f);
 
         VTK_NEW(vtkPolygon, polygon);
         polygon->GetPointIds()->SetNumberOfIds(4); //make a quad
@@ -2968,27 +2968,23 @@ void Form::newEdges(std::vector<double> new_edges)
     double position[3];
     m_renderer->GetActiveCamera()->GetPosition(position);
 
-    std::cout << "Camera pos: " << position[0] << ", " << position[1] << ", " << position[2] << std::endl;
+    //std::cout << "Camera pos: " << position[0] << ", " << position[1] << ", " << position[2] << std::endl;
 
-    //Vertex of the top left edge
-    if(new_edges[ 0] < m_quad_edges[ 0]) m_quad_edges[ 0] = new_edges[ 0];
-    if(new_edges[ 1] < m_quad_edges[ 1]) m_quad_edges[ 1] = new_edges[ 1];
-    if(new_edges[ 2] > m_quad_edges[ 2]) m_quad_edges[ 2] = new_edges[ 2];
+    m_quad_edges = new_edges;
 
-    //Vertex of the top right edge
-    if(new_edges[ 3] > m_quad_edges[ 3]) m_quad_edges[ 3] = new_edges[ 3];
-    if(new_edges[ 4] < m_quad_edges[ 4]) m_quad_edges[ 4] = new_edges[ 4];
-    if(new_edges[ 5] > m_quad_edges[ 5]) m_quad_edges[ 5] = new_edges[ 5];
 
-    //Vertex of the bottom right edge
-    if(new_edges[ 6] > m_quad_edges[ 6]) m_quad_edges[ 6] = new_edges[ 6];
-    if(new_edges[ 7] > m_quad_edges[ 7]) m_quad_edges[ 7] = new_edges[ 7];
-    if(new_edges[ 8] > m_quad_edges[ 8]) m_quad_edges[ 8] = new_edges[ 8];
-
-    //Vertex of the bottom left edge
-    if(new_edges[ 9] < m_quad_edges[ 9]) m_quad_edges[ 9] = new_edges[ 9];
-    if(new_edges[10] > m_quad_edges[10]) m_quad_edges[10] = new_edges[10];
-    if(new_edges[11] > m_quad_edges[11]) m_quad_edges[11] = new_edges[11];
+    std::cout << "edges: " << m_quad_edges[0] << ", " <<
+                 m_quad_edges[1] << ", " <<
+                 m_quad_edges[2] << ", " <<
+                 m_quad_edges[3] << ", " <<
+                 m_quad_edges[4] << ", " <<
+                 m_quad_edges[5] << ", " <<
+                 m_quad_edges[6] << ", " <<
+                 m_quad_edges[7] << ", " <<
+                 m_quad_edges[8] << ", " <<
+                 m_quad_edges[9] << ", " <<
+                 m_quad_edges[10] << ", " <<
+                 m_quad_edges[11] << std::endl;
 }
 
 
@@ -3017,7 +3013,7 @@ void Form::on_over_background_checkbox_toggled(bool checked)
         m_renderer->GetActiveCamera()->SetPosition(0, 0, -30);
         m_renderer->GetActiveCamera()->SetFocalPoint(0, 0, 0);
         m_renderer->GetActiveCamera()->SetViewUp(0, -1, 0);
-        //m_renderer->GetActiveCamera()->SetParallelProjection(1);
+        m_renderer->GetActiveCamera()->SetParallelProjection(1);
         m_renderer->GetActiveCamera()->SetParallelScale(21.1138);
     }
 
@@ -3032,6 +3028,6 @@ void Form::on_over_background_checkbox_toggled(bool checked)
         m_renderer->RemoveActor(m_background_actor);
         this->m_ui->qvtkWidget->update();
 
-        //m_renderer->GetActiveCamera()->SetParallelProjection(0);
+        m_renderer->GetActiveCamera()->SetParallelProjection(0);
     }
 }
