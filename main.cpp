@@ -1,11 +1,5 @@
 /*  TODO:
 
--Fix correct orientation of camera on load. Yaw, pitch, roll just add orientations to it
-
--Have it discard the stereocamera dead zone
-
--Fix UV coordinates on the quad
-
 -Implement visualizations
 
 * */

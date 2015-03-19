@@ -124,8 +124,8 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
       cv_image_ptr = cv_bridge::toCvCopy(msg_depth, enc::TYPE_32FC3);
       image_depth = cv_image_ptr->image;
 
-      int rows = image_left.rows;
-      int cols = image_left.cols;
+      int rows = 470;//image_left.rows;
+      int cols = 583;//image_left.cols;
       int num_pts = rows * cols;
 
       VTK_NEW(vtkPoints, points);
@@ -184,14 +184,14 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
                 }
 
                 //Leftmost element of the bottom fifteen rows
-                if(i > rows-16 && j < leftmost_bot)
+                if(i > rows-3 && j < leftmost_bot)
                 {
                     leftmost_bot = j;
                     leftmost_bot_id = point_id;
                 }
 
                 //Rightmost element of the bottom fifteen rows
-                if(i > rows-16 && j > rightmost_bot)
+                if(i > rows-3 && j > rightmost_bot)
                 {
                     rightmost_bot = j;
                     rightmost_bot_id = point_id;

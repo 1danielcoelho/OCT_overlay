@@ -248,8 +248,8 @@ void Form::updateUIStates() {
   m_ui->over_oct_mass_checkbox->setEnabled(m_has_oct_mass &&
                                            !m_waiting_response);
   m_ui->over_oct_axes_checkbox->setEnabled(!m_waiting_response);
-  m_ui->over_depth_checkbox->setEnabled(m_has_depth_image &&
-                                        !m_waiting_response);
+  m_ui->over_depth_checkbox->setEnabled(m_has_depth_image && m_has_left_image
+                                        && !m_waiting_response);
   m_ui->over_trans_axes_checkbox->setEnabled(m_has_transform &&
                                              !m_waiting_response);
 
@@ -265,6 +265,7 @@ void Form::updateUIStates() {
                                       !m_waiting_response &&
                                       !m_viewing_realtime_overlay);
   m_ui->over_stop_button->setEnabled(m_viewing_realtime_overlay);
+  m_ui->over_background_checkbox->setEnabled(m_has_stereo_cache);
 
   // Clear the overlay selections if we go back to viewing something else
   if (!m_viewing_overlay) {
@@ -2743,19 +2744,18 @@ void Form::on_print_transform_button_clicked() {
 
 void Form::on_over_start_button_clicked()
 {
+    if (!m_viewing_overlay) {
+      m_renderer->RemoveAllViewProps();
+      m_viewing_overlay = true;
+    }
+
     this->m_ui->status_bar->showMessage("Opening overlayed leftcamera"
                                         "image feed... ", 3000);
     QApplication::processEvents();
 
-    m_renderer->GetActiveCamera()->SetPosition(0, 0, -30);
-    m_renderer->GetActiveCamera()->SetFocalPoint(0, 0, 0);
-    m_renderer->GetActiveCamera()->Yaw(0);
-    m_renderer->GetActiveCamera()->Pitch(0);
-    m_renderer->GetActiveCamera()->Roll(180);
-
     m_viewing_realtime_overlay = true;    
     m_waiting_response = true;
-    updateUIStates();
+    updateUIStates();    
 
     Q_EMIT startOverlay();
 }
@@ -2766,6 +2766,7 @@ void Form::on_over_stop_button_clicked()
 
     this->m_ui->status_bar->showMessage("Stopping overlayed leftcamera"
                                         "image feed... ", 3000);
+
     m_viewing_realtime_overlay = false;
     m_waiting_response = false;
     updateUIStates();
@@ -2919,11 +2920,11 @@ void Form::newBackground(vtkImageData* back)
         tex_coords->SetNumberOfComponents(3);
         tex_coords->SetName("TextureCoordinates");
 
-        float tuple[3] = {1.0, 1.0, 0.0};
+        float tuple[3] = {0.0, 0.0, 0.0};
         tex_coords->InsertNextTuple(tuple);
         tuple[0] = 1.0; tuple[1] = 0.0; tuple[2] = 0.0;
         tex_coords->InsertNextTuple(tuple);
-        tuple[0] = 0.0; tuple[1] = 0.0; tuple[2] = 0.0;
+        tuple[0] = 1.0; tuple[1] = 1.0; tuple[2] = 0.0;
         tex_coords->InsertNextTuple(tuple);
         tuple[0] = 0.0; tuple[1] = 1.0; tuple[2] = 0.0;
         tex_coords->InsertNextTuple(tuple);
@@ -2963,6 +2964,11 @@ void Form::newEdges(std::vector<double> new_edges)
 {
     //If the new quad edges belong to a more wide-spread quad, then we
     //take them
+
+    double position[3];
+    m_renderer->GetActiveCamera()->GetPosition(position);
+
+    std::cout << "Camera pos: " << position[0] << ", " << position[1] << ", " << position[2] << std::endl;
 
     //Vertex of the top left edge
     if(new_edges[ 0] < m_quad_edges[ 0]) m_quad_edges[ 0] = new_edges[ 0];
@@ -3005,6 +3011,14 @@ void Form::on_over_background_checkbox_toggled(bool checked)
             "Adding background plane to overlay "
             "view...", 3000);
         QApplication::processEvents();
+
+        //Orthogonal projection means the background plane will
+        //have exactly the same size on the screen as the reconstruction
+        m_renderer->GetActiveCamera()->SetPosition(0, 0, -30);
+        m_renderer->GetActiveCamera()->SetFocalPoint(0, 0, 0);
+        m_renderer->GetActiveCamera()->SetViewUp(0, -1, 0);
+        //m_renderer->GetActiveCamera()->SetParallelProjection(1);
+        m_renderer->GetActiveCamera()->SetParallelScale(21.1138);
     }
 
     //We don't want to see the background anymore
@@ -3017,5 +3031,7 @@ void Form::on_over_background_checkbox_toggled(bool checked)
 
         m_renderer->RemoveActor(m_background_actor);
         this->m_ui->qvtkWidget->update();
+
+        //m_renderer->GetActiveCamera()->SetParallelProjection(0);
     }
 }
