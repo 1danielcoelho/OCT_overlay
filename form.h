@@ -272,8 +272,8 @@ Q_SLOTS:
   void receivedStereoImages();
   void receivedRegistration();
   void accumulated(float new_ratio);
-  void newSurface(vtkSmartPointer<vtkPolyData> surf);
-  void newBackground(vtkSmartPointer<vtkImageData> back);
+  void newSurface(vtkPolyData* surf);
+  void newBackground(vtkImageData* back);
   void newEdges(std::vector<float>);
 
   void on_over_background_checkbox_clicked();

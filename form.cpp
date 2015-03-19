@@ -43,8 +43,8 @@ Form::Form(int argc, char** argv, QWidget* parent)
   qRegisterMetaType<OCTinfo>();
   qRegisterMetaType<std::vector<uint8_t> >();
   qRegisterMetaType<std::vector<float> >();
-  qRegisterMetaType<vtkSmartPointer<vtkPolyData> >();
-  qRegisterMetaType<vtkSmartPointer<vtkImageData> >();
+  qRegisterMetaType<vtkPolyData* >();
+  qRegisterMetaType<vtkImageData* >();
 
   // Connect signals and slots
   connect(m_qnode, SIGNAL(rosMasterChanged(bool)), this,
@@ -72,12 +72,12 @@ Form::Form(int argc, char** argv, QWidget* parent)
   connect(m_qnode, SIGNAL(accumulated(float)), this, SLOT(accumulated(float)),
           Qt::QueuedConnection);
 
-  connect(m_qnode, SIGNAL(newSurface(vtkSmartPointer<vtkPolyData>)), this,
-          SLOT(newSurface(vtkSmartPointer<vtkPolyData>)),
+  connect(m_qnode, SIGNAL(newSurface(vtkPolyData*)), this,
+          SLOT(newSurface(vtkPolyData*)),
           Qt::QueuedConnection);
 
-  connect(m_qnode, SIGNAL(newBackground(vtkSmartPointer<vtkImageData>)), this,
-          SLOT(newBackground(vtkSmartPointer<vtkImageData>)),
+  connect(m_qnode, SIGNAL(newBackground(vtkImageData*)), this,
+          SLOT(newBackground(vtkImageData*)),
           Qt::QueuedConnection);
 
   connect(m_qnode, SIGNAL(newEdges(std::vector<float>)), this,
@@ -2750,7 +2750,7 @@ void Form::on_over_start_button_clicked()
     m_renderer->GetActiveCamera()->Pitch(0);
     m_renderer->GetActiveCamera()->Roll(180);
 
-    m_viewing_realtime_overlay = true;
+    m_viewing_realtime_overlay = true;    
     m_waiting_response = true;
     updateUIStates();
 
@@ -2881,7 +2881,7 @@ void Form::receivedRegistration() {
   on_print_transform_button_clicked();
 }
 
-void Form::newSurface(vtkSmartPointer<vtkPolyData> surf)
+void Form::newSurface(vtkPolyData* surf)
 {
     if(m_viewing_realtime_overlay)
     {
@@ -2890,10 +2890,12 @@ void Form::newSurface(vtkSmartPointer<vtkPolyData> surf)
 
         m_waiting_response = true;
         updateUIStates();
+
+        surf->Delete();
     }
 }
 
-void Form::newBackground(vtkSmartPointer<vtkImageData> back)
+void Form::newBackground(vtkImageData* back)
 {
     if(m_viewing_background)
     {
@@ -2966,6 +2968,8 @@ void Form::newBackground(vtkSmartPointer<vtkImageData> back)
 
         this->m_ui->qvtkWidget->update();
         QApplication::processEvents();
+
+        back->Delete();
     }
 }
 
@@ -3017,18 +3021,23 @@ void Form::newEdges(std::vector<float> new_edges)
 {
     //If the new quad edges belong to a more wide-spread quad, then we
     //take them
+
+    //Vertex of the top left edge
     if(new_edges[ 0] < m_quad_edges[ 0]) m_quad_edges[ 0] = new_edges[ 0];
     if(new_edges[ 1] < m_quad_edges[ 1]) m_quad_edges[ 1] = new_edges[ 1];
     if(new_edges[ 2] > m_quad_edges[ 2]) m_quad_edges[ 2] = new_edges[ 2];
 
+    //Vertex of the top right edge
     if(new_edges[ 3] > m_quad_edges[ 3]) m_quad_edges[ 3] = new_edges[ 3];
     if(new_edges[ 4] < m_quad_edges[ 4]) m_quad_edges[ 4] = new_edges[ 4];
     if(new_edges[ 5] > m_quad_edges[ 5]) m_quad_edges[ 5] = new_edges[ 5];
 
+    //Vertex of the bottom right edge
     if(new_edges[ 6] > m_quad_edges[ 6]) m_quad_edges[ 6] = new_edges[ 6];
     if(new_edges[ 7] > m_quad_edges[ 7]) m_quad_edges[ 7] = new_edges[ 7];
     if(new_edges[ 8] > m_quad_edges[ 8]) m_quad_edges[ 8] = new_edges[ 8];
 
+    //Vertex of the bottom left edge
     if(new_edges[ 9] < m_quad_edges[ 9]) m_quad_edges[ 9] = new_edges[ 9];
     if(new_edges[10] > m_quad_edges[10]) m_quad_edges[10] = new_edges[10];
     if(new_edges[11] > m_quad_edges[11]) m_quad_edges[11] = new_edges[11];

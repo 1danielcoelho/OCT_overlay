@@ -136,7 +136,10 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
       color_array->SetNumberOfTuples(num_pts);
       color_array->SetName("Colors");
 
-      VTK_NEW(vtkImageData, left_imagedata);
+      //Both this and the polydata we'll be sending as signals need
+      //to be raw pointers. Smart pointers would self-delete if the garbage
+      //collector caught them before the signal arrived on Form
+      vtkImageData* left_imagedata = vtkImageData::New();
       left_imagedata->SetDimensions(cols, rows, 1);
       left_imagedata->SetNumberOfScalarComponents(3);
       left_imagedata->SetScalarTypeToUnsignedChar();
@@ -238,7 +241,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
       edges[10] = coords[1];
       edges[11] = coords[2];
 
-      VTK_NEW(vtkPolyData, surf_poly);
+      vtkPolyData* surf_poly = vtkPolyData::New();
       surf_poly->SetPoints(points);
       surf_poly->GetPointData()->SetScalars(color_array);
 
