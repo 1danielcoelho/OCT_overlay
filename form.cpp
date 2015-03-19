@@ -32,6 +32,7 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_viewing_overlay = false;
   m_viewing_realtime_overlay = false;
   m_viewing_background = false;
+
   updateUIStates();
 
   // Creates qnode and it's thread, connecting signals and slots
@@ -42,7 +43,7 @@ Form::Form(int argc, char** argv, QWidget* parent)
   // Allows us to use OCTinfo structs in signals/slots
   qRegisterMetaType<OCTinfo>();
   qRegisterMetaType<std::vector<uint8_t> >();
-  qRegisterMetaType<std::vector<float> >();
+  qRegisterMetaType<std::vector<double> >();
   qRegisterMetaType<vtkPolyData* >();
   qRegisterMetaType<vtkImageData* >();
 
@@ -80,8 +81,8 @@ Form::Form(int argc, char** argv, QWidget* parent)
           SLOT(newBackground(vtkImageData*)),
           Qt::QueuedConnection);
 
-  connect(m_qnode, SIGNAL(newEdges(std::vector<float>)), this,
-          SLOT(newEdges(std::vector<float>)),
+  connect(m_qnode, SIGNAL(newEdges(std::vector<double>)), this,
+          SLOT(newEdges(std::vector<double>)),
           Qt::QueuedConnection);
 
   connect(m_qnode, SIGNAL(receivedRegistration()), this,
@@ -117,7 +118,6 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_oct_mass_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_left_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_reconstr_poly_data = vtkSmartPointer<vtkPolyData>::New();
-  m_tex_quad_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_left_image = vtkSmartPointer<vtkImageData>::New();
   m_stereo_right_image = vtkSmartPointer<vtkImageData>::New();
   m_stereo_disp_image = vtkSmartPointer<vtkImageData>::New();
@@ -144,6 +144,9 @@ Form::Form(int argc, char** argv, QWidget* parent)
 
   // Adds our renderer to the QVTK widget
   this->m_ui->qvtkWidget->GetRenderWindow()->AddRenderer(m_renderer);
+
+  // This will hold the edges of our background quad during overlay
+  m_quad_edges.resize(12, -1);
 }
 
 Form::~Form() {
@@ -2766,10 +2769,6 @@ void Form::on_over_stop_button_clicked()
     m_viewing_realtime_overlay = false;
     m_waiting_response = false;
     updateUIStates();
-
-    //m_renderer->RemoveActor(m_stereo_left_actor);
-    //m_ui->over_left_checkbox->setChecked(false);
-    //this->m_ui->qvtkWidget->update();
 }
 
 
@@ -2899,21 +2898,6 @@ void Form::newBackground(vtkImageData* back)
 {
     if(m_viewing_background)
     {
-
-//        std::cout << "Before drawing edges: "
-//                  << m_quad_edges[0] << ", "
-//                  << m_quad_edges[1] << ", "
-//                  << m_quad_edges[2] << ", "
-//                  << m_quad_edges[3] << ", "
-//                  << m_quad_edges[4] << ", "
-//                  << m_quad_edges[5] << ", "
-//                  << m_quad_edges[6] << ", "
-//                  << m_quad_edges[7] << ", "
-//                  << m_quad_edges[8] << ", "
-//                  << m_quad_edges[9] << ", "
-//                  << m_quad_edges[10] << ", "
-//                  << m_quad_edges[11] << std::endl;
-
         //Create our quad, used for rendering the background while overlaying
         VTK_NEW(vtkPoints, points);
         points->InsertNextPoint(m_quad_edges[0], m_quad_edges[1], m_quad_edges[2]+5.0f);
@@ -2944,9 +2928,10 @@ void Form::newBackground(vtkImageData* back)
         tuple[0] = 0.0; tuple[1] = 1.0; tuple[2] = 0.0;
         tex_coords->InsertNextTuple(tuple);
 
-        m_tex_quad_poly_data->SetPoints(points);
-        m_tex_quad_poly_data->SetPolys(polygons);
-        m_tex_quad_poly_data->GetPointData()->SetTCoords(tex_coords);
+        VTK_NEW(vtkPolyData, quad_poly);
+        quad_poly->SetPoints(points);
+        quad_poly->SetPolys(polygons);
+        quad_poly->GetPointData()->SetTCoords(tex_coords);
 
         VTK_NEW(vtkTexture, texture);
         texture->SetInput(back);
@@ -2955,7 +2940,7 @@ void Form::newBackground(vtkImageData* back)
         trans->Scale(1.0, 1.0, 1.0);
 
         VTK_NEW(vtkTransformFilter, trans_filter)
-        trans_filter->SetInput(m_tex_quad_poly_data);
+        trans_filter->SetInput(quad_poly);
         trans_filter->SetTransform(trans);
 
         VTK_NEW(vtkPolyDataMapper, mapper);
@@ -2969,55 +2954,12 @@ void Form::newBackground(vtkImageData* back)
         this->m_ui->qvtkWidget->update();
         QApplication::processEvents();
 
-        back->Delete();
     }
+    back->Delete();
 }
 
-void Form::on_over_background_checkbox_clicked()
-{
-    // If we started viewing overlay from another tab, then clear actors
-    if (!m_viewing_overlay) {
-      m_renderer->RemoveAllViewProps();
-      m_viewing_overlay = true;
-    }
 
-    if (m_ui->over_background_checkbox->isChecked()) {
-      this->m_ui->status_bar->showMessage(
-          "Adding stereocamera background to overlay view...");
-      QApplication::processEvents();
-
-      m_quad_edges[ 0] = 0;
-      m_quad_edges[ 1] = 0;
-      m_quad_edges[ 2] = 0;
-      m_quad_edges[ 3] = 0;
-      m_quad_edges[ 4] = 0;
-      m_quad_edges[ 5] = 0;
-      m_quad_edges[ 6] = 0;
-      m_quad_edges[ 7] = 0;
-      m_quad_edges[ 8] = 0;
-      m_quad_edges[ 9] = 0;
-      m_quad_edges[10] = 0;
-      m_quad_edges[11] = 0;
-
-      m_renderer->GetActiveCamera()->SetParallelProjection(1);
-      m_viewing_background = true;
-      updateUIStates();
-
-    } else {
-      this->m_ui->status_bar->showMessage(
-          "Removing stereocamera background from overlay view...", 3000);
-      QApplication::processEvents();
-
-      m_viewing_background = false;
-      updateUIStates();
-
-      m_renderer->GetActiveCamera()->SetParallelProjection(0);
-      m_renderer->RemoveActor(m_background_actor);
-      this->m_ui->qvtkWidget->update();
-    }
-}
-
-void Form::newEdges(std::vector<float> new_edges)
+void Form::newEdges(std::vector<double> new_edges)
 {
     //If the new quad edges belong to a more wide-spread quad, then we
     //take them
@@ -3041,4 +2983,39 @@ void Form::newEdges(std::vector<float> new_edges)
     if(new_edges[ 9] < m_quad_edges[ 9]) m_quad_edges[ 9] = new_edges[ 9];
     if(new_edges[10] > m_quad_edges[10]) m_quad_edges[10] = new_edges[10];
     if(new_edges[11] > m_quad_edges[11]) m_quad_edges[11] = new_edges[11];
+}
+
+
+void Form::on_over_background_checkbox_toggled(bool checked)
+{
+    if (!m_viewing_overlay) {
+      m_renderer->RemoveAllViewProps();
+      m_viewing_overlay = true;
+    }
+
+    //Reset our quad edges
+    m_quad_edges.clear();
+    m_quad_edges.resize(12, -1);
+
+    m_viewing_background = checked;
+
+    if(checked)
+    {
+        this->m_ui->status_bar->showMessage(
+            "Adding background plane to overlay "
+            "view...", 3000);
+        QApplication::processEvents();
+    }
+
+    //We don't want to see the background anymore
+    if(!checked)
+    {
+        this->m_ui->status_bar->showMessage(
+            "Removing background plane to overlay "
+            "view...", 3000);
+        QApplication::processEvents();
+
+        m_renderer->RemoveActor(m_background_actor);
+        this->m_ui->qvtkWidget->update();
+    }
 }

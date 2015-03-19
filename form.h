@@ -274,9 +274,9 @@ Q_SLOTS:
   void accumulated(float new_ratio);
   void newSurface(vtkPolyData* surf);
   void newBackground(vtkImageData* back);
-  void newEdges(std::vector<float>);
+  void newEdges(std::vector<double>);
 
-  void on_over_background_checkbox_clicked();
+  void on_over_background_checkbox_toggled(bool checked);
 
 Q_SIGNALS:
   void requestScan(OCTinfo);
@@ -297,7 +297,7 @@ Q_SIGNALS:
   uint8_t m_min_vis_thresh;
   uint8_t m_max_vis_thresh;
 
-  double m_quad_edges[6];
+  std::vector<double> m_quad_edges;
 
   // State booleans
   bool m_connected_to_master;
@@ -325,7 +325,6 @@ Q_SIGNALS:
   vtkSmartPointer<vtkPolyData> m_oct_surf_poly_data;
   vtkSmartPointer<vtkPolyData> m_stereo_left_poly_data;
   vtkSmartPointer<vtkPolyData> m_stereo_reconstr_poly_data;
-  vtkSmartPointer<vtkPolyData> m_tex_quad_poly_data;
   vtkSmartPointer<vtkImageData> m_stereo_left_image;
   vtkSmartPointer<vtkImageData> m_stereo_right_image;
   vtkSmartPointer<vtkImageData> m_stereo_disp_image;

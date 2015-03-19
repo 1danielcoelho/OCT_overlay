@@ -145,7 +145,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
       left_imagedata->SetScalarTypeToUnsignedChar();
       left_imagedata->AllocateScalars();
 
-      std::vector<float> edges(12, -1);
+      std::vector<double> edges(12, -1);
 
       int leftmost_top = cols;
       int leftmost_top_id;
