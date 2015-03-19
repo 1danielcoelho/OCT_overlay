@@ -145,19 +145,6 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
       left_imagedata->SetScalarTypeToUnsignedChar();
       left_imagedata->AllocateScalars();
 
-
-      int leftmost_top = cols;
-      int leftmost_top_id;
-
-      int rightmost_top = 0;
-      int rightmost_top_id;
-
-      int leftmost_bot = cols;
-      int leftmost_bot_id;
-
-      int rightmost_bot = 0;
-      int rightmost_bot_id;
-
       std::vector<double> heights;
       std::vector<int> heights_rows;
 
@@ -176,8 +163,9 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
             //If it's a valid point
             if(pt_z != -1)
             {
-                if(i == j || i == -j)
+                if(rand()%100 == 99)
                 {
+                    //keep track of it's row, col, and 3d position
                     heights.push_back(pt_y);
                     heights_rows.push_back(i);
 
@@ -185,35 +173,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
                     widths_cols.push_back(j);
 
                     avg_depth += pt_z;
-                }
-
-                //Grab the leftmost element of the top three rows
-                if(i < 3 && j < leftmost_top)
-                {
-                    leftmost_top = j;
-                    leftmost_top_id = point_id;
-                }
-
-                //Rightmost element of the top three rows
-                if(i < 3 && j > rightmost_top)
-                {
-                    rightmost_top = j;
-                    rightmost_top_id = point_id;
-                }
-
-                //Leftmost element of the bottom fifteen rows
-                if(i > rows-3 && j < leftmost_bot)
-                {
-                    leftmost_bot = j;
-                    leftmost_bot_id = point_id;
-                }
-
-                //Rightmost element of the bottom fifteen rows
-                if(i > rows-3 && j > rightmost_bot)
-                {
-                    rightmost_bot = j;
-                    rightmost_bot_id = point_id;
-                }
+                }                
             }
 
             unsigned char color[3];
@@ -237,6 +197,9 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
         }
       }
 
+      //Down here we calculate these ratios, which tell us the distance in
+      //3D space moved when we move down a row or a col. We will use this to
+      //Extrapolate the 3D positions of the edges of the left image
       double row_ratio = 0;
       double col_ratio = 0;
       int row_count = 0;
@@ -269,64 +232,22 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
       row_ratio /= row_count;
       col_ratio /= col_count;
 
-      avg_depth /= num_calib_pts;
-
-      std::vector<double> edges(12, -1);
+      //This holds all the x,y coordinates of a square, plus a depth
+      std::vector<double> edges(5, 0);
 
       for(int i = 0; i < num_calib_pts; i++)
       {
           edges[0] += widths[i] - widths_cols[i] *(col_ratio);
-          edges[1] += heights[i] - heights_rows[i] * (row_ratio);
-          edges[2] = avg_depth;
-
-          edges[3] += widths[i] + (cols - widths_cols[i]) * col_ratio;
-          edges[4] += heights[i] - heights_rows[i] * (row_ratio);
-          edges[5] = avg_depth;
-
-          edges[6] += widths[i] + (cols - widths_cols[i]) * col_ratio;
-          edges[7] += heights[i] + (rows - heights_rows[i]) * row_ratio;
-          edges[8] = avg_depth;
-
-          edges[9] += widths[i] - widths_cols[i] *(col_ratio);
-          edges[10] += heights[i] + (rows - heights_rows[i]) * row_ratio;
-          edges[11] = avg_depth;
+          edges[1] += widths[i] + (cols - widths_cols[i]) * col_ratio;
+          edges[2] += heights[i] - heights_rows[i] * (row_ratio);
+          edges[3] += heights[i] + (rows - heights_rows[i]) * row_ratio;
       }
 
       edges[0] /= num_calib_pts;
       edges[1] /= num_calib_pts;
-
+      edges[2] /= num_calib_pts;
       edges[3] /= num_calib_pts;
-      edges[4] /= num_calib_pts;
-
-      edges[6] /= num_calib_pts;
-      edges[7] /= num_calib_pts;
-
-      edges[9] /= num_calib_pts;
-      edges[10] /= num_calib_pts;
-
-      //std::cout << "rowratio, colratio:" << row_ratio << ",\t\t" << col_ratio << std::endl;
-
-      //Pack our edge points into the edge vector in the ugliest way possible
-//      double coords[3];
-//      points->GetPoint(leftmost_top_id, coords);
-//      edges[0] = coords[0];
-//      edges[1] = coords[1];
-//      edges[2] = coords[2];
-
-//      points->GetPoint(rightmost_top_id, coords);
-//      edges[3] = coords[0];
-//      edges[4] = coords[1];
-//      edges[5] = coords[2];
-
-//      points->GetPoint(rightmost_bot_id, coords);
-//      edges[6] = coords[0];
-//      edges[7] = coords[1];
-//      edges[8] = coords[2];
-
-//      points->GetPoint(leftmost_bot_id, coords);
-//      edges[9] = coords[0];
-//      edges[10] = coords[1];
-//      edges[11] = coords[2];
+      edges[4] = avg_depth / num_calib_pts;
 
       vtkPolyData* surf_poly = vtkPolyData::New();
       surf_poly->SetPoints(points);

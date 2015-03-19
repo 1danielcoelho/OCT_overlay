@@ -146,7 +146,7 @@ Form::Form(int argc, char** argv, QWidget* parent)
   this->m_ui->qvtkWidget->GetRenderWindow()->AddRenderer(m_renderer);
 
   // This will hold the edges of our background quad during overlay
-  m_quad_edges.resize(12, -1);
+  m_quad_edges.resize(5, 0);
 }
 
 Form::~Form() {
@@ -2901,10 +2901,10 @@ void Form::newBackground(vtkImageData* back)
     {
         //Create our quad, used for rendering the background while overlaying
         VTK_NEW(vtkPoints, points);
-        points->InsertNextPoint(m_quad_edges[0], m_quad_edges[1], m_quad_edges[2]+10.0f);
-        points->InsertNextPoint(m_quad_edges[3], m_quad_edges[4], m_quad_edges[5]+10.0f);
-        points->InsertNextPoint(m_quad_edges[6], m_quad_edges[7], m_quad_edges[8]+10.0f);
-        points->InsertNextPoint(m_quad_edges[9], m_quad_edges[10], m_quad_edges[11]+10.0f);
+        points->InsertNextPoint(m_quad_edges[0], m_quad_edges[2], m_quad_edges[4]+20.0f);
+        points->InsertNextPoint(m_quad_edges[1], m_quad_edges[2], m_quad_edges[4]+20.0f);
+        points->InsertNextPoint(m_quad_edges[1], m_quad_edges[3], m_quad_edges[4]+20.0f);
+        points->InsertNextPoint(m_quad_edges[0], m_quad_edges[3], m_quad_edges[4]+20.0f);
 
         VTK_NEW(vtkPolygon, polygon);
         polygon->GetPointIds()->SetNumberOfIds(4); //make a quad
@@ -2962,29 +2962,7 @@ void Form::newBackground(vtkImageData* back)
 
 void Form::newEdges(std::vector<double> new_edges)
 {
-    //If the new quad edges belong to a more wide-spread quad, then we
-    //take them
-
-    double position[3];
-    m_renderer->GetActiveCamera()->GetPosition(position);
-
-    //std::cout << "Camera pos: " << position[0] << ", " << position[1] << ", " << position[2] << std::endl;
-
     m_quad_edges = new_edges;
-
-
-    std::cout << "edges: " << m_quad_edges[0] << ", " <<
-                 m_quad_edges[1] << ", " <<
-                 m_quad_edges[2] << ", " <<
-                 m_quad_edges[3] << ", " <<
-                 m_quad_edges[4] << ", " <<
-                 m_quad_edges[5] << ", " <<
-                 m_quad_edges[6] << ", " <<
-                 m_quad_edges[7] << ", " <<
-                 m_quad_edges[8] << ", " <<
-                 m_quad_edges[9] << ", " <<
-                 m_quad_edges[10] << ", " <<
-                 m_quad_edges[11] << std::endl;
 }
 
 
@@ -2997,7 +2975,7 @@ void Form::on_over_background_checkbox_toggled(bool checked)
 
     //Reset our quad edges
     m_quad_edges.clear();
-    m_quad_edges.resize(12, -1);
+    m_quad_edges.resize(5, 0);
 
     m_viewing_background = checked;
 
@@ -3015,6 +2993,7 @@ void Form::on_over_background_checkbox_toggled(bool checked)
         m_renderer->GetActiveCamera()->SetViewUp(0, -1, 0);
         m_renderer->GetActiveCamera()->SetParallelProjection(1);
         m_renderer->GetActiveCamera()->SetParallelScale(21.1138);
+        //m_renderer->GetActiveCamera()->SetClippingRange(0.1, 500.0f);
     }
 
     //We don't want to see the background anymore
