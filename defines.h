@@ -9,7 +9,7 @@
   vtkSmartPointer<type> instance = vtkSmartPointer<type>::New();
 
 // Allows me to test the program at home only changing this line
-//#define AT_HOME
+#define AT_HOME
 
 //--------------------------------FILE MANAGER----------------------------------
 // Size of the header in bytes that we use for the raw OCT vector
@@ -27,9 +27,9 @@
 //"/opt/imesLS_ROS/laser_interface_new/octCamRegistration.yaml"
 
 //-------------------------------TUMOR SEGMENTATION-----------------------------
-//The segmented OCT surface sits at the very top of the surface. This indicates
-//how deep below that we should also discard (we discard everything ABOVE the
-//surface during the tumour segmentation)
+// The segmented OCT surface sits at the very top of the surface. This indicates
+// how deep below that we should also discard (we discard everything ABOVE the
+// surface during the tumour segmentation)
 #define SURFACE_THICKNESS 0.2
 // Low pass cutoff frequency for when we convert the entire volume to frequency
 // domain. DEFAULT: 2, 2, 2
@@ -70,7 +70,9 @@
 
 //------------------------------------OVERLAY----------------------------------
 //#define WINDOW_NAME "Stereocamera left image with overlay"
-#define CALIB_STEREO_FILE "/opt/imesLS_ROS/cameracalibration/launch/SOMIKON/calib_full_stereo.yaml"
-#define CALIB_LEFT_FILE "/opt/imesLS_ROS/cameracalibration/launch/SOMIKON/calib_full_left.yaml"
+#define CALIB_STEREO_FILE \
+  "/opt/imesLS_ROS/cameracalibration/launch/SOMIKON/calib_full_stereo.yaml"
+#define CALIB_LEFT_FILE \
+  "/opt/imesLS_ROS/cameracalibration/launch/SOMIKON/calib_full_left.yaml"
 
 #endif  // DEFINES_H

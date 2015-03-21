@@ -70,7 +70,6 @@ class vtkImageInteractionCallback : public vtkCommand {
     return this->Renderer;
   };
 
-
   void SetImageReslice(vtkImageReslice *reslice) {
     this->ImageReslice = reslice;
   };
@@ -79,7 +78,7 @@ class vtkImageInteractionCallback : public vtkCommand {
     return this->ImageReslice;
   };
 
-  void SetMarchingSquares(vtkMarchingSquares* squares) {
+  void SetMarchingSquares(vtkMarchingSquares *squares) {
     this->MarchingSquares = squares;
   };
 
@@ -95,10 +94,7 @@ class vtkImageInteractionCallback : public vtkCommand {
     return this->Interactor;
   };
 
-  double GetThreshold()
-  {
-      return squares_threshold;
-  }
+  double GetThreshold() { return squares_threshold; }
 
   virtual void Execute(vtkObject *, unsigned long event, void *) {
 
@@ -109,34 +105,30 @@ class vtkImageInteractionCallback : public vtkCommand {
     int currPos[2];
     interactor->GetEventPosition(currPos);
 
-    if (event == vtkCommand::MouseWheelForwardEvent)
-    {
-        this->squares_threshold += 1;
-        if(this->squares_threshold > 255) this->squares_threshold = 255;
+    if (event == vtkCommand::MouseWheelForwardEvent) {
+      this->squares_threshold += 1;
+      if (this->squares_threshold > 255) this->squares_threshold = 255;
 
-        std::cout << "Threshold is now " << this->squares_threshold << std::endl;
-        this->MarchingSquares->SetValue(0, this->squares_threshold);
-        this->MarchingSquares->Update();
-        this->Interactor->Render();
-    }
-    else if (event == vtkCommand::MouseWheelBackwardEvent){
-        this->squares_threshold -= 1;
-        if(this->squares_threshold < 0) this->squares_threshold = 0;
+      std::cout << "Threshold is now " << this->squares_threshold << std::endl;
+      this->MarchingSquares->SetValue(0, this->squares_threshold);
+      this->MarchingSquares->Update();
+      this->Interactor->Render();
+    } else if (event == vtkCommand::MouseWheelBackwardEvent) {
+      this->squares_threshold -= 1;
+      if (this->squares_threshold < 0) this->squares_threshold = 0;
 
-        std::cout << "Threshold is now " << this->squares_threshold << std::endl;
-        this->MarchingSquares->SetValue(0, this->squares_threshold);
-        this->MarchingSquares->Update();
-        this->Interactor->Render();
-    }
-
-    else if (event == vtkCommand::LeftButtonPressEvent) {
+      std::cout << "Threshold is now " << this->squares_threshold << std::endl;
+      this->MarchingSquares->SetValue(0, this->squares_threshold);
+      this->MarchingSquares->Update();
+      this->Interactor->Render();
+    } else if (event == vtkCommand::LeftButtonPressEvent) {
       this->Slicing = 1;
     } else if (event == vtkCommand::LeftButtonReleaseEvent) {
-      this->Slicing = 0;    
+      this->Slicing = 0;
     } else if (event == vtkCommand::MouseMoveEvent) {
       if (this->Slicing) {
-        vtkImageReslice *reslice = this->ImageReslice;        
-        vtkRenderer* renderer = this->Renderer;
+        vtkImageReslice *reslice = this->ImageReslice;
+        vtkRenderer *renderer = this->Renderer;
 
         // Increment slice position by deltaY of mouse
         int deltaY = lastPos[1] - currPos[1];
@@ -176,19 +168,17 @@ class vtkImageInteractionCallback : public vtkCommand {
 
   // Pointer to vtkImageReslice
   vtkImageReslice *ImageReslice;
-  vtkMarchingSquares* MarchingSquares;
-  vtkRenderer* Renderer;
+  vtkMarchingSquares *MarchingSquares;
+  vtkRenderer *Renderer;
 
   // Pointer to the interactor
   vtkRenderWindowInteractor *Interactor;
 };
 
 class SliceViewer {
- public: 
-
-  static void viewPolyData(vtkPolyData* polydata)
-  {
-    //Simple way of dropping cell data without changing input
+ public:
+  static void viewPolyData(vtkPolyData *polydata) {
+    // Simple way of dropping cell data without changing input
     VTK_NEW(vtkPoints, pts);
     pts->ShallowCopy(polydata->GetPoints());
 
@@ -216,12 +206,11 @@ class SliceViewer {
     window->SetSize(1024, 768);
 
     renderer->Render();
-    interactor->Start(); //Will not return until window is closed
+    interactor->Start();  // Will not return until window is closed
   }
 
-  static void viewPolyDataWithNormals(vtkPolyData* polydata)
-  {
-    //Polydata
+  static void viewPolyDataWithNormals(vtkPolyData *polydata) {
+    // Polydata
     VTK_NEW(vtkPolyDataMapper, mapper);
     mapper->SetInput(polydata);
     mapper->SetScalarVisibility(0);
@@ -230,8 +219,7 @@ class SliceViewer {
     actor->SetMapper(mapper);
     actor->GetProperty()->SetColor(1.0, 0.8, 0.8);
 
-
-    //Arrows
+    // Arrows
     VTK_NEW(vtkArrowSource, arrow);
 
     VTK_NEW(vtkGlyph3D, glyph);
@@ -247,8 +235,7 @@ class SliceViewer {
     arrow_actor->SetMapper(arrow_mapper);
     arrow_actor->GetProperty()->SetColor(0.8, 0.8, 0.2);
 
-
-    //Rendering
+    // Rendering
     VTK_NEW(vtkRenderer, renderer);
     renderer->AddActor(actor);
     renderer->AddActor(arrow_actor);
@@ -261,7 +248,7 @@ class SliceViewer {
     window->SetSize(1024, 768);
 
     renderer->Render();
-    interactor->Start(); //Will not return until window is closed
+    interactor->Start();  // Will not return until window is closed
   }
 
   static double view3dImageData(vtkImageData *volume) {
@@ -286,13 +273,13 @@ class SliceViewer {
 
     // Matrices for axial, coronal, sagittal, oblique view orientations
     static double axial_elements[16] = {1, 0, 0, 0, 0, 1, 0, 0,
-                                       0, 0, 1, 0, 0, 0, 0, 1};
+                                        0, 0, 1, 0, 0, 0, 0, 1};
 
-//    static double coronal_elements[16] = {1, 0,  0, 0, 0, 0, 1, 0,
-//                                         0, -1, 0, 0, 0, 0, 0, 1};
+    //    static double coronal_elements[16] = {1, 0,  0, 0, 0, 0, 1, 0,
+    //                                         0, -1, 0, 0, 0, 0, 0, 1};
 
-//    static double sagittal_elements[16] = {0, 0,  -1, 0, 1, 0, 0, 0,
-//                                          0, -1, 0,  0, 0, 0, 0, 1};
+    //    static double sagittal_elements[16] = {0, 0,  -1, 0, 1, 0, 0, 0,
+    //                                          0, -1, 0,  0, 0, 0, 0, 1};
 
     // static double oblique_elements[16] = {
     //         1, 0, 0, 0,
@@ -321,14 +308,14 @@ class SliceViewer {
     squares->SetValue(0, 128.0);
 
     // Display the image
-//    VTK_NEW(vtkImageMapper, image_mapper);
-//    //image_mapper->SetInputConnection(reslice->GetOutputPort());
-//    image_mapper->SetInput(squares->GetOutput());
-//    image_mapper->SetColorWindow(255.0);
-//    image_mapper->SetColorLevel(127.5);
+    //    VTK_NEW(vtkImageMapper, image_mapper);
+    //    //image_mapper->SetInputConnection(reslice->GetOutputPort());
+    //    image_mapper->SetInput(squares->GetOutput());
+    //    image_mapper->SetColorWindow(255.0);
+    //    image_mapper->SetColorLevel(127.5);
 
-//    VTK_NEW(vtkActor2D, actor);
-//    actor->SetMapper(image_mapper);
+    //    VTK_NEW(vtkActor2D, actor);
+    //    actor->SetMapper(image_mapper);
 
     float width = spacing[0] * (extent[1] - extent[0]);
     float height = spacing[1] * (extent[3] - extent[2]);
@@ -395,9 +382,8 @@ class SliceViewer {
     return callback->GetThreshold();
   }
 
-  private:
+ private:
   SliceViewer();
-
 };
 
 #endif  // SLICEINTERACTOR_H

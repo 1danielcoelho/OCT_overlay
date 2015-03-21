@@ -42,44 +42,38 @@ void Crossbar::readPolyData(const char *filepath,
 }
 
 void Crossbar::writeTransform(vtkSmartPointer<vtkTransform> input,
-                              const char *filepath)
-{
-    assert("Can't write a transform if it's NULL!" && input != NULL);
+                              const char *filepath) {
+  assert("Can't write a transform if it's NULL!" && input != NULL);
 
-    VTK_NEW(vtkMatrix4x4, mat);
-    input->GetMatrix(mat);
+  VTK_NEW(vtkMatrix4x4, mat);
+  input->GetMatrix(mat);
 
-    std::vector<double> elements;
-    for(uint32_t i = 0; i<4; i++)
-    {
-        for(uint32_t j = 0; j<4; j++)
-        {
-           elements.push_back(mat->GetElement(i, j));
-        }
+  std::vector<double> elements;
+  for (uint32_t i = 0; i < 4; i++) {
+    for (uint32_t j = 0; j < 4; j++) {
+      elements.push_back(mat->GetElement(i, j));
     }
+  }
 
-    this->writeVector(elements, filepath);
-
+  this->writeVector(elements, filepath);
 }
 
 void Crossbar::readTransform(const char *filepath,
-                             vtkSmartPointer<vtkTransform> output)
-{
-    if(output == NULL) output = vtkSmartPointer<vtkTransform>::New();
+                             vtkSmartPointer<vtkTransform> output) {
+  if (output == NULL) output = vtkSmartPointer<vtkTransform>::New();
 
-    std::vector<double> elements;
-    this->readVector(filepath, elements);
+  std::vector<double> elements;
+  this->readVector(filepath, elements);
 
-    assert("Transform file contains more than 16 doubles!" &&
-           elements.size() == 16);
+  assert("Transform file contains more than 16 doubles!" &&
+         elements.size() == 16);
 
-    VTK_NEW(vtkMatrix4x4, mat);
-    for(uint32_t i = 0; i < elements.size(); i++)
-    {
-        mat->SetElement(i/4, i%4, elements[i]);
-    }
+  VTK_NEW(vtkMatrix4x4, mat);
+  for (uint32_t i = 0; i < elements.size(); i++) {
+    mat->SetElement(i / 4, i % 4, elements[i]);
+  }
 
-    output->SetMatrix(mat);
+  output->SetMatrix(mat);
 }
 
 void Crossbar::writePCL(pcl::PointCloud<pcl::PointXYZ>::Ptr input,
@@ -277,7 +271,7 @@ void Crossbar::VTKPolyDataToPCLxyzrgb(
   double polydata_point[3];
   double polydata_color[3];
 
-  vtkDataArray* colors = input->GetPointData()->GetArray("Colors");
+  vtkDataArray *colors = input->GetPointData()->GetArray("Colors");
 
   for (long i = 0; i < num_pts; i++) {
     pcl_point = &(output->points[i]);
@@ -358,185 +352,177 @@ void Crossbar::imageData2DtoIntVector(vtkSmartPointer<vtkImageData> input,
   }
 }
 
-void Crossbar::floatVectorToCvMat(std::vector<float>& input, cv::Mat& output)
-{
-    assert("Input float vector is empty!" && input.size() > 0);
+void Crossbar::floatVectorToCvMat(std::vector<float> &input, cv::Mat &output) {
+  assert("Input float vector is empty!" && input.size() > 0);
 
-    uint32_t rows, cols;
+  uint32_t rows, cols;
 
-    memcpy(&rows, &input[0], sizeof(uint32_t));
-    memcpy(&cols, &input[1], sizeof(uint32_t));
+  memcpy(&rows, &input[0], sizeof(uint32_t));
+  memcpy(&cols, &input[1], sizeof(uint32_t));
 
-    std::cout << "FLOAT VECTOR TO CV MAT: rows: " << rows << ", cols: " << cols <<std::endl;
+  std::cout << "FLOAT VECTOR TO CV MAT: rows: " << rows << ", cols: " << cols
+            << std::endl;
 
-    output.create(rows, cols, CV_32FC3);
-    output = cv::Mat::zeros(rows, cols, CV_32FC3);
+  output.create(rows, cols, CV_32FC3);
+  output = cv::Mat::zeros(rows, cols, CV_32FC3);
 
-    for(uint32_t i = 0; i < rows; i++)
-    {
-        for(uint32_t j = 0; j < cols; j++)
-        {
-            cv::Vec3f& color = output.at<cv::Vec3f>(i,j);
+  for (uint32_t i = 0; i < rows; i++) {
+    for (uint32_t j = 0; j < cols; j++) {
+      cv::Vec3f &color = output.at<cv::Vec3f>(i, j);
 
-            color[0] = input[3*j +   i*cols*3 + 2]; //skip 2 header floats
-            color[1] = input[3*j+1 + i*cols*3 + 2];
-            color[2] = input[3*j+2 + i*cols*3 + 2];
-        }
+      color[0] = input[3 * j + i * cols * 3 + 2];  // skip 2 header floats
+      color[1] = input[3 * j + 1 + i * cols * 3 + 2];
+      color[2] = input[3 * j + 2 + i * cols * 3 + 2];
     }
+  }
 }
 
-void Crossbar::floatVectorToImageData2D(std::vector<float>& input,
-                                        vtkSmartPointer<vtkImageData> output)
-{
-    assert("Input float vector is empty!" && input.size() > 0);
+void Crossbar::floatVectorToImageData2D(std::vector<float> &input,
+                                        vtkSmartPointer<vtkImageData> output) {
+  assert("Input float vector is empty!" && input.size() > 0);
 
-    if (output == NULL) {
-      output = vtkSmartPointer<vtkImageData>::New();
+  if (output == NULL) {
+    output = vtkSmartPointer<vtkImageData>::New();
+  }
+
+  uint32_t rows, cols;
+
+  memcpy(&rows, &input[0], sizeof(uint32_t));
+  memcpy(&cols, &input[1], sizeof(uint32_t));
+
+  output->SetDimensions(cols, rows, 1);
+  output->SetNumberOfScalarComponents(3);
+  output->SetScalarTypeToFloat();
+  output->AllocateScalars();
+
+  for (uint32_t y = 0; y < rows; y++) {
+    for (uint32_t x = 0; x < cols; x++) {
+      // We need to invert the vertical coordinate since we use different
+      // origins
+      float *pixel =
+          static_cast<float *>(output->GetScalarPointer(x, (rows - 1) - y, 0));
+
+      memcpy(&pixel[0], &(input[3 * x + y * cols * 3 + 2]), 3 * sizeof(float));
     }
+  }
 
-    uint32_t rows, cols;
-
-    memcpy(&rows, &input[0], sizeof(uint32_t));
-    memcpy(&cols, &input[1], sizeof(uint32_t));
-
-    output->SetDimensions(cols, rows, 1);
-    output->SetNumberOfScalarComponents(3);
-    output->SetScalarTypeToFloat();
-    output->AllocateScalars();
-
-    for(uint32_t y = 0; y < rows; y++)
-    {
-        for(uint32_t x = 0; x < cols; x++)
-        {
-            // We need to invert the vertical coordinate since we use different
-            // origins
-            float *pixel = static_cast<float *>(
-                output->GetScalarPointer(x, (rows - 1) - y, 0));
-
-            memcpy(&pixel[0], &(input[3*x + y*cols*3 + 2]), 3*sizeof(float));
-        }
-    }
-
-    output->Modified();
+  output->Modified();
 }
 
 void Crossbar::imageData2DToFloatVector(vtkSmartPointer<vtkImageData> input,
-                                        std::vector<float>& output)
-{
-    assert("Input vtkImageData is NULL!" && input != NULL);
+                                        std::vector<float> &output) {
+  assert("Input vtkImageData is NULL!" && input != NULL);
 
-    long num_pts = input->GetNumberOfPoints();
+  long num_pts = input->GetNumberOfPoints();
 
-    assert("Input vtkImageData is empty!" && num_pts > 0);
+  assert("Input vtkImageData is empty!" && num_pts > 0);
 
-    output.clear();
-    output.resize(3*num_pts + 2);  // 2 bytes for the header
+  output.clear();
+  output.resize(3 * num_pts + 2);  // 2 bytes for the header
 
-    int dimensions[3];
-    input->GetDimensions(dimensions);
+  int dimensions[3];
+  input->GetDimensions(dimensions);
 
-    uint32_t rows = dimensions[1];
-    uint32_t cols = dimensions[0];
+  uint32_t rows = dimensions[1];
+  uint32_t cols = dimensions[0];
 
-    //Here we build our header, with rows/cols. They should always be uint32_t
-    //so we hard copy them in. This is ok, since we read them again
-    //in the exact same way
-    memcpy(&output[0], &rows, 4);
-    memcpy(&output[1], &cols, 4);
+  // Here we build our header, with rows/cols. They should always be uint32_t
+  // so we hard copy them in. This is ok, since we read them again
+  // in the exact same way
+  memcpy(&output[0], &rows, 4);
+  memcpy(&output[1], &cols, 4);
 
-    for (uint32_t y = 0; y < rows; y++) {
-      for (uint32_t x = 0; x < cols; x++) {
-        // We need to invert the vertical coordinate since we use different
-        // origins
-        float *pixel = static_cast<float *>(
-            input->GetScalarPointer(x, (rows - 1) - y, 0));
+  for (uint32_t y = 0; y < rows; y++) {
+    for (uint32_t x = 0; x < cols; x++) {
+      // We need to invert the vertical coordinate since we use different
+      // origins
+      float *pixel =
+          static_cast<float *>(input->GetScalarPointer(x, (rows - 1) - y, 0));
 
-        // The two first uint32_t are the header
-        memcpy(&(output[3*x + y * cols*3 + 2]), &pixel[0], 3*sizeof(float));
-      }
+      // The two first uint32_t are the header
+      memcpy(&(output[3 * x + y * cols * 3 + 2]), &pixel[0], 3 * sizeof(float));
     }
+  }
 }
 
 void Crossbar::imageData2DToPolyData(vtkSmartPointer<vtkImageData> input,
-                                     vtkSmartPointer<vtkPolyData> output)
-{
-    assert("Input vtkImageData is NULL!" && input != NULL);
+                                     vtkSmartPointer<vtkPolyData> output) {
+  assert("Input vtkImageData is NULL!" && input != NULL);
 
-    long num_pts = input->GetNumberOfPoints();
+  long num_pts = input->GetNumberOfPoints();
 
-    assert("Input vtkImageData is empty!" && num_pts > 0);
+  assert("Input vtkImageData is empty!" && num_pts > 0);
 
-    VTK_NEW(vtkPoints, polydata_points);
-    polydata_points->SetNumberOfPoints(num_pts);
+  VTK_NEW(vtkPoints, polydata_points);
+  polydata_points->SetNumberOfPoints(num_pts);
 
-    VTK_NEW(vtkTypeUInt8Array, polydata_color_array);
-    polydata_color_array->SetNumberOfComponents(3);
-    polydata_color_array->SetNumberOfTuples(num_pts);
-    polydata_color_array->SetName("Colors");
+  VTK_NEW(vtkTypeUInt8Array, polydata_color_array);
+  polydata_color_array->SetNumberOfComponents(3);
+  polydata_color_array->SetNumberOfTuples(num_pts);
+  polydata_color_array->SetName("Colors");
 
-    int dimensions[3];
-    input->GetDimensions(dimensions);
+  int dimensions[3];
+  input->GetDimensions(dimensions);
 
-    uint32_t rows = dimensions[1];
-    uint32_t cols = dimensions[0];
+  uint32_t rows = dimensions[1];
+  uint32_t cols = dimensions[0];
 
-    uint32_t point_id = 0;
-    for (uint32_t y = 0; y < rows; y++) {
-      for (uint32_t x = 0; x < cols; x++) {
-        // We need to invert the vertical coordinate since we use different
-        // origins
-        uint8_t *pixel = static_cast<uint8_t *>(
-            input->GetScalarPointer(x, (rows - 1) - y, 0));
+  uint32_t point_id = 0;
+  for (uint32_t y = 0; y < rows; y++) {
+    for (uint32_t x = 0; x < cols; x++) {
+      // We need to invert the vertical coordinate since we use different
+      // origins
+      uint8_t *pixel =
+          static_cast<uint8_t *>(input->GetScalarPointer(x, (rows - 1) - y, 0));
 
-        float color_float[3];
-        color_float[0] = (float)pixel[0];
-        color_float[1] = (float)pixel[1];
-        color_float[2] = (float)pixel[2];
+      float color_float[3];
+      color_float[0] = (float)pixel[0];
+      color_float[1] = (float)pixel[1];
+      color_float[2] = (float)pixel[2];
 
-        // The two first uint32_t are the header
-        polydata_points->SetPoint(point_id, x, y, 0);
-        polydata_color_array->SetTuple(point_id, color_float);
+      // The two first uint32_t are the header
+      polydata_points->SetPoint(point_id, x, y, 0);
+      polydata_color_array->SetTuple(point_id, color_float);
 
-        point_id++;
-      }
+      point_id++;
     }
+  }
 
-    output->SetPoints(polydata_points);
-    output->GetPointData()->SetScalars(polydata_color_array);
+  output->SetPoints(polydata_points);
+  output->GetPointData()->SetScalars(polydata_color_array);
 }
 
+void Crossbar::cvMatToPolyData(cv::Mat &input,
+                               vtkSmartPointer<vtkPolyData> output) {
+  int rows = input.rows;
+  int cols = input.cols;
+  int num_pts = rows * cols;
 
-void Crossbar::cvMatToPolyData(cv::Mat &input, vtkSmartPointer<vtkPolyData> output)
-{
-    int rows = input.rows;
-    int cols = input.cols;
-    int num_pts = rows * cols;
+  VTK_NEW(vtkPoints, points);
+  points->SetNumberOfPoints(num_pts);
 
-    VTK_NEW(vtkPoints, points);
-    points->SetNumberOfPoints(num_pts);
+  VTK_NEW(vtkTypeUInt8Array, color_array);
+  color_array->SetNumberOfComponents(3);
+  color_array->SetNumberOfTuples(num_pts);
+  color_array->SetName("Colors");
 
-    VTK_NEW(vtkTypeUInt8Array, color_array);
-    color_array->SetNumberOfComponents(3);
-    color_array->SetNumberOfTuples(num_pts);
-    color_array->SetName("Colors");
+  int point_id = 0;
+  for (int i = 0; i < rows; i++) {
+    for (int j = 0; j < cols; j++) {
 
-    int point_id = 0;
-    for (int i = 0; i < rows; i++) {
-      for (int j = 0; j < cols; j++) {
+      float color_float[3];
+      color_float[0] = (float)input.at<cv::Vec3b>(i, j)[0];
+      color_float[1] = (float)input.at<cv::Vec3b>(i, j)[1];
+      color_float[2] = (float)input.at<cv::Vec3b>(i, j)[2];
 
-        float color_float[3];
-        color_float[0] = (float) input.at<cv::Vec3b>(i, j)[0];
-        color_float[1] = (float) input.at<cv::Vec3b>(i, j)[1];
-        color_float[2] = (float) input.at<cv::Vec3b>(i, j)[2];
+      // The two first uint32_t are the header
+      points->SetPoint(point_id, j, i, 0);
+      color_array->SetTuple(point_id, color_float);
 
-        // The two first uint32_t are the header
-        points->SetPoint(point_id, j, i, 0);
-        color_array->SetTuple(point_id, color_float);
-
-        point_id++;
-      }
+      point_id++;
     }
+  }
 
-    output->SetPoints(points);
-    output->GetPointData()->SetScalars(color_array);
+  output->SetPoints(points);
+  output->GetPointData()->SetScalars(color_array);
 }

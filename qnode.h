@@ -125,7 +125,7 @@ Q_SLOTS:
   // of the captured stereocamera left image
   void startOverlay();
 
-  //Interrupts the overlay loop and goes back into normal mode
+  // Interrupts the overlay loop and goes back into normal mode
   void stopOverlay();
 
 Q_SIGNALS:  // Same as 'signals'
@@ -143,7 +143,7 @@ Q_SIGNALS:  // Same as 'signals'
  private:
   ros::NodeHandle* m_nh;
   ros::ServiceClient m_oct_tcp_client, m_segmentation_client,
-      m_registration_client;  
+      m_registration_client;
 
   Crossbar* m_crossbar;
 

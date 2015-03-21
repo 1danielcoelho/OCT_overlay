@@ -1,6 +1,5 @@
 #include "qnode.h"
 
-
 QNode::QNode(int argc, char **argv) : no_argc(argc), no_argv(argv) {
 
   m_shutdown = false;
@@ -109,290 +108,284 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
                           const sensor_msgs::ImageConstPtr &msg_right,
                           const sensor_msgs::ImageConstPtr &msg_disp,
                           const sensor_msgs::ImageConstPtr &msg_depth) {
-  //ROS_INFO("imageCallback called");
+  // ROS_INFO("imageCallback called");
 
-  //If we're in overlaying mode, just display the images
-  if(m_overlaying)
-  {
-      cv::Mat image_left, image_depth;
-
-      // Convert our image message to a cv::Mat
-      cv_bridge::CvImagePtr cv_image_ptr;
-
-      cv_image_ptr = cv_bridge::toCvCopy(msg_left, enc::RGB8);
-      image_left = cv_image_ptr->image;
-      cv_image_ptr = cv_bridge::toCvCopy(msg_depth, enc::TYPE_32FC3);
-      image_depth = cv_image_ptr->image;
-
-      int rows = image_left.rows;
-      int cols = image_left.cols;
-      int num_pts = rows * cols;
-
-      VTK_NEW(vtkPoints, points);
-      points->SetNumberOfPoints(num_pts);
-
-      VTK_NEW(vtkTypeUInt8Array, color_array);
-      color_array->SetNumberOfComponents(3);
-      color_array->SetNumberOfTuples(num_pts);
-      color_array->SetName("Colors");
-
-      //Both this and the polydata we'll be sending as signals need
-      //to be raw pointers. Smart pointers would self-delete if the garbage
-      //collector caught them before the signal arrived on Form
-      vtkImageData* left_imagedata = vtkImageData::New();
-      left_imagedata->SetDimensions(cols, rows, 1);
-      left_imagedata->SetNumberOfScalarComponents(3);
-      left_imagedata->SetScalarTypeToUnsignedChar();
-      left_imagedata->AllocateScalars();
-
-      std::vector<double> heights;
-      std::vector<int> heights_rows;
-
-      std::vector<double> widths;
-      std::vector<int> widths_cols;
-
-      double avg_depth = 0;
-
-      int point_id = 0;
-      for (uint32_t i = 0; i < rows; i++) {
-        for (uint32_t j = 0; j < cols; j++) {
-            float pt_x = image_depth.at<cv::Vec3f>(i,j)[0];
-            float pt_y = image_depth.at<cv::Vec3f>(i,j)[1];
-            float pt_z = image_depth.at<cv::Vec3f>(i,j)[2];
-
-            //If it's a valid point
-            if(pt_z != -1)
-            {
-                if(rand()%100 == 99)
-                {
-                    //keep track of it's row, col, and 3d position
-                    heights.push_back(pt_y);
-                    heights_rows.push_back(i);
-
-                    widths.push_back(pt_x);
-                    widths_cols.push_back(j);
-
-                    avg_depth += pt_z;
-                }                
-            }
-
-            unsigned char color[3];
-            color[0] = image_left.at<cv::Vec3b>(i, j)[0];
-            color[1] = image_left.at<cv::Vec3b>(i, j)[1];
-            color[2] = image_left.at<cv::Vec3b>(i, j)[2];
-
-            float color_float[3];
-            color_float[0] = (float) color[0];
-            color_float[1] = (float) color[1];
-            color_float[2] = (float) color[2];
-
-            unsigned char *pixel = static_cast<unsigned char *>(
-                left_imagedata->GetScalarPointer(j, i, 0));
-
-            points->SetPoint(point_id, pt_x, pt_y, pt_z);
-            color_array->SetTuple(point_id, color_float);
-            memcpy(&pixel[0], &color[0], 3);
-
-            point_id++;
-        }
-      }
-
-      //Down here we calculate these ratios, which tell us the distance in
-      //3D space moved when we move down a row or a col. We will use this to
-      //Extrapolate the 3D positions of the edges of the left image
-      double row_ratio = 0;
-      double col_ratio = 0;
-      int row_count = 0;
-      int col_count = 0;
-
-      int num_calib_pts = heights_rows.size();
-      for(int i = 0; i < num_calib_pts; i++)
-      {
-        for(int j = 0; j < num_calib_pts; j++)
-        {
-            double delta_row = heights_rows[i] - heights_rows[j];
-            double delta_col = widths_cols[i] - widths_cols[j];
-
-            if(delta_row != 0)
-            {
-                double delta_height = heights[i] - heights[j];
-                row_ratio += (delta_height / delta_row);
-                row_count++;
-            }
-
-            if(delta_col != 0)
-            {
-                double delta_width = widths[i] - widths[j];
-                col_ratio += (delta_width / delta_col);
-                col_count++;
-            }
-        }
-      }
-
-      row_ratio /= row_count;
-      col_ratio /= col_count;
-
-      //This holds all the x,y coordinates of a square, plus a depth
-      std::vector<double> edges(5, 0);
-
-      for(int i = 0; i < num_calib_pts; i++)
-      {
-          edges[0] += widths[i] - widths_cols[i] *(col_ratio);
-          edges[1] += widths[i] + (cols - widths_cols[i]) * col_ratio;
-          edges[2] += heights[i] - heights_rows[i] * (row_ratio);
-          edges[3] += heights[i] + (rows - heights_rows[i]) * row_ratio;
-      }
-
-      edges[0] /= num_calib_pts;
-      edges[1] /= num_calib_pts;
-      edges[2] /= num_calib_pts;
-      edges[3] /= num_calib_pts;
-      edges[4] = avg_depth / num_calib_pts;
-
-      vtkPolyData* surf_poly = vtkPolyData::New();
-      surf_poly->SetPoints(points);
-      surf_poly->GetPointData()->SetScalars(color_array);
-
-      Q_EMIT newSurface(surf_poly);
-
-      Q_EMIT newBackground(left_imagedata);
-
-      Q_EMIT newEdges(edges);
-  }
-
-  //We're not overlaying: Accumulate and write images to disk
-  else
-  {
-    // Accumulator is not full yet; Accumulate
-    if (m_accu_count < m_accu_size) {
-    ROS_INFO("Accumulating images: %u of %u", m_accu_count, m_accu_size);
-
-    cv::Mat image_left, image_right, image_disp, image_depth;
+  // If we're in overlaying mode, just display the images
+  if (m_overlaying) {
+    cv::Mat image_left, image_depth;
 
     // Convert our image message to a cv::Mat
     cv_bridge::CvImagePtr cv_image_ptr;
 
     cv_image_ptr = cv_bridge::toCvCopy(msg_left, enc::RGB8);
     image_left = cv_image_ptr->image;
-
-    cv_image_ptr = cv_bridge::toCvCopy(msg_right, enc::RGB8);
-    image_right = cv_image_ptr->image;
-
-    cv_image_ptr = cv_bridge::toCvCopy(msg_disp, enc::TYPE_32FC1);
-    image_disp = cv_image_ptr->image;
-
     cv_image_ptr = cv_bridge::toCvCopy(msg_depth, enc::TYPE_32FC3);
     image_depth = cv_image_ptr->image;
 
-    cv::accumulate(image_left, m_left_accu);
-    cv::accumulate(image_right, m_right_accu);
-    cv::accumulate(image_disp, m_disp_accu);
-    cv::accumulate(image_depth, m_depth_accu);
+    int rows = image_left.rows;
+    int cols = image_left.cols;
+    int num_pts = rows * cols;
 
-    m_accu_count++;
+    VTK_NEW(vtkPoints, points);
+    points->SetNumberOfPoints(num_pts);
 
-    Q_EMIT accumulated((1.0f*m_accu_count)/m_accu_size);
+    VTK_NEW(vtkTypeUInt8Array, color_array);
+    color_array->SetNumberOfComponents(3);
+    color_array->SetNumberOfTuples(num_pts);
+    color_array->SetName("Colors");
+
+    // Both this and the polydata we'll be sending as signals need
+    // to be raw pointers. Smart pointers would self-delete if the garbage
+    // collector caught them before the signal arrived on Form
+    vtkImageData *left_imagedata = vtkImageData::New();
+    left_imagedata->SetDimensions(cols, rows, 1);
+    left_imagedata->SetNumberOfScalarComponents(3);
+    left_imagedata->SetScalarTypeToUnsignedChar();
+    left_imagedata->AllocateScalars();
+
+    std::vector<double> heights;
+    std::vector<int> heights_rows;
+
+    std::vector<double> widths;
+    std::vector<int> widths_cols;
+
+    double avg_depth = 0;
+
+    int point_id = 0;
+    for (uint32_t i = 0; i < rows; i++) {
+      for (uint32_t j = 0; j < cols; j++) {
+        float pt_x = image_depth.at<cv::Vec3f>(i, j)[0];
+        float pt_y = image_depth.at<cv::Vec3f>(i, j)[1];
+        float pt_z = image_depth.at<cv::Vec3f>(i, j)[2];
+
+        // If it's a valid point
+        if (pt_z != -1) {
+          if (rand() % 100 == 99) {
+            // keep track of it's row, col, and 3d position
+            heights.push_back(pt_y);
+            heights_rows.push_back(i);
+
+            widths.push_back(pt_x);
+            widths_cols.push_back(j);
+
+            avg_depth += pt_z;
+          }
+        }
+
+        unsigned char color[3];
+        color[0] = image_left.at<cv::Vec3b>(i, j)[0];
+        color[1] = image_left.at<cv::Vec3b>(i, j)[1];
+        color[2] = image_left.at<cv::Vec3b>(i, j)[2];
+
+        float color_float[3];
+        color_float[0] = (float)color[0];
+        color_float[1] = (float)color[1];
+        color_float[2] = (float)color[2];
+
+        unsigned char *pixel = static_cast<unsigned char *>(
+            left_imagedata->GetScalarPointer(j, i, 0));
+
+        points->SetPoint(point_id, pt_x, pt_y, pt_z);
+        color_array->SetTuple(point_id, color_float);
+        memcpy(&pixel[0], &color[0], 3);
+
+        point_id++;
+      }
+    }
+
+    // Down here we calculate these ratios, which tell us the distance in
+    // 3D space moved when we move down a row or a col. We will use this to
+    // Extrapolate the 3D positions of the edges of the left image
+    double row_ratio = 0;
+    double col_ratio = 0;
+    int row_count = 0;
+    int col_count = 0;
+
+    int num_calib_pts = heights_rows.size();
+    for (int i = 0; i < num_calib_pts; i++) {
+      for (int j = 0; j < num_calib_pts; j++) {
+        double delta_row = heights_rows[i] - heights_rows[j];
+        double delta_col = widths_cols[i] - widths_cols[j];
+
+        if (delta_row != 0) {
+          double delta_height = heights[i] - heights[j];
+          row_ratio += (delta_height / delta_row);
+          row_count++;
+        }
+
+        if (delta_col != 0) {
+          double delta_width = widths[i] - widths[j];
+          col_ratio += (delta_width / delta_col);
+          col_count++;
+        }
+      }
+    }
+
+    row_ratio /= row_count;
+    col_ratio /= col_count;
+
+    // This holds all the x,y coordinates of a square, plus a depth
+    std::vector<double> edges(5, 0);
+
+    for (int i = 0; i < num_calib_pts; i++) {
+      edges[0] += widths[i] - widths_cols[i] * (col_ratio);
+      edges[1] += widths[i] + (cols - widths_cols[i]) * col_ratio;
+      edges[2] += heights[i] - heights_rows[i] * (row_ratio);
+      edges[3] += heights[i] + (rows - heights_rows[i]) * row_ratio;
+    }
+
+    edges[0] /= num_calib_pts;
+    edges[1] /= num_calib_pts;
+    edges[2] /= num_calib_pts;
+    edges[3] /= num_calib_pts;
+    edges[4] = avg_depth / num_calib_pts;
+
+    vtkPolyData *surf_poly = vtkPolyData::New();
+    surf_poly->SetPoints(points);
+    surf_poly->GetPointData()->SetScalars(color_array);
+
+    Q_EMIT newSurface(surf_poly);
+
+    Q_EMIT newBackground(left_imagedata);
+
+    Q_EMIT newEdges(edges);
   }
 
-  // Finish accumulating, write to files
-  if (m_accu_count == m_accu_size) {
-    m_accu_count++; // Only come back here again after accumulator is reset
+  // We're not overlaying: Accumulate and write images to disk
+  else {
+    // Accumulator is not full yet; Accumulate
+    if (m_accu_count < m_accu_size) {
+      ROS_INFO("Accumulating images: %u of %u", m_accu_count, m_accu_size);
 
-    test_depth = *msg_depth;
+      cv::Mat image_left, image_right, image_disp, image_depth;
 
-    m_left_accu /= m_accu_size;
-    m_right_accu /= m_accu_size;
-    m_disp_accu /= m_accu_size;
-    m_depth_accu /= m_accu_size;
+      // Convert our image message to a cv::Mat
+      cv_bridge::CvImagePtr cv_image_ptr;
 
-    uint32_t rows = m_left_accu.rows;
-    uint32_t cols = m_left_accu.cols;
+      cv_image_ptr = cv_bridge::toCvCopy(msg_left, enc::RGB8);
+      image_left = cv_image_ptr->image;
 
-    // Cast our 32FC3 to a 8UC3, for display
-    // Need to directly cast as opposed to cv::convertScaleAbs, since that would
-    // produce distorted brightness levels (a sequence of dark images would have
-    // been converted to a single brighter image)
-    // cv::Mat result = cv::Mat(rows, cols, CV_8U);
-    m_left_accu.convertTo(m_left_accu, CV_8U);
-    m_right_accu.convertTo(m_right_accu, CV_8U);
+      cv_image_ptr = cv_bridge::toCvCopy(msg_right, enc::RGB8);
+      image_right = cv_image_ptr->image;
 
-    // Write a simple header
-    std::vector<uint32_t> header;
-    header.clear();
-    header.resize(2);
-    memcpy(&header[0], &rows, 4);
-    memcpy(&header[1], &cols, 4);
+      cv_image_ptr = cv_bridge::toCvCopy(msg_disp, enc::TYPE_32FC1);
+      image_disp = cv_image_ptr->image;
 
-    // Write the three images
-    std::vector<uint32_t> left, right, disp;
-    left.reserve(rows * cols);
-    right.reserve(rows * cols);
-    disp.reserve(rows * cols);
+      cv_image_ptr = cv_bridge::toCvCopy(msg_depth, enc::TYPE_32FC3);
+      image_depth = cv_image_ptr->image;
 
-    for (uint32_t i = 0; i < rows; i++) {
-      for (uint32_t j = 0; j < cols; j++) {
-        left.push_back(m_left_accu.at<cv::Vec3b>(i, j)[0] << 16 |
-                       m_left_accu.at<cv::Vec3b>(i, j)[1] << 8 |
-                       m_left_accu.at<cv::Vec3b>(i, j)[2]);
-      }
+      cv::accumulate(image_left, m_left_accu);
+      cv::accumulate(image_right, m_right_accu);
+      cv::accumulate(image_disp, m_disp_accu);
+      cv::accumulate(image_depth, m_depth_accu);
+
+      m_accu_count++;
+
+      Q_EMIT accumulated((1.0f * m_accu_count) / m_accu_size);
     }
 
-    m_crossbar->writeVector(header, STEREO_LEFT_CACHE_PATH, false);
-    m_crossbar->writeVector(left, STEREO_LEFT_CACHE_PATH, true);
+    // Finish accumulating, write to files
+    if (m_accu_count == m_accu_size) {
+      m_accu_count++;  // Only come back here again after accumulator is reset
 
-    for (uint32_t i = 0; i < rows; i++) {
-      for (uint32_t j = 0; j < cols; j++) {
-        right.push_back(m_right_accu.at<cv::Vec3b>(i, j)[0] << 16 |
-                       m_right_accu.at<cv::Vec3b>(i, j)[1] << 8 |
-                       m_right_accu.at<cv::Vec3b>(i, j)[2]);
+      test_depth = *msg_depth;
+
+      m_left_accu /= m_accu_size;
+      m_right_accu /= m_accu_size;
+      m_disp_accu /= m_accu_size;
+      m_depth_accu /= m_accu_size;
+
+      uint32_t rows = m_left_accu.rows;
+      uint32_t cols = m_left_accu.cols;
+
+      // Cast our 32FC3 to a 8UC3, for display
+      // Need to directly cast as opposed to cv::convertScaleAbs, since that
+      // would
+      // produce distorted brightness levels (a sequence of dark images would
+      // have
+      // been converted to a single brighter image)
+      // cv::Mat result = cv::Mat(rows, cols, CV_8U);
+      m_left_accu.convertTo(m_left_accu, CV_8U);
+      m_right_accu.convertTo(m_right_accu, CV_8U);
+
+      // Write a simple header
+      std::vector<uint32_t> header;
+      header.clear();
+      header.resize(2);
+      memcpy(&header[0], &rows, 4);
+      memcpy(&header[1], &cols, 4);
+
+      // Write the three images
+      std::vector<uint32_t> left, right, disp;
+      left.reserve(rows * cols);
+      right.reserve(rows * cols);
+      disp.reserve(rows * cols);
+
+      for (uint32_t i = 0; i < rows; i++) {
+        for (uint32_t j = 0; j < cols; j++) {
+          left.push_back(m_left_accu.at<cv::Vec3b>(i, j)[0] << 16 |
+                         m_left_accu.at<cv::Vec3b>(i, j)[1] << 8 |
+                         m_left_accu.at<cv::Vec3b>(i, j)[2]);
+        }
       }
-    }
 
-    m_crossbar->writeVector(header, STEREO_RIGHT_CACHE_PATH, false);
-    m_crossbar->writeVector(right, STEREO_RIGHT_CACHE_PATH, true);
+      m_crossbar->writeVector(header, STEREO_LEFT_CACHE_PATH, false);
+      m_crossbar->writeVector(left, STEREO_LEFT_CACHE_PATH, true);
 
-
-    // Disp map is CV_32FC1; Here we scale it down to CV_8UC1 while normalizing
-    // it so the largest value in m_disp_accu gets mapped to 255, and the lowest
-    // to 0. We won't use the disp map for anything really, it will just be
-    // displayed for debugging, so this is fine
-    cv::Mat result;
-    cv::normalize(m_disp_accu, result, 0, 255, cv::NORM_MINMAX, CV_8U);
-
-    for (uint32_t i = 0; i < rows; i++) {
-      for (uint32_t j = 0; j < cols; j++) {
-        disp.push_back(
-            result.at<uint8_t>(i, j));  // Implicit uint8_t -> uint32_t
+      for (uint32_t i = 0; i < rows; i++) {
+        for (uint32_t j = 0; j < cols; j++) {
+          right.push_back(m_right_accu.at<cv::Vec3b>(i, j)[0] << 16 |
+                          m_right_accu.at<cv::Vec3b>(i, j)[1] << 8 |
+                          m_right_accu.at<cv::Vec3b>(i, j)[2]);
+        }
       }
-    }
 
-    m_crossbar->writeVector(header, STEREO_DISP_CACHE_PATH, false);
-    m_crossbar->writeVector(disp, STEREO_DISP_CACHE_PATH, true);
+      m_crossbar->writeVector(header, STEREO_RIGHT_CACHE_PATH, false);
+      m_crossbar->writeVector(right, STEREO_RIGHT_CACHE_PATH, true);
 
-    std::vector<float> depth;
+      // Disp map is CV_32FC1; Here we scale it down to CV_8UC1 while
+      // normalizing
+      // it so the largest value in m_disp_accu gets mapped to 255, and the
+      // lowest
+      // to 0. We won't use the disp map for anything really, it will just be
+      // displayed for debugging, so this is fine
+      cv::Mat result;
+      cv::normalize(m_disp_accu, result, 0, 255, cv::NORM_MINMAX, CV_8U);
 
-    //    memcpy(&header_depth[0], &rows_f, 4);
-    //    memcpy(&header_depth[1], &cols_f, 4);
-    depth.reserve(rows * cols * 3); //3-channel
+      for (uint32_t i = 0; i < rows; i++) {
+        for (uint32_t j = 0; j < cols; j++) {
+          disp.push_back(
+              result.at<uint8_t>(i, j));  // Implicit uint8_t -> uint32_t
+        }
+      }
 
-    for (uint32_t i = 0; i < rows; i++) {
-      for (uint32_t j = 0; j < cols; j++) {
+      m_crossbar->writeVector(header, STEREO_DISP_CACHE_PATH, false);
+      m_crossbar->writeVector(disp, STEREO_DISP_CACHE_PATH, true);
 
-          float red = m_depth_accu.at<cv::Vec3f>(i,j)[0];
-          float green = m_depth_accu.at<cv::Vec3f>(i,j)[1];
-          float blue = m_depth_accu.at<cv::Vec3f>(i,j)[2];
+      std::vector<float> depth;
+
+      //    memcpy(&header_depth[0], &rows_f, 4);
+      //    memcpy(&header_depth[1], &cols_f, 4);
+      depth.reserve(rows * cols * 3);  // 3-channel
+
+      for (uint32_t i = 0; i < rows; i++) {
+        for (uint32_t j = 0; j < cols; j++) {
+
+          float red = m_depth_accu.at<cv::Vec3f>(i, j)[0];
+          float green = m_depth_accu.at<cv::Vec3f>(i, j)[1];
+          float blue = m_depth_accu.at<cv::Vec3f>(i, j)[2];
 
           depth.push_back(red);
           depth.push_back(green);
           depth.push_back(blue);
+        }
       }
-    }
 
-    m_crossbar->writeVector(header, STEREO_DEPTH_CACHE_PATH, false);
-    m_crossbar->writeVector(depth, STEREO_DEPTH_CACHE_PATH, true);
+      m_crossbar->writeVector(header, STEREO_DEPTH_CACHE_PATH, false);
+      m_crossbar->writeVector(depth, STEREO_DEPTH_CACHE_PATH, true);
 
-    //Lets Form know it can read the stereo images from the cache locations
-    Q_EMIT receivedStereoImages();
+      // Lets Form know it can read the stereo images from the cache locations
+      Q_EMIT receivedStereoImages();
     }
   }
 }
@@ -459,7 +452,7 @@ void QNode::requestScan(OCTinfo params) {
   if (m_oct_tcp_client.exists()) {
     if (m_oct_tcp_client.call(octSrvMessage)) {
       m_crossbar->writeVector(octSrvMessage.response.octImage.data,
-                                  OCT_RAW_CACHE_PATH);
+                              OCT_RAW_CACHE_PATH);
 
       ROS_INFO("OCT scan completed");
 
@@ -563,15 +556,15 @@ void QNode::requestSegmentation(OCTinfo params) {
 void QNode::requestRegistration() {
   ROS_INFO("OCT surface to depth map registration requested");
 
-  //Read our vector from cache
+  // Read our vector from cache
   std::vector<float> depth_vector;
   m_crossbar->readVector(STEREO_DEPTH_CACHE_PATH, depth_vector);
 
-  //Convert the vector to a ROS image message
+  // Convert the vector to a ROS image message
   cv::Mat depth_mat;
   m_crossbar->floatVectorToCvMat(depth_vector, depth_mat);
 
-  //CvImagePtr is a typedef of boost::shared_ptr<CvImage>
+  // CvImagePtr is a typedef of boost::shared_ptr<CvImage>
   cv_bridge::CvImagePtr depth_cv_image_ptr;
   depth_cv_image_ptr.reset(new cv_bridge::CvImage());
 
@@ -644,27 +637,22 @@ void QNode::resetAccumulators() {
   m_accu_count = 0;
 }
 
-void QNode::startOverlay()
-{
-    m_overlaying = true;
+void QNode::startOverlay() {
+  m_overlaying = true;
 
-    ROS_INFO("Loading visualization mesh");
+  ROS_INFO("Loading visualization mesh");
 
-    while(m_overlaying)
-    {
-        // Cameras run at 30 fps
-        static ros::Rate loop_rate(30);
-        loop_rate.sleep();
+  while (m_overlaying) {
+    // Cameras run at 30 fps
+    static ros::Rate loop_rate(30);
+    loop_rate.sleep();
 
-        // Checks our subscriptions
-        ros::spinOnce();
+    // Checks our subscriptions
+    ros::spinOnce();
 
-        // Check for signals
-        QCoreApplication::processEvents();
-    }
+    // Check for signals
+    QCoreApplication::processEvents();
+  }
 }
 
-void QNode::stopOverlay()
-{
-    m_overlaying = false;
-}
+void QNode::stopOverlay() { m_overlaying = false; }

@@ -15,7 +15,8 @@
  *
  * -Registration transform not written/read from the correct location
  *
- * -Ensure that if depth map uses left image, then guarantee both use same resolution
+ * -Ensure that if depth map uses left image, then guarantee both use same
+ *resolution
  *
  *
  *

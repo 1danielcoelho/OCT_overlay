@@ -2,8 +2,6 @@
 #define CLUSTERING_H
 #include "defines.h"
 
-
-
 #include <vector>
 
 // Used for hierarquical clustering

@@ -97,6 +97,7 @@
 #include <vtkPNGWriter.h>
 #include <vtkCamera.h>
 #include <vtkPlaneSource.h>
+#include <vtkKdTreePointLocator.h>
 
 // Project files
 #include "qnode.h"
@@ -191,7 +192,7 @@ class Form : public QMainWindow {
   void renderOCTMass();
 
   // Renders the stereocamera surface reconstructed by qnode
-  void renderReadyStereoSurface();
+  void renderStereoSurfaceWithEncoding();
 
   //--------------UI CALLBACKS--------------------------------------------------
 
@@ -278,7 +279,9 @@ Q_SLOTS:
 
   void on_over_background_checkbox_toggled(bool checked);
 
-Q_SIGNALS:
+  void on_over_encoding_combobox_activated(int index);
+
+  Q_SIGNALS:
   void requestScan(OCTinfo);
   void requestSegmentation(OCTinfo);
   void requestRegistration();
@@ -297,6 +300,8 @@ Q_SIGNALS:
   uint8_t m_min_vis_thresh;
   uint8_t m_max_vis_thresh;
 
+  // Holds coordinates for the vertex locations of a background quad during
+  // overlay visualization
   std::vector<double> m_quad_edges;
 
   // State booleans
@@ -343,6 +348,8 @@ Q_SIGNALS:
   vtkSmartPointer<vtkAxesActor> m_trans_axes_actor;
   // Others
   vtkSmartPointer<vtkRenderer> m_renderer;
+  vtkSmartPointer<vtkKdTreePointLocator> m_oct_mass_kd_tree_locator;
+  vtkSmartPointer<vtkLookupTable> m_overlay_lut;
 };
 
 #endif  // FORM_H
