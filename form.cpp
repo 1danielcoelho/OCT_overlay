@@ -1190,7 +1190,7 @@ void Form::renderStereocameraReconstruction() {
   uint32_t cols = dimensions[0];
 
   VTK_NEW(vtkTypeUInt8Array, color_array);
-  color_array->SetNumberOfComponents(3);
+  color_array->SetNumberOfComponents(4);
   color_array->SetNumberOfTuples(rows * cols);
   color_array->SetName("Colors");
 
@@ -1209,6 +1209,7 @@ void Form::renderStereocameraReconstruction() {
       color_float[0] = (float)color[0];
       color_float[1] = (float)color[1];
       color_float[2] = (float)color[2];
+      color_float[3] = 1.0f;
 
       points->SetPoint(point_id, coords[0], coords[1], coords[2]);
       color_array->SetTuple(point_id, color_float);
@@ -1359,7 +1360,7 @@ void Form::renderStereoSurfaceWithEncoding() {
       num_pts = m_stereo_reconstr_poly_data->GetNumberOfPoints();
 
       colors = vtkTypeUInt8Array::SafeDownCast(
-          m_oct_poly_data->GetPointData()->GetArray("Colors"));
+          m_stereo_reconstr_poly_data->GetPointData()->GetArray("Colors"));
 
       for (int i = 0; i < num_pts; i++) {
         double pt_surf[3];
@@ -1375,8 +1376,8 @@ void Form::renderStereoSurfaceWithEncoding() {
         distance = std::sqrt(distance);
 
         if (distance < 3.0) {
-          double old_color[3];
-          double color_to_add[3];
+          double old_color[4];
+          double color_to_add[4];
 
           colors->GetTuple(j, old_color);
           m_overlay_lut->GetColor(distance, color_to_add);
@@ -1390,6 +1391,36 @@ void Form::renderStereoSurfaceWithEncoding() {
       }
       break;
     case 2:  // Opacity
+      num_pts = m_stereo_reconstr_poly_data->GetNumberOfPoints();
+
+      colors = vtkTypeUInt8Array::SafeDownCast(
+          m_stereo_reconstr_poly_data->GetPointData()->GetArray("Colors"));
+
+      for (int i = 0; i < num_pts; i++) {
+        double pt_surf[3];
+        m_stereo_reconstr_poly_data->GetPoint(i, pt_surf);
+
+        // Find the ID of the closest point to point i
+        int j = m_oct_mass_kd_tree_locator->FindClosestPoint(pt_surf);
+
+        double pt_mass[3];
+        m_oct_mass_poly_data->GetPoint(j, pt_mass);
+
+        double distance = vtkMath::Distance2BetweenPoints(pt_surf, pt_mass);
+        distance = std::sqrt(distance);
+
+        if (distance < 3.0) {
+          double old_color[4];
+          double new_alpha;
+
+          colors->GetTuple(j, old_color);
+          new_alpha = m_overlay_lut->GetOpacity(distance);
+
+          old_color[3] = new_alpha;
+
+          colors->SetTuple(j, old_color);
+        }
+      }
       break;
   }
 
@@ -1691,6 +1722,13 @@ void Form::on_browse_oct_mass_button_clicked() {
 
     m_crossbar->readPolyData(file_name.toStdString().c_str(),
                              m_oct_mass_poly_data);
+
+    this->statusBar()->showMessage(
+        "Building k-d tree for vertex locations... ");
+    QApplication::processEvents();
+
+    m_oct_mass_kd_tree_locator->SetDataSet(m_oct_mass_poly_data);
+    m_oct_mass_kd_tree_locator->BuildLocator();
 
     m_renderer->RemoveAllViewProps();
     renderOCTMass();
@@ -3036,6 +3074,12 @@ void Form::on_over_encoding_combobox_activated(int index) {
       m_overlay_lut->Build();
       break;
     case 2:  // Opacity
+      m_overlay_lut->SetTableRange(0, 3.0);
+      m_overlay_lut->SetSaturationRange(1, 1);
+      m_overlay_lut->SetHueRange(1, 1);
+      m_overlay_lut->SetValueRange(1, 1);
+      m_overlay_lut->SetAlphaRange(1, 0);
+      m_overlay_lut->Build();
       break;
   }
 }

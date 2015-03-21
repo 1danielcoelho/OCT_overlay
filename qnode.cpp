@@ -130,7 +130,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
     points->SetNumberOfPoints(num_pts);
 
     VTK_NEW(vtkTypeUInt8Array, color_array);
-    color_array->SetNumberOfComponents(3);
+    color_array->SetNumberOfComponents(4);
     color_array->SetNumberOfTuples(num_pts);
     color_array->SetName("Colors");
 
@@ -177,17 +177,20 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
         color[1] = image_left.at<cv::Vec3b>(i, j)[1];
         color[2] = image_left.at<cv::Vec3b>(i, j)[2];
 
-        float color_float[3];
+        float color_float[4];
         color_float[0] = (float)color[0];
         color_float[1] = (float)color[1];
         color_float[2] = (float)color[2];
+        color_float[3] = 1.0f;
 
+        // Sets our color in the background image
         unsigned char *pixel = static_cast<unsigned char *>(
             left_imagedata->GetScalarPointer(j, i, 0));
+        memcpy(&pixel[0], &color[0], 3);
 
+        // Sets our point in the polydata arrays
         points->SetPoint(point_id, pt_x, pt_y, pt_z);
         color_array->SetTuple(point_id, color_float);
-        memcpy(&pixel[0], &color[0], 3);
 
         point_id++;
       }
