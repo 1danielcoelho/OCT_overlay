@@ -3192,7 +3192,7 @@ void Form::on_over_encoding_combobox_activated(int index) {
       break;
     case 1:  // Color
       m_overlay_lut->SetTableRange(0, 10.0);
-      m_overlay_lut->SetSaturationRange(1, 1);
+      m_overlay_lut->SetSaturationRange(1, 0);
       m_overlay_lut->SetHueRange(0, 1);
       m_overlay_lut->SetValueRange(1, 1);
       m_overlay_lut->SetAlphaRange(1, 1);
