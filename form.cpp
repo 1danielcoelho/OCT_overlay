@@ -1393,6 +1393,8 @@ void Form::renderStereoSurfaceWithEncoding() {
 
   vtkPolyData* trans_output = trans_filt->GetPolyDataOutput();
 
+  VTK_NEW(vtkActor, actor);
+
   // Render the stereo surface differently depending on encoding
   switch (current_encoding) {
     case 0:  // None
@@ -1452,6 +1454,64 @@ void Form::renderStereoSurfaceWithEncoding() {
           colors->SetTuple(i, old_color);
       }
       break;
+    case 3:  // Color silhouette
+      num_pts = m_oct_mass_poly_data_transformed->GetNumberOfPoints();
+
+      VTK_NEW(vtkKdTreePointLocator, surface_locator);
+      surface_locator->SetDataSet(trans_output);
+      surface_locator->BuildLocator();
+
+      //Grab a point
+      double pt_mass[3];
+      m_oct_mass_poly_data_transformed->GetPoint(0, pt_mass);
+
+      double distance = 0.0;
+
+      // Find the ID of the closest point to point 0
+      int j = surface_locator->FindClosestPointWithinRadius(10.0, pt_mass, distance);
+
+      double pt_surf[3];
+      trans_output->GetPoint(j, pt_surf);
+
+      double normal[3];
+      vtkMath::Subtract(pt_mass, pt_surf, normal); //c = a - b
+
+      vtkMath::Normalize(normal);
+
+      VTK_NEW(vtkPlane, plane);
+      plane->SetNormal(normal);
+      plane->SetOrigin(pt_surf);
+
+      VTK_NEW(vtkPoints, proj_pts);
+      proj_pts->SetNumberOfPoints(num_pts);
+
+      double projected[3];
+
+      //Project our points on the plane
+      for(int i = 0; i < num_pts; i++)
+      {
+          plane->ProjectPoint(m_oct_mass_poly_data_transformed->GetPoint(i),
+                              projected);
+
+          proj_pts->SetPoint(i, projected);
+      }
+
+      VTK_NEW(vtkPolyData, poly);
+      poly->SetPoints(proj_pts);
+
+      VTK_NEW(vtkVertexGlyphFilter, proj_vert_filt);
+      proj_vert_filt->SetInput(poly);
+
+      VTK_NEW(vtkPolyDataMapper, proj_mapper);
+      proj_mapper->SetInputConnection(proj_vert_filt->GetOutputPort());
+
+      actor->SetMapper(proj_mapper);
+      actor->GetProperty()->SetColor(0, 1.0, 0);
+      actor->GetProperty()->SetPointSize(7);
+
+      m_renderer->AddActor(actor);
+
+      break;
   }
 
   //the switch above takes a little while, so let's process some UI events in
@@ -1473,6 +1533,8 @@ void Form::renderStereoSurfaceWithEncoding() {
 
   this->m_ui->qvtkWidget->update();
   QApplication::processEvents();
+
+  m_renderer->RemoveActor(actor);
 
   Q_EMIT readyForOverlay();
 }
@@ -3143,6 +3205,8 @@ void Form::on_over_encoding_combobox_activated(int index) {
       m_overlay_lut->SetValueRange(1, 1);
       m_overlay_lut->SetAlphaRange(0.1, 1);
       m_overlay_lut->Build();
+      break;
+  case 3:   // Color silhouette
       break;
   }
 }

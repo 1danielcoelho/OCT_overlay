@@ -40,6 +40,7 @@
 #include <vtkPolygon.h>
 #include <vtkFloatArray.h>
 #include <vtkPointSet.h>
+#include <vtkPlane.h>
 // Filters
 #include <vtkContourFilter.h>
 #include <vtkVertexGlyphFilter.h>
