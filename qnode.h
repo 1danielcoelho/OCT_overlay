@@ -128,6 +128,9 @@ Q_SLOTS:
   // Interrupts the overlay loop and goes back into normal mode
   void stopOverlay();
 
+  // Signals qnode that Form is ready to receive new images
+  void readyForOverlay();
+
 Q_SIGNALS:  // Same as 'signals'
   void rosMasterChanged(bool);
   void finished();
@@ -153,7 +156,7 @@ Q_SIGNALS:  // Same as 'signals'
 
   // Turns true when its time to shutdown
   bool m_shutdown;
-
+  bool m_form_is_ready;
   bool m_overlaying;
 
   uint32_t m_accu_count;

@@ -97,6 +97,9 @@ Form::Form(int argc, char** argv, QWidget* parent)
   connect(this, SIGNAL(stopOverlay()), m_qnode, SLOT(stopOverlay()),
           Qt::QueuedConnection);
 
+  connect(this, SIGNAL(readyForOverlay()), m_qnode, SLOT(readyForOverlay()),
+          Qt::QueuedConnection);
+
   // Wire up qnode and it's thread. Don't touch this unless absolutely
   // necessary. It allows both to quit gracefully
   connect(m_qthread, SIGNAL(started()), m_qnode, SLOT(process()));
@@ -1206,10 +1209,6 @@ void Form::renderOCTSurface(vtkSmartPointer<vtkTransform> trans) {
 }
 
 void Form::renderStereocameraReconstruction() {
-
-  m_waiting_response = true;
-  updateUIStates();
-
   this->statusBar()->showMessage("Rendering stereocamera reconstruction... ",
                                  3000);
   QApplication::processEvents();
@@ -1375,9 +1374,6 @@ void Form::renderOCTMass(vtkSmartPointer<vtkTransform> trans) {
 }
 
 void Form::renderStereoSurfaceWithEncoding() {
-  m_waiting_response = true;
-  updateUIStates();
-
   int current_encoding = m_ui->over_encoding_combobox->currentIndex();
 
   int num_pts = 0;
@@ -1406,7 +1402,6 @@ void Form::renderStereoSurfaceWithEncoding() {
 
       colors = vtkTypeUInt8Array::SafeDownCast(
           trans_output->GetPointData()->GetArray("Colors"));
-
       for (int i = 0; i < num_pts; i++) {
         double pt_surf[3];
         trans_output->GetPoint(i, pt_surf);
@@ -1428,7 +1423,6 @@ void Form::renderStereoSurfaceWithEncoding() {
         old_color[2] *= color_to_add[2];
 
         colors->SetTuple(i, old_color);
-
       }
       break;
     case 2:  // Opacity
@@ -1453,12 +1447,16 @@ void Form::renderStereoSurfaceWithEncoding() {
           colors->GetTuple(i, old_color);
           opacity = m_overlay_lut->GetOpacity(distance);
 
-          old_color[3] *= opacity;
+          old_color[3] *= opacity * opacity;
 
           colors->SetTuple(i, old_color);
       }
       break;
   }
+
+  //the switch above takes a little while, so let's process some UI events in
+  //case we got any
+  QApplication::processEvents();
 
   VTK_NEW(vtkVertexGlyphFilter, vert);
   vert->SetInput(trans_output);
@@ -1469,14 +1467,14 @@ void Form::renderStereoSurfaceWithEncoding() {
 
   m_stereo_reconstr_actor->SetMapper(mapper);
   m_stereo_reconstr_actor->GetProperty()->SetOpacity(0.99);
+  m_stereo_reconstr_actor->GetProperty()->SetPointSize(5);
 
   m_renderer->AddActor(m_stereo_reconstr_actor);
 
   this->m_ui->qvtkWidget->update();
   QApplication::processEvents();
 
-  m_waiting_response = false;
-  updateUIStates();
+  Q_EMIT readyForOverlay();
 }
 
 //--------------UI CALLBACKS----------------------------------------------------
@@ -2867,8 +2865,6 @@ void Form::on_over_start_button_clicked() {
 }
 
 void Form::on_over_stop_button_clicked() {
-  Q_EMIT stopOverlay();
-
   this->m_ui->status_bar->showMessage(
       "Stopping overlayed leftcamera"
       "image feed... ",
@@ -2876,7 +2872,9 @@ void Form::on_over_stop_button_clicked() {
 
   m_viewing_realtime_overlay = false;
   m_waiting_response = false;
-  updateUIStates();
+  updateUIStates();  
+
+  Q_EMIT stopOverlay();
 }
 
 //------------QNODE CALLBACKS---------------------------------------------------
@@ -3004,9 +3002,6 @@ void Form::newSurface(vtkPolyData* surf) {
   if (m_viewing_realtime_overlay) {
     m_stereo_reconstr_poly_data = surf;
     renderStereoSurfaceWithEncoding();
-
-    m_waiting_response = true;
-    updateUIStates();
 
     surf->Delete();
   }
@@ -3142,11 +3137,11 @@ void Form::on_over_encoding_combobox_activated(int index) {
       m_overlay_lut->Build();
       break;
     case 2:  // Opacity
-      m_overlay_lut->SetTableRange(5.0, 10.0);
+      m_overlay_lut->SetTableRange(0.0, 15.0);
       m_overlay_lut->SetSaturationRange(1, 1);
       m_overlay_lut->SetHueRange(1, 1);
       m_overlay_lut->SetValueRange(1, 1);
-      m_overlay_lut->SetAlphaRange(0, 1);
+      m_overlay_lut->SetAlphaRange(0.1, 1);
       m_overlay_lut->Build();
       break;
   }

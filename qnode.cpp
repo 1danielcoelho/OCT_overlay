@@ -6,6 +6,7 @@ QNode::QNode(int argc, char **argv) : no_argc(argc), no_argv(argv) {
   m_crossbar = new Crossbar;
 
   m_overlaying = false;
+  m_form_is_ready = true;
   m_accu_size = 1;
 }
 
@@ -112,6 +113,13 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
 
   // If we're in overlaying mode, just display the images
   if (m_overlaying) {
+
+    //Qt has no "signal dropping", so we need to make sure we don't overwhelm
+    //form with new images
+    if(!m_form_is_ready) return;
+
+    m_form_is_ready = false;
+
     cv::Mat image_left, image_depth;
 
     // Convert our image message to a cv::Mat
@@ -160,7 +168,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
 
         // If it's a valid point
         if (pt_z != -1) {
-          if (rand() % 100 == 99) {
+          if (rand() % 1000 >= 995) {
             // keep track of it's row, col, and 3d position
             heights.push_back(pt_y);
             heights_rows.push_back(i);
@@ -642,6 +650,7 @@ void QNode::resetAccumulators() {
 
 void QNode::startOverlay() {
   m_overlaying = true;
+  m_form_is_ready = true;
 
   ROS_INFO("Loading visualization mesh");
 
@@ -659,3 +668,5 @@ void QNode::startOverlay() {
 }
 
 void QNode::stopOverlay() { m_overlaying = false; }
+
+void QNode::readyForOverlay() {m_form_is_ready = true;}

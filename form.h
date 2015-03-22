@@ -297,6 +297,7 @@ Q_SLOTS:
   void resetAccumulators();
   void startOverlay();
   void stopOverlay();
+  void readyForOverlay();
 
  private:
   Ui::Form* m_ui;
