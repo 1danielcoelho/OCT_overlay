@@ -99,6 +99,7 @@
 #include <vtkCamera.h>
 #include <vtkPlaneSource.h>
 #include <vtkKdTreePointLocator.h>
+#include <vtkTimerLog.h>
 
 // Project files
 #include "qnode.h"

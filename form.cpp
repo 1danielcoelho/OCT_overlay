@@ -1383,24 +1383,38 @@ void Form::renderStereoSurfaceWithEncoding() {
   int num_pts = 0;
   vtkTypeUInt8Array* colors;
 
+  VTK_NEW(vtkTimerLog, timer);
+  double time = timer->GetUniversalTime();
+  time = std::sin(time);
+
+  VTK_NEW(vtkTransform, trans);
+  trans->Translate(0, 0, time * 5);
+
+  VTK_NEW(vtkTransformFilter, trans_filt);
+  trans_filt->SetInput(m_stereo_reconstr_poly_data);
+  trans_filt->SetTransform(trans);
+  trans_filt->Update();
+
+  vtkPolyData* trans_output = trans_filt->GetPolyDataOutput();
+
   // Render the stereo surface differently depending on encoding
   switch (current_encoding) {
     case 0:  // None
       break;
     case 1:  // Colors
-      num_pts = m_stereo_reconstr_poly_data->GetNumberOfPoints();
+      num_pts = trans_output->GetNumberOfPoints();
 
       colors = vtkTypeUInt8Array::SafeDownCast(
-          m_stereo_reconstr_poly_data->GetPointData()->GetArray("Colors"));
+          trans_output->GetPointData()->GetArray("Colors"));
 
       for (int i = 0; i < num_pts; i++) {
         double pt_surf[3];
-        m_stereo_reconstr_poly_data->GetPoint(i, pt_surf);
+        trans_output->GetPoint(i, pt_surf);
 
         double distance = 99999.0;
 
         // Find the ID of the closest point to point i
-        int j = m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(10.0, pt_surf, distance);
+        int j = m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(15.0, pt_surf, distance);
         distance = std::sqrt(distance);
 
         double old_color[4];
@@ -1418,47 +1432,43 @@ void Form::renderStereoSurfaceWithEncoding() {
       }
       break;
     case 2:  // Opacity
-      num_pts = m_stereo_reconstr_poly_data->GetNumberOfPoints();
+      num_pts = trans_output->GetNumberOfPoints();
 
       colors = vtkTypeUInt8Array::SafeDownCast(
-          m_stereo_reconstr_poly_data->GetPointData()->GetArray("Colors"));
+          trans_output->GetPointData()->GetArray("Colors"));
 
       for (int i = 0; i < num_pts; i++) {
-        double pt_surf[3];
-        m_stereo_reconstr_poly_data->GetPoint(i, pt_surf);
+          double pt_surf[3];
+          trans_output->GetPoint(i, pt_surf);
 
-        // Find the ID of the closest point to point i
-        int j = m_oct_mass_kd_tree_locator->FindClosestPoint(pt_surf);
+          double distance = 99999.0;
 
-        double pt_mass[3];
-        m_oct_mass_poly_data_transformed->GetPoint(j, pt_mass);
+          // Find the ID of the closest point to point i
+          int j = m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(10.0, pt_surf, distance);
+          distance = std::sqrt(distance);
 
-        double distance = vtkMath::Distance2BetweenPoints(pt_surf, pt_mass);
-        distance = std::sqrt(distance);
-
-        if (distance < 10.0) {
           double old_color[4];
-          double new_alpha;
+          double opacity;
 
           colors->GetTuple(i, old_color);
-          new_alpha = m_overlay_lut->GetOpacity(distance);
+          opacity = m_overlay_lut->GetOpacity(distance);
 
-          old_color[3] *= new_alpha;
+          old_color[3] *= opacity;
 
           colors->SetTuple(i, old_color);
-        }
       }
       break;
   }
 
   VTK_NEW(vtkVertexGlyphFilter, vert);
-  vert->SetInput(m_stereo_reconstr_poly_data);
+  vert->SetInput(trans_output);
 
   VTK_NEW(vtkPolyDataMapper, mapper);
   mapper->SetInputConnection(vert->GetOutputPort());
   mapper->SetScalarVisibility(1);
 
   m_stereo_reconstr_actor->SetMapper(mapper);
+  m_stereo_reconstr_actor->GetProperty()->SetOpacity(0.99);
 
   m_renderer->AddActor(m_stereo_reconstr_actor);
 
@@ -2766,6 +2776,7 @@ void Form::on_browse_transform_button_clicked() {
     m_ui->over_depth_checkbox->setChecked(false);
     m_ui->over_oct_axes_checkbox->setChecked(false);
     m_ui->over_trans_axes_checkbox->setChecked(false);
+    this->m_ui->qvtkWidget->update();
 
     this->m_ui->status_bar->showMessage(
         "Reading transform binary file... "
@@ -2979,6 +2990,7 @@ void Form::receivedRegistration() {
   m_ui->over_depth_checkbox->setChecked(false);
   m_ui->over_oct_axes_checkbox->setChecked(false);
   m_ui->over_trans_axes_checkbox->setChecked(false);
+  this->m_ui->qvtkWidget->update();
 
   m_waiting_response = false;
   m_has_transform = true;
@@ -3130,11 +3142,11 @@ void Form::on_over_encoding_combobox_activated(int index) {
       m_overlay_lut->Build();
       break;
     case 2:  // Opacity
-      m_overlay_lut->SetTableRange(0, 10.0);
+      m_overlay_lut->SetTableRange(5.0, 10.0);
       m_overlay_lut->SetSaturationRange(1, 1);
       m_overlay_lut->SetHueRange(1, 1);
       m_overlay_lut->SetValueRange(1, 1);
-      m_overlay_lut->SetAlphaRange(1, 0);
+      m_overlay_lut->SetAlphaRange(0, 1);
       m_overlay_lut->Build();
       break;
   }
