@@ -113,6 +113,7 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_oct_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_oct_surf_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_oct_mass_poly_data = vtkSmartPointer<vtkPolyData>::New();
+  m_oct_mass_poly_data_transformed = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_left_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_reconstr_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_left_image = vtkSmartPointer<vtkImageData>::New();
@@ -1015,17 +1016,43 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
   m_crossbar->ucharVectorToPolyData(data, m_current_params, m_oct_poly_data);
 #endif  // AT_HOME
 
-  this->statusBar()->showMessage("Building k-d tree for vertex locations... ");
-  QApplication::processEvents();
+  buildKDTree();
 
-  m_oct_mass_kd_tree_locator->SetDataSet(m_oct_mass_poly_data);
-  m_oct_mass_kd_tree_locator->BuildLocator();
+  VTK_NEW(vtkTransform, trans);
+  trans->Identity();
 
-  renderOCTMass();
+  renderOCTMass(trans);
 
   m_has_oct_mass = true;
   m_waiting_response = false;
   updateUIStates();
+}
+
+void Form::buildKDTree()
+{
+    //We call this after loading a transform. Not necessarily we have an oct
+    //mass loaded at this point, so return gracefully if we don't
+    if(m_oct_mass_poly_data->GetNumberOfPoints() == 0)
+    {
+        return;
+    }
+
+    std::cout << "Building k-d tree\n";
+
+    this->statusBar()->showMessage(
+        "Building k-d tree for vertex locations... ", 3000);
+    QApplication::processEvents();
+
+    VTK_NEW(vtkTransformFilter, trans_filt);
+    trans_filt->SetTransform(m_oct_stereo_trans);
+    trans_filt->SetInput(m_oct_mass_poly_data);
+    trans_filt->Update();
+
+    m_oct_mass_poly_data_transformed = trans_filt->GetPolyDataOutput();
+
+    m_oct_mass_kd_tree_locator = vtkSmartPointer<vtkKdTreePointLocator>::New();
+    m_oct_mass_kd_tree_locator->SetDataSet(m_oct_mass_poly_data_transformed);
+    m_oct_mass_kd_tree_locator->BuildLocator();
 }
 
 //------------RENDERING---------------------------------------------------------
@@ -1067,7 +1094,7 @@ void Form::renderAxes(vtkSmartPointer<vtkAxesActor> actor,
   QApplication::processEvents();
 }
 
-void Form::renderOCTVolumePolyData() {
+void Form::renderOCTVolumePolyData(vtkSmartPointer<vtkTransform> trans) {
   uint32_t num_pts = m_oct_poly_data->GetPointData()->GetNumberOfTuples();
 
   if (num_pts == 0) {
@@ -1109,8 +1136,12 @@ void Form::renderOCTVolumePolyData() {
   vis_poly_data->SetPoints(new_points);
   vis_poly_data->GetPointData()->SetScalars(new_data_array);
 
+  VTK_NEW(vtkTransformFilter, trans_filter);
+  trans_filter->SetTransform(trans);
+  trans_filter->SetInput(vis_poly_data);
+
   VTK_NEW(vtkVertexGlyphFilter, vert_filter);
-  vert_filter->SetInput(vis_poly_data);
+  vert_filter->SetInputConnection(trans_filter->GetOutputPort());
 
   VTK_NEW(vtkPolyDataMapper, mapper);
   mapper->SetInputConnection(vert_filter->GetOutputPort());
@@ -1133,7 +1164,7 @@ void Form::renderOCTVolumePolyData() {
   updateUIStates();
 }
 
-void Form::renderOCTSurface() {
+void Form::renderOCTSurface(vtkSmartPointer<vtkTransform> trans) {
 
   m_waiting_response = true;
   updateUIStates();
@@ -1152,7 +1183,7 @@ void Form::renderOCTSurface() {
   // identity transform in case we haven't performed it yet
   VTK_NEW(vtkTransformFilter, trans_filter)
   trans_filter->SetInputConnection(delaunay_filter->GetOutputPort());
-  trans_filter->SetTransform(m_oct_stereo_trans);
+  trans_filter->SetTransform(trans);
 
   VTK_NEW(vtkPolyDataMapper, mapper);
   mapper->SetInputConnection(trans_filter->GetOutputPort());
@@ -1209,7 +1240,7 @@ void Form::renderStereocameraReconstruction() {
       color_float[0] = (float)color[0];
       color_float[1] = (float)color[1];
       color_float[2] = (float)color[2];
-      color_float[3] = 1.0f;
+      color_float[3] = 255.0f;
 
       points->SetPoint(point_id, coords[0], coords[1], coords[2]);
       color_array->SetTuple(point_id, color_float);
@@ -1307,7 +1338,7 @@ void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data) {
   updateUIStates();
 }
 
-void Form::renderOCTMass() {
+void Form::renderOCTMass(vtkSmartPointer<vtkTransform> trans) {
   m_waiting_response = true;
   updateUIStates();
 
@@ -1321,7 +1352,7 @@ void Form::renderOCTMass() {
   // identity transform in case we haven't performed it yet
   VTK_NEW(vtkTransformFilter, trans_filter)
   trans_filter->SetInput(m_oct_mass_poly_data);
-  trans_filter->SetTransform(m_oct_stereo_trans);
+  trans_filter->SetTransform(trans);
 
   VTK_NEW(vtkPolyDataMapper, mapper);
   mapper->SetInputConnection(trans_filter->GetOutputPort());
@@ -1366,28 +1397,24 @@ void Form::renderStereoSurfaceWithEncoding() {
         double pt_surf[3];
         m_stereo_reconstr_poly_data->GetPoint(i, pt_surf);
 
+        double distance = 99999.0;
+
         // Find the ID of the closest point to point i
-        int j = m_oct_mass_kd_tree_locator->FindClosestPoint(pt_surf);
-
-        double pt_mass[3];
-        m_oct_mass_poly_data->GetPoint(j, pt_mass);
-
-        double distance = vtkMath::Distance2BetweenPoints(pt_surf, pt_mass);
+        int j = m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(10.0, pt_surf, distance);
         distance = std::sqrt(distance);
 
-        if (distance < 3.0) {
-          double old_color[4];
-          double color_to_add[4];
+        double old_color[4];
+        double color_to_add[4];
 
-          colors->GetTuple(j, old_color);
-          m_overlay_lut->GetColor(distance, color_to_add);
+        colors->GetTuple(i, old_color);
+        m_overlay_lut->GetColor(distance, color_to_add);
 
-          old_color[0] += color_to_add[0];
-          old_color[1] += color_to_add[1];
-          old_color[2] += color_to_add[2];
+        old_color[0] *= color_to_add[0];
+        old_color[1] *= color_to_add[1];
+        old_color[2] *= color_to_add[2];
 
-          colors->SetTuple(j, old_color);
-        }
+        colors->SetTuple(i, old_color);
+
       }
       break;
     case 2:  // Opacity
@@ -1404,21 +1431,21 @@ void Form::renderStereoSurfaceWithEncoding() {
         int j = m_oct_mass_kd_tree_locator->FindClosestPoint(pt_surf);
 
         double pt_mass[3];
-        m_oct_mass_poly_data->GetPoint(j, pt_mass);
+        m_oct_mass_poly_data_transformed->GetPoint(j, pt_mass);
 
         double distance = vtkMath::Distance2BetweenPoints(pt_surf, pt_mass);
         distance = std::sqrt(distance);
 
-        if (distance < 3.0) {
+        if (distance < 10.0) {
           double old_color[4];
           double new_alpha;
 
-          colors->GetTuple(j, old_color);
+          colors->GetTuple(i, old_color);
           new_alpha = m_overlay_lut->GetOpacity(distance);
 
-          old_color[3] = new_alpha;
+          old_color[3] *= new_alpha;
 
-          colors->SetTuple(j, old_color);
+          colors->SetTuple(i, old_color);
         }
       }
       break;
@@ -1535,12 +1562,13 @@ void Form::on_browse_button_clicked() {
 
     m_crossbar->ucharVectorToPolyData(data, m_current_params, m_oct_poly_data);
 
-    m_renderer->RemoveAllViewProps();
-    renderOCTVolumePolyData();
-    m_renderer->ResetCamera();
-
     VTK_NEW(vtkTransform, trans);
     trans->Identity();
+
+    m_renderer->RemoveAllViewProps();
+    renderOCTVolumePolyData(trans);
+    m_renderer->ResetCamera();
+
     renderAxes(m_oct_axes_actor, trans);
 
     // Updates our UI param boxes
@@ -1610,11 +1638,12 @@ void Form::on_view_raw_oct_button_clicked() {
   m_viewing_overlay = false;
   updateUIStates();
 
-  m_renderer->RemoveAllViewProps();
-  renderOCTVolumePolyData();
-
   VTK_NEW(vtkTransform, trans);
   trans->Identity();
+
+  m_renderer->RemoveAllViewProps();
+  renderOCTVolumePolyData(trans);
+
   renderAxes(m_oct_axes_actor, trans);
 
   this->m_ui->status_bar->showMessage("Rendering OCT volume data... done!");
@@ -1681,12 +1710,13 @@ void Form::on_browse_oct_surf_button_clicked() {
     m_crossbar->readPolyData(file_name.toStdString().c_str(),
                              m_oct_surf_poly_data);
 
-    m_renderer->RemoveAllViewProps();
-    renderOCTSurface();
-    m_renderer->ResetCamera();
-
     VTK_NEW(vtkTransform, trans);
     trans->Identity();
+
+    m_renderer->RemoveAllViewProps();
+    renderOCTSurface(trans);
+    m_renderer->ResetCamera();
+
     renderAxes(m_oct_axes_actor, trans);
 
     m_has_oct_surf = true;
@@ -1723,19 +1753,15 @@ void Form::on_browse_oct_mass_button_clicked() {
     m_crossbar->readPolyData(file_name.toStdString().c_str(),
                              m_oct_mass_poly_data);
 
-    this->statusBar()->showMessage(
-        "Building k-d tree for vertex locations... ");
-    QApplication::processEvents();
-
-    m_oct_mass_kd_tree_locator->SetDataSet(m_oct_mass_poly_data);
-    m_oct_mass_kd_tree_locator->BuildLocator();
-
-    m_renderer->RemoveAllViewProps();
-    renderOCTMass();
-    m_renderer->ResetCamera();
+    buildKDTree();
 
     VTK_NEW(vtkTransform, trans);
     trans->Identity();
+
+    m_renderer->RemoveAllViewProps();
+    renderOCTMass(trans);
+    m_renderer->ResetCamera();
+
     renderAxes(m_oct_axes_actor, trans);
 
     this->m_ui->status_bar->showMessage("Reading file... done!");
@@ -1820,11 +1846,12 @@ void Form::on_view_oct_surf_button_clicked() {
   m_waiting_response = true;
   updateUIStates();
 
-  m_renderer->RemoveAllViewProps();
-  renderOCTSurface();
-
   VTK_NEW(vtkTransform, trans);
   trans->Identity();
+
+  m_renderer->RemoveAllViewProps();
+  renderOCTSurface(trans);
+
   renderAxes(m_oct_axes_actor, trans);
 
   this->m_ui->status_bar->showMessage("Rendering OCT surface... done!");
@@ -1841,11 +1868,12 @@ void Form::on_view_oct_mass_button_clicked() {
   m_waiting_response = true;
   updateUIStates();
 
-  m_renderer->RemoveAllViewProps();
-  renderOCTMass();
-
   VTK_NEW(vtkTransform, trans);
   trans->Identity();
+
+  m_renderer->RemoveAllViewProps();
+  renderOCTMass(trans);
+
   renderAxes(m_oct_axes_actor, trans);
 
   this->m_ui->status_bar->showMessage(
@@ -2364,11 +2392,12 @@ void Form::on_raw_min_vis_spinbox_editingFinished() {
   // m_min_vis_thresh gets updated on the slider callback
   m_ui->raw_min_vis_slider->setValue(new_value);
 
-  m_renderer->RemoveAllViewProps();
-  renderOCTVolumePolyData();
-
   VTK_NEW(vtkTransform, trans);
   trans->Identity();
+
+  m_renderer->RemoveAllViewProps();
+  renderOCTVolumePolyData(trans);
+
   renderAxes(m_oct_axes_actor, trans);
 }
 
@@ -2379,11 +2408,12 @@ void Form::on_raw_max_vis_spinbox_editingFinished() {
   // m_min_vis_thresh gets updated on the slider callback
   m_ui->raw_max_vis_slider->setValue(new_value);
 
-  m_renderer->RemoveAllViewProps();
-  renderOCTVolumePolyData();
-
   VTK_NEW(vtkTransform, trans);
   trans->Identity();
+
+  m_renderer->RemoveAllViewProps();
+  renderOCTVolumePolyData(trans);
+
   renderAxes(m_oct_axes_actor, trans);
 }
 
@@ -2411,19 +2441,21 @@ void Form::on_raw_max_vis_slider_valueChanged(int value) {
 
 void Form::on_raw_min_vis_slider_sliderReleased() {
   m_renderer->RemoveAllViewProps();
-  renderOCTVolumePolyData();
-
   VTK_NEW(vtkTransform, trans);
   trans->Identity();
+
+  renderOCTVolumePolyData(trans);
+
   renderAxes(m_oct_axes_actor, trans);
 }
 
 void Form::on_raw_max_vis_slider_sliderReleased() {
   m_renderer->RemoveAllViewProps();
-  renderOCTVolumePolyData();
-
   VTK_NEW(vtkTransform, trans);
   trans->Identity();
+
+  renderOCTVolumePolyData(trans);
+
   renderAxes(m_oct_axes_actor, trans);
 }
 
@@ -2435,7 +2467,7 @@ void Form::on_over_min_vis_spinbox_editingFinished() {
   m_ui->over_min_vis_slider->setValue(new_value);
 
   m_renderer->RemoveActor(m_oct_vol_actor);
-  renderOCTVolumePolyData();
+  renderOCTVolumePolyData(m_oct_stereo_trans);
 }
 
 void Form::on_over_max_vis_spinbox_editingFinished() {
@@ -2446,7 +2478,7 @@ void Form::on_over_max_vis_spinbox_editingFinished() {
   m_ui->over_max_vis_slider->setValue(new_value);
 
   m_renderer->RemoveActor(m_oct_vol_actor);
-  renderOCTVolumePolyData();
+  renderOCTVolumePolyData(m_oct_stereo_trans);
 }
 
 void Form::on_over_min_vis_slider_valueChanged(int value) {
@@ -2473,12 +2505,12 @@ void Form::on_over_max_vis_slider_valueChanged(int value) {
 
 void Form::on_over_min_vis_slider_sliderReleased() {
   m_renderer->RemoveActor(m_oct_vol_actor);
-  renderOCTVolumePolyData();
+  renderOCTVolumePolyData(m_oct_stereo_trans);
 }
 
 void Form::on_over_max_vis_slider_sliderReleased() {
   m_renderer->RemoveActor(m_oct_vol_actor);
-  renderOCTVolumePolyData();
+  renderOCTVolumePolyData(m_oct_stereo_trans);
 }
 
 void Form::on_over_raw_checkbox_clicked() {
@@ -2495,7 +2527,7 @@ void Form::on_over_raw_checkbox_clicked() {
         "Adding OCT raw data to overlay view...");
     QApplication::processEvents();
 
-    renderOCTVolumePolyData();
+    renderOCTVolumePolyData(m_oct_stereo_trans);
   } else {
     this->m_ui->status_bar->showMessage(
         "Removing OCT raw data from overlay view...", 3000);
@@ -2523,7 +2555,7 @@ void Form::on_over_oct_surf_checkbox_clicked() {
         "Adding OCT surface to overlay view...");
     QApplication::processEvents();
 
-    renderOCTSurface();
+    renderOCTSurface(m_oct_stereo_trans);
   } else {
     this->m_ui->status_bar->showMessage(
         "Removing OCT surface from overlay view...", 3000);
@@ -2550,7 +2582,7 @@ void Form::on_over_oct_mass_checkbox_clicked() {
     this->m_ui->status_bar->showMessage("Adding OCT mass to overlay view...");
     QApplication::processEvents();
 
-    renderOCTMass();
+    renderOCTMass(m_oct_stereo_trans);
   } else {
     this->m_ui->status_bar->showMessage(
         "Removing OCT mass from overlay view...", 3000);
@@ -2724,6 +2756,17 @@ void Form::on_browse_transform_button_clicked() {
     m_crossbar->readTransform(file_name.toStdString().c_str(),
                               m_oct_stereo_trans);
 
+    buildKDTree();
+
+    //Since we have a new transform, remove all actors to force re-rendering
+    m_renderer->RemoveAllViewProps();
+    m_ui->over_oct_mass_checkbox->setChecked(false);
+    m_ui->over_oct_surf_checkbox->setChecked(false);
+    m_ui->over_raw_checkbox->setChecked(false);
+    m_ui->over_depth_checkbox->setChecked(false);
+    m_ui->over_oct_axes_checkbox->setChecked(false);
+    m_ui->over_trans_axes_checkbox->setChecked(false);
+
     this->m_ui->status_bar->showMessage(
         "Reading transform binary file... "
         "done!");
@@ -2856,12 +2899,13 @@ void Form::receivedRawOCTData(OCTinfo params) {
   m_crossbar->ucharVectorToPolyData(raw_data, m_current_params,
                                     m_oct_poly_data);
 
-  m_renderer->RemoveAllViewProps();
-  renderOCTVolumePolyData();
-  m_renderer->ResetCamera();
-
   VTK_NEW(vtkTransform, trans);
   trans->Identity();
+
+  m_renderer->RemoveAllViewProps();
+  renderOCTVolumePolyData(trans);
+  m_renderer->ResetCamera();
+
   renderAxes(m_oct_axes_actor, trans);
 
   m_has_raw_oct = true;
@@ -2881,12 +2925,13 @@ void Form::receivedOCTSurfData(OCTinfo params) {
   m_crossbar->readPCL(OCT_SURF_CACHE_PATH, surf_point_cloud);
   m_crossbar->PCLxyzToVTKPolyData(surf_point_cloud, m_oct_surf_poly_data);
 
-  m_renderer->RemoveAllViewProps();
-  renderOCTSurface();
-  m_renderer->ResetCamera();
-
   VTK_NEW(vtkTransform, trans);
   trans->Identity();
+
+  m_renderer->RemoveAllViewProps();
+  renderOCTSurface(trans);
+  m_renderer->ResetCamera();
+
   renderAxes(m_oct_axes_actor, trans);
 
   m_has_oct_surf = true;
@@ -2923,6 +2968,17 @@ void Form::receivedRegistration() {
   this->m_ui->status_bar->showMessage(
       "Waiting for OCT registration transform... done!");
   QApplication::processEvents();
+
+  buildKDTree();
+
+  //Since we have a new transform, remove all actors to force re-rendering
+  m_renderer->RemoveAllViewProps();
+  m_ui->over_oct_mass_checkbox->setChecked(false);
+  m_ui->over_oct_surf_checkbox->setChecked(false);
+  m_ui->over_raw_checkbox->setChecked(false);
+  m_ui->over_depth_checkbox->setChecked(false);
+  m_ui->over_oct_axes_checkbox->setChecked(false);
+  m_ui->over_trans_axes_checkbox->setChecked(false);
 
   m_waiting_response = false;
   m_has_transform = true;
@@ -3066,7 +3122,7 @@ void Form::on_over_encoding_combobox_activated(int index) {
     case 0:  // None
       break;
     case 1:  // Color
-      m_overlay_lut->SetTableRange(0, 3.0);
+      m_overlay_lut->SetTableRange(0, 10.0);
       m_overlay_lut->SetSaturationRange(1, 1);
       m_overlay_lut->SetHueRange(0, 1);
       m_overlay_lut->SetValueRange(1, 1);
@@ -3074,7 +3130,7 @@ void Form::on_over_encoding_combobox_activated(int index) {
       m_overlay_lut->Build();
       break;
     case 2:  // Opacity
-      m_overlay_lut->SetTableRange(0, 3.0);
+      m_overlay_lut->SetTableRange(0, 10.0);
       m_overlay_lut->SetSaturationRange(1, 1);
       m_overlay_lut->SetHueRange(1, 1);
       m_overlay_lut->SetValueRange(1, 1);

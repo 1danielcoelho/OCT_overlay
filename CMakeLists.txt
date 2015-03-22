@@ -40,7 +40,7 @@ include_directories(${OpenCV_INCLUDE_DIRS})
 
 #VTK - Comment the first line: It's for a particular work-around at my home
 #computer -Daniel
-set(VTK_DIR "/usr/local/lib/vtk-5.8" CACHE PATH directory FORCE)
+#set(VTK_DIR "/usr/local/lib/vtk-5.8" CACHE PATH directory FORCE)
 find_package(VTK REQUIRED)
 include(${VTK_USE_FILE})
 set(VTK_LIBRARIES vtkRendering vtkGraphics vtkHybrid QVTK)

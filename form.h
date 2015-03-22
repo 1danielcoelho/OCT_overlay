@@ -39,6 +39,7 @@
 #include <vtkTexture.h>
 #include <vtkPolygon.h>
 #include <vtkFloatArray.h>
+#include <vtkPointSet.h>
 // Filters
 #include <vtkContourFilter.h>
 #include <vtkVertexGlyphFilter.h>
@@ -165,6 +166,10 @@ class Form : public QMainWindow {
   void segmentTumour(vtkSmartPointer<vtkActor> actor,
                      vtkSmartPointer<vtkPolyData> surf);
 
+  // This function builds the class member kd tree locator for the oct mass,
+  // by applying the currently loaded transform to it first
+  void buildKDTree();
+
   //-------------RENDERING------------------------------------------------------
 
   // Adds an actor with x,y,z axes to m_renderer. Origin, scale, orientation set
@@ -174,11 +179,12 @@ class Form : public QMainWindow {
 
   // Adds m_oct_vol_actor, containing points as individual vertices, to
   // m_renderer. Prunes points based on their scalar values, according to
-  // m_vis_threshold
-  void renderOCTVolumePolyData();
+  // m_vis_threshold. Applies the passed in transform before rendering
+  void renderOCTVolumePolyData(vtkSmartPointer<vtkTransform> trans);
 
-  // Renders the surface received from the OCT_segmentation node
-  void renderOCTSurface();
+  // Renders the surface received from the OCT_segmentation node. Applies the
+  // passed in transform before rendering
+  void renderOCTSurface(vtkSmartPointer<vtkTransform> trans);
 
   // Renders the reconstruction of the surface observed by the stereocamera, by
   // combining both a left and depth images
@@ -188,8 +194,9 @@ class Form : public QMainWindow {
   // displacement map vtkImageData objects from by load2DVectorCacheToImageData
   void render2DImageData(vtkSmartPointer<vtkImageData> image_data);
 
-  // Renders the mesh stored in m_oct_mass_poly_data as a triangular mesh
-  void renderOCTMass();
+  // Renders the mesh stored in m_oct_mass_poly_data as a triangular mesh.
+  // Applies the passed in transform before rendering
+  void renderOCTMass(vtkSmartPointer<vtkTransform> trans);
 
   // Renders the stereocamera surface reconstructed by qnode
   void renderStereoSurfaceWithEncoding();
@@ -327,6 +334,7 @@ Q_SLOTS:
   // VTK objects
   vtkSmartPointer<vtkPolyData> m_oct_poly_data;
   vtkSmartPointer<vtkPolyData> m_oct_mass_poly_data;
+  vtkSmartPointer<vtkPolyData> m_oct_mass_poly_data_transformed;
   vtkSmartPointer<vtkPolyData> m_oct_surf_poly_data;
   vtkSmartPointer<vtkPolyData> m_stereo_left_poly_data;
   vtkSmartPointer<vtkPolyData> m_stereo_reconstr_poly_data;

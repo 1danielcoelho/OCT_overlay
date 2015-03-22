@@ -181,7 +181,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
         color_float[0] = (float)color[0];
         color_float[1] = (float)color[1];
         color_float[2] = (float)color[2];
-        color_float[3] = 1.0f;
+        color_float[3] = 255.0f;
 
         // Sets our color in the background image
         unsigned char *pixel = static_cast<unsigned char *>(
