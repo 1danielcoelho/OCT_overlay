@@ -3084,6 +3084,11 @@ QGroupBox::title {
                     <string>Color silhouette</string>
                    </property>
                   </item>
+                  <item>
+                   <property name="text">
+                    <string>Kinetic depth</string>
+                   </property>
+                  </item>
                  </widget>
                 </item>
                </layout>

@@ -135,6 +135,7 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_stereo_left_actor = vtkSmartPointer<vtkActor>::New();
   m_oct_axes_actor = vtkSmartPointer<vtkAxesActor>::New();
   m_trans_axes_actor = vtkSmartPointer<vtkAxesActor>::New();
+  m_scalar_bar_actor = vtkSmartPointer<vtkScalarBarActor>::New();
   // Others
   m_renderer = vtkSmartPointer<vtkRenderer>::New();
   m_oct_mass_kd_tree_locator = vtkSmartPointer<vtkKdTreePointLocator>::New();
@@ -1376,6 +1377,9 @@ void Form::renderOCTMass(vtkSmartPointer<vtkTransform> trans) {
 void Form::renderStereoSurfaceWithEncoding() {
   int current_encoding = m_ui->over_encoding_combobox->currentIndex();
 
+  double position[3];
+  m_renderer->GetActiveCamera()->GetPosition(position);
+
   int num_pts = 0;
   vtkTypeUInt8Array* colors;
 
@@ -1394,10 +1398,22 @@ void Form::renderStereoSurfaceWithEncoding() {
   vtkPolyData* trans_output = trans_filt->GetPolyDataOutput();
 
   VTK_NEW(vtkActor, actor);
+  VTK_NEW(vtkKdTreePointLocator, surface_locator);
+  VTK_NEW(vtkPlane, plane);
+  VTK_NEW(vtkPoints, proj_pts);
+  VTK_NEW(vtkCellArray, cells);
+  VTK_NEW(vtkPolyData, poly);
+  VTK_NEW(vtkPolyDataMapper, proj_mapper);
+  int j = 0;
+  int num_cells = 0;
+  double distance = 0;
 
   // Render the stereo surface differently depending on encoding
   switch (current_encoding) {
     case 0:  // None
+      m_stereo_reconstr_actor->GetProperty()->SetOpacity(0.99);
+      m_stereo_reconstr_actor->GetProperty()->SetPointSize(5);
+
       break;
     case 1:  // Colors
       num_pts = trans_output->GetNumberOfPoints();
@@ -1408,11 +1424,14 @@ void Form::renderStereoSurfaceWithEncoding() {
         double pt_surf[3];
         trans_output->GetPoint(i, pt_surf);
 
-        double distance = 99999.0;
+        distance = 99999.0;
 
         // Find the ID of the closest point to point i
-        int j = m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(15.0, pt_surf, distance);
+        j = m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(10.0, pt_surf, distance);
         distance = std::sqrt(distance);
+
+        //Don't do anything to points too far away
+        if(distance > 10.0) continue;
 
         double old_color[4];
         double color_to_add[4];
@@ -1426,6 +1445,9 @@ void Form::renderStereoSurfaceWithEncoding() {
 
         colors->SetTuple(i, old_color);
       }
+
+      m_stereo_reconstr_actor->GetProperty()->SetOpacity(0.99);
+      m_stereo_reconstr_actor->GetProperty()->SetPointSize(5);
       break;
     case 2:  // Opacity
       num_pts = trans_output->GetNumberOfPoints();
@@ -1437,10 +1459,10 @@ void Form::renderStereoSurfaceWithEncoding() {
           double pt_surf[3];
           trans_output->GetPoint(i, pt_surf);
 
-          double distance = 99999.0;
+          distance = 99999.0;
 
           // Find the ID of the closest point to point i
-          int j = m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(10.0, pt_surf, distance);
+          j = m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(10.0, pt_surf, distance);
           distance = std::sqrt(distance);
 
           double old_color[4];
@@ -1453,11 +1475,15 @@ void Form::renderStereoSurfaceWithEncoding() {
 
           colors->SetTuple(i, old_color);
       }
+
+
+      m_stereo_reconstr_actor->GetProperty()->SetOpacity(0.99);
+      m_stereo_reconstr_actor->GetProperty()->SetPointSize(5);
       break;
     case 3:  // Color silhouette
       num_pts = m_oct_mass_poly_data_transformed->GetNumberOfPoints();
 
-      VTK_NEW(vtkKdTreePointLocator, surface_locator);
+
       surface_locator->SetDataSet(trans_output);
       surface_locator->BuildLocator();
 
@@ -1465,10 +1491,10 @@ void Form::renderStereoSurfaceWithEncoding() {
       double pt_mass[3];
       m_oct_mass_poly_data_transformed->GetPoint(0, pt_mass);
 
-      double distance = 0.0;
+      distance = 0.0;
 
       // Find the ID of the closest point to point 0
-      int j = surface_locator->FindClosestPointWithinRadius(10.0, pt_mass, distance);
+      j = surface_locator->FindClosestPointWithinRadius(10.0, pt_mass, distance);
 
       double pt_surf[3];
       trans_output->GetPoint(j, pt_surf);
@@ -1478,11 +1504,11 @@ void Form::renderStereoSurfaceWithEncoding() {
 
       vtkMath::Normalize(normal);
 
-      VTK_NEW(vtkPlane, plane);
+
       plane->SetNormal(normal);
       plane->SetOrigin(pt_surf);
 
-      VTK_NEW(vtkPoints, proj_pts);
+
       proj_pts->SetNumberOfPoints(num_pts);
 
       double projected[3];
@@ -1496,20 +1522,56 @@ void Form::renderStereoSurfaceWithEncoding() {
           proj_pts->SetPoint(i, projected);
       }
 
-      VTK_NEW(vtkPolyData, poly);
+
+      num_cells = m_oct_mass_poly_data_transformed->GetNumberOfCells();
+
+
+      cells->SetNumberOfCells(num_cells);
+
+      //Copy the cells to our projected polydata
+
+      for(int i = 0; i < num_cells; i++)
+      {
+          cells->InsertNextCell(m_oct_mass_poly_data_transformed->GetCell(i)->GetPointIds());
+      }
+
+
       poly->SetPoints(proj_pts);
+      poly->SetPolys(cells);
 
-      VTK_NEW(vtkVertexGlyphFilter, proj_vert_filt);
-      proj_vert_filt->SetInput(poly);
+//      VTK_NEW(vtkVertexGlyphFilter, proj_vert_filt);
+//      proj_vert_filt->SetInput(poly);
 
-      VTK_NEW(vtkPolyDataMapper, proj_mapper);
-      proj_mapper->SetInputConnection(proj_vert_filt->GetOutputPort());
+
+      proj_mapper->SetInput(poly);
 
       actor->SetMapper(proj_mapper);
-      actor->GetProperty()->SetColor(0, 1.0, 0);
-      actor->GetProperty()->SetPointSize(7);
+      //actor->GetProperty()->SetColor(0, 1.0, 0);
+      //actor->GetProperty()->SetPointSize(7);
 
-      m_renderer->AddActor(actor);
+      m_renderer->AddActor(actor);      
+      m_stereo_reconstr_actor->GetProperty()->SetOpacity(0.99);
+      m_stereo_reconstr_actor->GetProperty()->SetPointSize(5);
+      break;
+
+  case 4: //Kinetic depth
+
+      //Sit here for exactly 1 second, spinning around
+      double time = timer->GetUniversalTime() + 1;
+      while(timer->GetUniversalTime() < time)
+      {
+          m_stereo_reconstr_actor->GetProperty()->SetOpacity(1.0);
+          m_stereo_reconstr_actor->GetProperty()->SetPointSize(1);
+          position[0] = 5*std::cos(timer->GetUniversalTime() * 10);
+          position[1] = 5*std::sin(timer->GetUniversalTime() * 10);
+          position[2] = -20;
+
+          m_renderer->GetActiveCamera()->SetFocalPoint(0, 0, 30);
+          m_renderer->GetActiveCamera()->SetViewUp(0, -1, 0);
+          m_renderer->GetActiveCamera()->SetPosition(position);
+          this->m_ui->qvtkWidget->update();
+          QApplication::processEvents();
+      }
 
       break;
   }
@@ -1526,8 +1588,6 @@ void Form::renderStereoSurfaceWithEncoding() {
   mapper->SetScalarVisibility(1);
 
   m_stereo_reconstr_actor->SetMapper(mapper);
-  m_stereo_reconstr_actor->GetProperty()->SetOpacity(0.99);
-  m_stereo_reconstr_actor->GetProperty()->SetPointSize(5);
 
   m_renderer->AddActor(m_stereo_reconstr_actor);
 
@@ -2919,6 +2979,10 @@ void Form::on_over_start_button_clicked() {
       3000);
   QApplication::processEvents();
 
+  m_renderer->GetActiveCamera()->SetPosition(0, 0, -30);
+  m_renderer->GetActiveCamera()->SetFocalPoint(0, 0, 30);
+  m_renderer->GetActiveCamera()->SetViewUp(0, -1, 0);
+
   m_viewing_realtime_overlay = true;
   m_waiting_response = true;
   updateUIStates();
@@ -3187,7 +3251,7 @@ void Form::on_over_background_checkbox_toggled(bool checked) {
 }
 
 void Form::on_over_encoding_combobox_activated(int index) {
-  switch (index) {
+    switch (index) {
     case 0:  // None
       break;
     case 1:  // Color
@@ -3197,6 +3261,13 @@ void Form::on_over_encoding_combobox_activated(int index) {
       m_overlay_lut->SetValueRange(1, 1);
       m_overlay_lut->SetAlphaRange(1, 1);
       m_overlay_lut->Build();
+
+      m_scalar_bar_actor->SetLookupTable(m_overlay_lut);
+      m_scalar_bar_actor->SetTitle("Depth [mm]");
+      m_scalar_bar_actor->SetNumberOfLabels(5);
+      m_scalar_bar_actor->SetMaximumWidthInPixels(50);
+      m_scalar_bar_actor->SetPosition(0, 0.1);
+      m_renderer->AddActor2D(m_scalar_bar_actor);
       break;
     case 2:  // Opacity
       m_overlay_lut->SetTableRange(0.0, 15.0);
@@ -3205,8 +3276,14 @@ void Form::on_over_encoding_combobox_activated(int index) {
       m_overlay_lut->SetValueRange(1, 1);
       m_overlay_lut->SetAlphaRange(0.1, 1);
       m_overlay_lut->Build();
+      m_renderer->RemoveActor2D(m_scalar_bar_actor);
       break;
   case 3:   // Color silhouette
+      m_renderer->RemoveActor2D(m_scalar_bar_actor);
+      break;
+
+   case 4: //Kinetic depth
+      m_renderer->RemoveActor2D(m_scalar_bar_actor);
       break;
   }
 }

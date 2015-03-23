@@ -84,6 +84,7 @@
 #include <vtkTextActor.h>
 #include <vtkActor2D.h>
 #include <vtkImageActor.h>
+#include <vtkScalarBarActor.h>
 // Others
 #include <vtkMath.h>
 #include <vtkRenderer.h>
@@ -357,6 +358,7 @@ Q_SLOTS:
   vtkSmartPointer<vtkActor2D> m_stereo_2d_actor;
   vtkSmartPointer<vtkAxesActor> m_oct_axes_actor;
   vtkSmartPointer<vtkAxesActor> m_trans_axes_actor;
+  vtkSmartPointer<vtkScalarBarActor> m_scalar_bar_actor;
   // Others
   vtkSmartPointer<vtkRenderer> m_renderer;
   vtkSmartPointer<vtkKdTreePointLocator> m_oct_mass_kd_tree_locator;
