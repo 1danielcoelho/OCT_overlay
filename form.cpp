@@ -1404,6 +1404,7 @@ void Form::renderStereoSurfaceWithEncoding() {
   VTK_NEW(vtkCellArray, cells);
   VTK_NEW(vtkPolyData, poly);
   VTK_NEW(vtkPolyDataMapper, proj_mapper);
+  VTK_NEW(vtkPolyDataSilhouette, silh_filt);
   int j = 0;
   int num_cells = 0;
   double distance = 0;
@@ -1557,7 +1558,7 @@ void Form::renderStereoSurfaceWithEncoding() {
   case 4: //Kinetic depth
 
       //Sit here for exactly 1 second, spinning around
-      double time = timer->GetUniversalTime() + 1;
+      time = timer->GetUniversalTime() + 1;
       while(timer->GetUniversalTime() < time)
       {
           m_stereo_reconstr_actor->GetProperty()->SetOpacity(1.0);
@@ -1572,6 +1573,20 @@ void Form::renderStereoSurfaceWithEncoding() {
           this->m_ui->qvtkWidget->update();
           QApplication::processEvents();
       }
+
+      break;
+    case 5:  //Silhouette
+       silh_filt->SetEnableFeatureAngle(0);
+       silh_filt->SetCamera(m_renderer->GetActiveCamera());
+       silh_filt->SetInput(m_oct_mass_poly_data_transformed);
+
+
+       proj_mapper->SetInputConnection(silh_filt->GetOutputPort());
+
+       actor->SetMapper(proj_mapper);
+       actor->GetProperty()->SetLineWidth(5);
+
+       m_renderer->AddActor(actor);
 
       break;
   }
@@ -3266,7 +3281,7 @@ void Form::on_over_encoding_combobox_activated(int index) {
       m_scalar_bar_actor->SetTitle("Depth [mm]");
       m_scalar_bar_actor->SetNumberOfLabels(5);
       m_scalar_bar_actor->SetMaximumWidthInPixels(50);
-      m_scalar_bar_actor->SetPosition(0, 0.1);
+      m_scalar_bar_actor->SetPosition(0, 0.15);
       m_renderer->AddActor2D(m_scalar_bar_actor);
       break;
     case 2:  // Opacity
@@ -3285,5 +3300,9 @@ void Form::on_over_encoding_combobox_activated(int index) {
    case 4: //Kinetic depth
       m_renderer->RemoveActor2D(m_scalar_bar_actor);
       break;
+
+    case 5: //Silhouette
+       m_renderer->RemoveActor2D(m_scalar_bar_actor);
+       break;
   }
 }

@@ -74,6 +74,7 @@
 #include <vtkImageNormalize.h>
 #include <vtkImageCast.h>
 #include <vtkTextureMapToPlane.h>
+#include <vtkPolyDataSilhouette.h>
 // Mappers
 #include <vtkPolyDataMapper.h>
 #include <vtkImageMapper.h>
