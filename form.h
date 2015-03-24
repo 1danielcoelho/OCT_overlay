@@ -211,7 +211,8 @@ class Form : public QMainWindow {
 
   // Clears m_renderer from actors and renders either the left, right or
   // displacement map vtkImageData objects from by load2DVectorCacheToImageData
-  void render2DImageData(vtkSmartPointer<vtkImageData> image_data);
+  void render2DImageData(vtkSmartPointer<vtkImageData> image_data,
+                         vtkSmartPointer<vtkActor2D> actor);
 
   // Renders the mesh stored in m_oct_mass_poly_data as a triangular mesh.
   // Applies the passed in transform before rendering
@@ -368,11 +369,14 @@ Q_SIGNALS:
   vtkSmartPointer<vtkActor> m_stereo_left_actor;
   vtkSmartPointer<vtkActor> m_stereo_reconstr_actor;
   vtkSmartPointer<vtkActor2D> m_stereo_2d_actor;
+  vtkSmartPointer<vtkActor2D> m_stereo_2d_background_actor;
   vtkSmartPointer<vtkAxesActor> m_oct_axes_actor;
   vtkSmartPointer<vtkAxesActor> m_trans_axes_actor;
   vtkSmartPointer<vtkScalarBarActor> m_scalar_bar_actor;
   // Others
-  vtkSmartPointer<vtkRenderer> m_renderer;
+  vtkSmartPointer<vtkRenderer> m_renderer_0;
+  vtkSmartPointer<vtkRenderer> m_renderer_1;
+  vtkSmartPointer<vtkRenderer> m_renderer_2;
   vtkSmartPointer<vtkKdTreePointLocator> m_oct_mass_kd_tree_locator;
   vtkSmartPointer<vtkLookupTable> m_overlay_lut;
 };

@@ -171,7 +171,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
 
         // Sets our color in the background image
         unsigned char *pixel = static_cast<unsigned char *>(
-            left_imagedata->GetScalarPointer(j, rows-1-i, 0));
+            left_imagedata->GetScalarPointer(j, rows-i-1, 0));
         memcpy(&pixel[0], &color[0], 3);
 
         // Sets our point in the polydata arrays
