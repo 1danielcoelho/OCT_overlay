@@ -174,6 +174,21 @@ class Form : public QMainWindow {
   // by applying the currently loaded transform to it first
   void buildKDTree();
 
+  //Receives the surface and mass polydata and changes the RGBA values in
+  //in the "Colors" array of "surface" to match some form of encoding, selected
+  //by the combobox in the UI
+  void encodeDepthInformation(vtkSmartPointer<vtkPolyData> surface,
+                              vtkSmartPointer<vtkPolyData> mass,
+                              vtkSmartPointer<vtkActor> surface_actor,
+                              vtkSmartPointer<vtkActor> mass_actor);
+
+  // Uses the transform P to map the point coordinates of the "surface" polydata
+  // to truncated int indices into an imageData of width/height
+  void mapReconstructionTo2D(vtkSmartPointer<vtkPolyData> surface,
+                             vtkSmartPointer<vtkTransform> P,
+                             vtkSmartPointer<vtkImageData> out_image,
+                             int width, int height);
+
   //-------------RENDERING------------------------------------------------------
 
   // Adds an actor with x,y,z axes to m_renderer. Origin, scale, orientation set
@@ -203,7 +218,7 @@ class Form : public QMainWindow {
   void renderOCTMass(vtkSmartPointer<vtkTransform> trans);
 
   // Renders the stereocamera surface reconstructed by qnode
-  void renderStereoSurfaceWithEncoding();
+  void renderStereoReconstructionWithEncoding();
 
   //--------------UI CALLBACKS--------------------------------------------------
 
@@ -275,7 +290,10 @@ Q_SLOTS:
   void on_save_transform_button_clicked();
 
   void on_over_start_button_clicked();
-  void on_over_stop_button_clicked();
+  void on_over_stop_button_clicked();  
+
+  void on_over_mode_select_combobox_currentIndexChanged(int index);
+  void on_over_encoding_combobox_currentIndexChanged(int index);
 
   //------------QNODE CALLBACKS-------------------------------------------------
 
@@ -286,13 +304,8 @@ Q_SLOTS:
   void accumulated(float new_ratio);
   void newSurface(vtkPolyData* surf);
   void newBackground(vtkImageData* back);
-  void newEdges(std::vector<double>);
 
-  void on_over_background_checkbox_toggled(bool checked);
-
-  void on_over_encoding_combobox_activated(int index);
-
-  Q_SIGNALS:
+Q_SIGNALS:
   void requestScan(OCTinfo);
   void requestSegmentation(OCTinfo);
   void requestRegistration();
@@ -312,9 +325,8 @@ Q_SLOTS:
   uint8_t m_min_vis_thresh;
   uint8_t m_max_vis_thresh;
 
-  // Holds coordinates for the vertex locations of a background quad during
-  // overlay visualization
-  std::vector<double> m_quad_edges;
+  int m_encoding_mode;
+  int m_view_mode;
 
   // State booleans
   bool m_connected_to_master;
@@ -331,7 +343,6 @@ Q_SLOTS:
   bool m_has_transform;
   bool m_viewing_overlay;
   bool m_viewing_realtime_overlay;
-  bool m_viewing_background;
 
   // Holds our current raw oct parameters (steps, ranges, offsets)
   OCTinfo m_current_params;
@@ -348,6 +359,7 @@ Q_SLOTS:
   vtkSmartPointer<vtkImageData> m_stereo_disp_image;
   vtkSmartPointer<vtkImageData> m_stereo_depth_image;
   vtkSmartPointer<vtkTransform> m_oct_stereo_trans;
+  vtkSmartPointer<vtkTransform> m_left_proj_trans;
   // Actors are kept since we need their references when we add/remove actors in
   // the Overlay section of the program
   vtkSmartPointer<vtkActor> m_oct_vol_actor;
@@ -355,7 +367,6 @@ Q_SLOTS:
   vtkSmartPointer<vtkActor> m_oct_mass_actor;
   vtkSmartPointer<vtkActor> m_stereo_left_actor;
   vtkSmartPointer<vtkActor> m_stereo_reconstr_actor;
-  vtkSmartPointer<vtkActor> m_background_actor;
   vtkSmartPointer<vtkActor2D> m_stereo_2d_actor;
   vtkSmartPointer<vtkAxesActor> m_oct_axes_actor;
   vtkSmartPointer<vtkAxesActor> m_trans_axes_actor;

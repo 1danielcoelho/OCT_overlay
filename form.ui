@@ -3151,6 +3151,20 @@ QGroupBox::title {
                  </spacer>
                 </item>
                 <item>
+                 <widget class="QComboBox" name="over_mode_select_combobox">
+                  <item>
+                   <property name="text">
+                    <string>2D</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>3D</string>
+                   </property>
+                  </item>
+                 </widget>
+                </item>
+                <item>
                  <widget class="QPushButton" name="over_stop_button">
                   <property name="sizePolicy">
                    <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -3207,18 +3221,6 @@ QGroupBox::title {
                   </property>
                   <property name="text">
                    <string>Start</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QCheckBox" name="over_background_checkbox">
-                  <property name="font">
-                   <font>
-                    <pointsize>8</pointsize>
-                   </font>
-                  </property>
-                  <property name="text">
-                   <string>Background</string>
                   </property>
                  </widget>
                 </item>

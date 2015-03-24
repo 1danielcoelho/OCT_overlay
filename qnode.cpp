@@ -151,34 +151,12 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
     left_imagedata->SetScalarTypeToUnsignedChar();
     left_imagedata->AllocateScalars();
 
-    std::vector<double> heights;
-    std::vector<int> heights_rows;
-
-    std::vector<double> widths;
-    std::vector<int> widths_cols;
-
-    double avg_depth = 0;
-
     int point_id = 0;
     for (uint32_t i = 0; i < rows; i++) {
       for (uint32_t j = 0; j < cols; j++) {
         float pt_x = image_depth.at<cv::Vec3f>(i, j)[0];
         float pt_y = image_depth.at<cv::Vec3f>(i, j)[1];
         float pt_z = image_depth.at<cv::Vec3f>(i, j)[2];
-
-        // If it's a valid point
-        if (pt_z != -1) {
-          if (rand() % 1000 >= 995) {
-            // keep track of it's row, col, and 3d position
-            heights.push_back(pt_y);
-            heights_rows.push_back(i);
-
-            widths.push_back(pt_x);
-            widths_cols.push_back(j);
-
-            avg_depth += pt_z;
-          }
-        }
 
         unsigned char color[3];
         color[0] = image_left.at<cv::Vec3b>(i, j)[0];
@@ -193,7 +171,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
 
         // Sets our color in the background image
         unsigned char *pixel = static_cast<unsigned char *>(
-            left_imagedata->GetScalarPointer(j, i, 0));
+            left_imagedata->GetScalarPointer(j, rows-1-i, 0));
         memcpy(&pixel[0], &color[0], 3);
 
         // Sets our point in the polydata arrays
@@ -204,62 +182,13 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
       }
     }
 
-    // Down here we calculate these ratios, which tell us the distance in
-    // 3D space moved when we move down a row or a col. We will use this to
-    // Extrapolate the 3D positions of the edges of the left image
-    double row_ratio = 0;
-    double col_ratio = 0;
-    int row_count = 0;
-    int col_count = 0;
-
-    int num_calib_pts = heights_rows.size();
-    for (int i = 0; i < num_calib_pts; i++) {
-      for (int j = 0; j < num_calib_pts; j++) {
-        double delta_row = heights_rows[i] - heights_rows[j];
-        double delta_col = widths_cols[i] - widths_cols[j];
-
-        if (delta_row != 0) {
-          double delta_height = heights[i] - heights[j];
-          row_ratio += (delta_height / delta_row);
-          row_count++;
-        }
-
-        if (delta_col != 0) {
-          double delta_width = widths[i] - widths[j];
-          col_ratio += (delta_width / delta_col);
-          col_count++;
-        }
-      }
-    }
-
-    row_ratio /= row_count;
-    col_ratio /= col_count;
-
-    // This holds all the x,y coordinates of a square, plus a depth
-    std::vector<double> edges(5, 0);
-
-    for (int i = 0; i < num_calib_pts; i++) {
-      edges[0] += widths[i] - widths_cols[i] * (col_ratio);
-      edges[1] += widths[i] + (cols - widths_cols[i]) * col_ratio;
-      edges[2] += heights[i] - heights_rows[i] * (row_ratio);
-      edges[3] += heights[i] + (rows - heights_rows[i]) * row_ratio;
-    }
-
-    edges[0] /= num_calib_pts;
-    edges[1] /= num_calib_pts;
-    edges[2] /= num_calib_pts;
-    edges[3] /= num_calib_pts;
-    edges[4] = avg_depth / num_calib_pts;
-
     vtkPolyData *surf_poly = vtkPolyData::New();
     surf_poly->SetPoints(points);
     surf_poly->GetPointData()->SetScalars(color_array);
 
-    Q_EMIT newSurface(surf_poly);
-
     Q_EMIT newBackground(left_imagedata);
 
-    Q_EMIT newEdges(edges);
+    Q_EMIT newSurface(surf_poly);
   }
 
   // We're not overlaying: Accumulate and write images to disk
