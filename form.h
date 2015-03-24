@@ -41,6 +41,7 @@
 #include <vtkFloatArray.h>
 #include <vtkPointSet.h>
 #include <vtkPlane.h>
+#include <vtkImageStencil.h>
 // Filters
 #include <vtkContourFilter.h>
 #include <vtkVertexGlyphFilter.h>
@@ -75,6 +76,7 @@
 #include <vtkImageCast.h>
 #include <vtkTextureMapToPlane.h>
 #include <vtkPolyDataSilhouette.h>
+#include <vtkPolyDataToImageStencil.h>
 // Mappers
 #include <vtkPolyDataMapper.h>
 #include <vtkImageMapper.h>
@@ -351,7 +353,8 @@ Q_SIGNALS:
   // VTK objects
   vtkSmartPointer<vtkPolyData> m_oct_poly_data;
   vtkSmartPointer<vtkPolyData> m_oct_mass_poly_data;
-  vtkSmartPointer<vtkPolyData> m_oct_mass_poly_data_transformed;
+  vtkSmartPointer<vtkPolyData> m_oct_mass_poly_data_stereo3D;
+  vtkSmartPointer<vtkPolyData> m_oct_mass_poly_data_leftCamera;
   vtkSmartPointer<vtkPolyData> m_oct_surf_poly_data;
   vtkSmartPointer<vtkPolyData> m_stereo_left_poly_data;
   vtkSmartPointer<vtkPolyData> m_stereo_reconstr_poly_data;
@@ -359,6 +362,7 @@ Q_SIGNALS:
   vtkSmartPointer<vtkImageData> m_stereo_right_image;
   vtkSmartPointer<vtkImageData> m_stereo_disp_image;
   vtkSmartPointer<vtkImageData> m_stereo_depth_image;
+  vtkSmartPointer<vtkImageData> m_stereo_reproject_image;
   vtkSmartPointer<vtkTransform> m_oct_stereo_trans;
   vtkSmartPointer<vtkTransform> m_left_proj_trans;
   // Actors are kept since we need their references when we add/remove actors in

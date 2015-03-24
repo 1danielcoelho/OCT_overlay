@@ -111,13 +111,15 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_oct_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_oct_surf_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_oct_mass_poly_data = vtkSmartPointer<vtkPolyData>::New();
-  m_oct_mass_poly_data_transformed = vtkSmartPointer<vtkPolyData>::New();
+  m_oct_mass_poly_data_stereo3D = vtkSmartPointer<vtkPolyData>::New();
+  m_oct_mass_poly_data_leftCamera = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_left_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_reconstr_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_left_image = vtkSmartPointer<vtkImageData>::New();
   m_stereo_right_image = vtkSmartPointer<vtkImageData>::New();
   m_stereo_disp_image = vtkSmartPointer<vtkImageData>::New();
   m_stereo_depth_image = vtkSmartPointer<vtkImageData>::New();
+  m_stereo_reproject_image = vtkSmartPointer<vtkImageData>::New();
   m_oct_stereo_trans = vtkSmartPointer<vtkTransform>::New();
   m_oct_stereo_trans->Identity();
   m_left_proj_trans = vtkSmartPointer<vtkTransform>::New();
@@ -1072,15 +1074,37 @@ void Form::buildKDTree()
         "Building k-d tree for vertex locations... ", 3000);
     QApplication::processEvents();
 
+    //Transforms the OCT mass polydata to the 3D stereocamera frame
     VTK_NEW(vtkTransformFilter, trans_filt);
     trans_filt->SetTransform(m_oct_stereo_trans);
     trans_filt->SetInput(m_oct_mass_poly_data);
     trans_filt->Update();
+    m_oct_mass_poly_data_stereo3D = trans_filt->GetPolyDataOutput();
 
-    m_oct_mass_poly_data_transformed = trans_filt->GetPolyDataOutput();
+    //Further transforms it into the 2D stereocamera image U,V coordinates
+    VTK_NEW(vtkTransformFilter, trans_filt2);
+    trans_filt2->SetInput(m_oct_mass_poly_data_stereo3D);
+    trans_filt2->SetTransform(m_left_proj_trans);
+    trans_filt2->Update();
+    m_oct_mass_poly_data_leftCamera = trans_filt2->GetPolyDataOutput();
+
+    int num_pts = m_oct_mass_poly_data_leftCamera->GetNumberOfPoints();
+    vtkPoints* left_cam_pts = m_oct_mass_poly_data_leftCamera->GetPoints();
+
+    for(int i = 0; i < num_pts; i++)
+    {
+        double position[3];
+        left_cam_pts->GetPoint(i, position);
+
+        position[0] /= position[2];
+        position[1] /= position[2];
+        position[2] = 0;
+
+        left_cam_pts->SetPoint(i, position);
+    }
 
     m_oct_mass_kd_tree_locator = vtkSmartPointer<vtkKdTreePointLocator>::New();
-    m_oct_mass_kd_tree_locator->SetDataSet(m_oct_mass_poly_data_transformed);
+    m_oct_mass_kd_tree_locator->SetDataSet(m_oct_mass_poly_data_stereo3D);
     m_oct_mass_kd_tree_locator->BuildLocator();
 }
 
@@ -1106,6 +1130,9 @@ void Form::encodeDepthInformation(vtkSmartPointer<vtkPolyData> surface,
     VTK_NEW(vtkPolyData, poly);
     VTK_NEW(vtkPolyDataMapper, proj_mapper);
     VTK_NEW(vtkPolyDataSilhouette, silh_filt);
+
+    VTK_NEW(vtkPolyDataToImageStencil, poly_to_stencil_filter);
+
     int j = 0;
     int num_cells = 0;
     double distance = 0;
@@ -1183,77 +1210,17 @@ void Form::encodeDepthInformation(vtkSmartPointer<vtkPolyData> surface,
         surface_actor->GetProperty()->SetPointSize(5);
         break;
       case 3:  // Color silhouette
-        num_pts = mass->GetNumberOfPoints();
 
+            //Note that we invert the order: At this point, m_stereo_reproject_image
+            //already has been constructed
+            poly_to_stencil_filter->SetInput(m_oct_mass_poly_data_leftCamera);
+            poly_to_stencil_filter->SetInformationInput(m_stereo_reproject_image);
 
-        surface_locator->SetDataSet(surface);
-        surface_locator->BuildLocator();
+            //Build a stencil with its mesh
+                //Use SetInformationInput(m_stereo_reproject_image);
+            //Apply color encoding, then apply the stencil. Leave it transparent
+            //outside the mass poly -> Background shows through
 
-        //Grab a point
-        double pt_mass[3];
-        mass->GetPoint(0, pt_mass);
-
-        distance = 0.0;
-
-        // Find the ID of the closest point to point 0
-        j = surface_locator->FindClosestPointWithinRadius(10.0, pt_mass, distance);
-
-        double pt_surf[3];
-        surface->GetPoint(j, pt_surf);
-
-        double normal[3];
-        vtkMath::Subtract(pt_mass, pt_surf, normal); //c = a - b
-
-        vtkMath::Normalize(normal);
-
-
-        plane->SetNormal(normal);
-        plane->SetOrigin(pt_surf);
-
-
-        proj_pts->SetNumberOfPoints(num_pts);
-
-        double projected[3];
-
-        //Project our points on the plane
-        for(int i = 0; i < num_pts; i++)
-        {
-            plane->ProjectPoint(mass->GetPoint(i),
-                                projected);
-
-            proj_pts->SetPoint(i, projected);
-        }
-
-
-        num_cells = mass->GetNumberOfCells();
-
-
-        cells->SetNumberOfCells(num_cells);
-
-        //Copy the cells to our projected polydata
-
-        for(int i = 0; i < num_cells; i++)
-        {
-            cells->InsertNextCell(mass->GetCell(i)->GetPointIds());
-        }
-
-
-        poly->SetPoints(proj_pts);
-        poly->SetPolys(cells);
-
-  //      VTK_NEW(vtkVertexGlyphFilter, proj_vert_filt);
-  //      proj_vert_filt->SetInput(poly);
-
-
-        proj_mapper->SetInput(poly);
-
-        actor->SetMapper(proj_mapper);
-        //actor->GetProperty()->SetColor(0, 1.0, 0);
-        //actor->GetProperty()->SetPointSize(7);
-
-        m_renderer_0->AddActor(actor);
-        surface_actor->GetProperty()->SetOpacity(0.99);
-        surface_actor->GetProperty()->SetPointSize(5);
         break;
 
     case 4: //Kinetic depth
@@ -3339,13 +3306,13 @@ void Form::newSurface(vtkPolyData* surf) {
 
     //No depth encoding, 2D view
     if(m_viewing_realtime_overlay && m_encoding_mode == 0 && m_view_mode == 0) {
-        VTK_NEW(vtkImageData, test);
+
         mapReconstructionTo2D(m_stereo_reconstr_poly_data,
                               m_left_proj_trans,
-                              test,
+                              m_stereo_reproject_image,
                               640, 480);
 
-        render2DImageData(test, m_stereo_2d_actor);
+        render2DImageData(m_stereo_reproject_image, m_stereo_2d_actor);
         render2DImageData(m_stereo_left_image, m_stereo_2d_background_actor);
 
         this->m_ui->qvtkWidget->update();
@@ -3365,18 +3332,18 @@ void Form::newSurface(vtkPolyData* surf) {
     //Using some other encoding, 2D view
     else if (m_viewing_realtime_overlay && m_view_mode == 0) {
 
+        //Need to map first: encodeDepthInformation uses m_stereo_reproject_image
+        mapReconstructionTo2D(m_stereo_reconstr_poly_data,
+                              m_left_proj_trans,
+                              m_stereo_reproject_image,
+                              640, 480);
+
         encodeDepthInformation(m_stereo_reconstr_poly_data,
-                               m_oct_mass_poly_data_transformed,
+                               m_oct_mass_poly_data_stereo3D,
                                m_stereo_reconstr_actor,
                                m_oct_mass_actor);
 
-        VTK_NEW(vtkImageData, test);
-        mapReconstructionTo2D(m_stereo_reconstr_poly_data,
-                              m_left_proj_trans,
-                              test,
-                              640, 480);
-
-        render2DImageData(test, m_stereo_2d_actor);
+        render2DImageData(m_stereo_reproject_image, m_stereo_2d_actor);
         render2DImageData(m_stereo_left_image, m_stereo_2d_background_actor);
 
         this->m_ui->qvtkWidget->update();
@@ -3387,7 +3354,7 @@ void Form::newSurface(vtkPolyData* surf) {
     else if (m_viewing_realtime_overlay && m_view_mode == 1) {
 
         encodeDepthInformation(m_stereo_reconstr_poly_data,
-                               m_oct_mass_poly_data_transformed,
+                               m_oct_mass_poly_data_stereo3D,
                                m_stereo_reconstr_actor,
                                m_oct_mass_actor);
 
