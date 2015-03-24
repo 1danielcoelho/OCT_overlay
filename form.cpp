@@ -1129,7 +1129,7 @@ void Form::encodeDepthInformation(vtkSmartPointer<vtkPolyData> surface,
           distance = 99999.0;
 
           // Find the ID of the closest point to point i
-          j = m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(10.0, pt_surf, distance);
+          j = m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(5.0, pt_surf, distance);
           distance = std::sqrt(distance);
 
           //Don't do anything to points too far away
@@ -3449,19 +3449,19 @@ void Form::on_over_encoding_combobox_currentIndexChanged(int index)
     case 0:  // None
       break;
     case 1:  // Color
-      m_overlay_lut->SetTableRange(0, 10.0);
+      m_overlay_lut->SetTableRange(0, 5);
       m_overlay_lut->SetSaturationRange(1, 0);
-      m_overlay_lut->SetHueRange(0, 1);
+      m_overlay_lut->SetHueRange(0.0, 0.667);
       m_overlay_lut->SetValueRange(1, 1);
       m_overlay_lut->SetAlphaRange(1, 1);
       m_overlay_lut->Build();
 
       m_scalar_bar_actor->SetLookupTable(m_overlay_lut);
-      m_scalar_bar_actor->SetTitle("Depth [mm]");
+      m_scalar_bar_actor->SetTitle("Distance to mass surface [mm]");
       m_scalar_bar_actor->SetNumberOfLabels(5);
-      m_scalar_bar_actor->SetHeight(0.2);
-      m_scalar_bar_actor->SetWidth(0.4);
-      m_scalar_bar_actor->SetPosition(0.1, 0);
+      m_scalar_bar_actor->SetHeight(0.08);
+      m_scalar_bar_actor->SetWidth(0.6);
+      m_scalar_bar_actor->SetPosition(0.2, 0);
       m_scalar_bar_actor->SetOrientationToHorizontal();
       m_scalar_bar_actor->SetLayerNumber(1);
 
@@ -3470,7 +3470,7 @@ void Form::on_over_encoding_combobox_currentIndexChanged(int index)
       QApplication::processEvents();
       break;
     case 2:  // Opacity
-      m_overlay_lut->SetTableRange(0.0, 15.0);
+      m_overlay_lut->SetTableRange(0.0, 5.0);
       m_overlay_lut->SetSaturationRange(1, 1);
       m_overlay_lut->SetHueRange(1, 1);
       m_overlay_lut->SetValueRange(1, 1);
