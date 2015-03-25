@@ -81,7 +81,7 @@
 		<param name="hue" type="int" value="50"/>
   	</node>	
 
-	<!--node pkg="stereomatching" type="stereomatching_node" name="stereomatching">
+	<node pkg="stereomatching" type="stereomatching_node" name="stereomatching">
 		<param name="leftImageTopicName" type="string" value="/stereocamera/left/image"/>
 		<param name="rightImageTopicName" type="string" value="/stereocamera/right/image"/>
 
@@ -131,5 +131,5 @@
 		<param name="JBFilterParam2" type="double" value="0.1"/>
 		<param name="JBFRepetitions" type="int" value="12"/>
 		<param name="repeatBF" type="bool" value="false"/>
-	</node-->
+	</node>
 </launch>
