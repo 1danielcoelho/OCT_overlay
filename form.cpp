@@ -3333,15 +3333,15 @@ void Form::newSurface(vtkPolyData* surf) {
     else if (m_viewing_realtime_overlay && m_view_mode == 0) {
 
         //Need to map first: encodeDepthInformation uses m_stereo_reproject_image
-        mapReconstructionTo2D(m_stereo_reconstr_poly_data,
-                              m_left_proj_trans,
-                              m_stereo_reproject_image,
-                              640, 480);
-
         encodeDepthInformation(m_stereo_reconstr_poly_data,
                                m_oct_mass_poly_data_stereo3D,
                                m_stereo_reconstr_actor,
                                m_oct_mass_actor);
+
+        mapReconstructionTo2D(m_stereo_reconstr_poly_data,
+                              m_left_proj_trans,
+                              m_stereo_reproject_image,
+                              640, 480);
 
         render2DImageData(m_stereo_reproject_image, m_stereo_2d_actor);
         render2DImageData(m_stereo_left_image, m_stereo_2d_background_actor);
