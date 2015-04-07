@@ -15,10 +15,10 @@
   <!--depend package="qt_build"/-->
   <depend package="cv_bridge"/>
   <depend package="image_transport"/>
-  <depend package="OCT_wrapper"/>
-  <depend package="oct_client"/>
-  <depend package="OCT_segmentation"/>
-  <depend package="OCT_registration"/>
+  <!--depend package="OCT_wrapper"/-->
+  <!--depend package="oct_client"/-->
+  <!--depend package="OCT_segmentation"/-->
+  <!--depend package="OCT_registration"/-->
   <depend package="roscpp"/>
   <depend package="message_filters"/>
   <depend package="std_msgs"/>
@@ -26,7 +26,7 @@
   <depend package="dynamic_reconfigure"/>   
   <depend package="pcl"/>
   <depend package="pcl_ros"/>
-  <depend package="utilities"/>
+  <!--depend package="utilities"/-->
 </package>
 
 
