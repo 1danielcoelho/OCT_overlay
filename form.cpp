@@ -164,17 +164,15 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_encoding_mode = m_ui->over_encoding_combobox->currentIndex();
   m_view_mode = m_ui->over_mode_select_combobox->currentIndex();
 
-  double left_P[] = {   654.93728456, 0.00000000, 275.52497101, 0.00000000,
-                        0.00000000, 654.93728456, 264.49638748, 0.00000000,
-                        0.00000000, 0.00000000, 1.00000000, 0.00000000,
-                        0.00000000, 0.00000000, 0.00000000, 0.00000000};
+  double left_P[] = {654.93728456, 0.00000000,   275.52497101, 0.00000000,
+                     0.00000000,   654.93728456, 264.49638748, 0.00000000,
+                     0.00000000,   0.00000000,   1.00000000,   0.00000000,
+                     0.00000000,   0.00000000,   0.00000000,   0.00000000};
   VTK_NEW(vtkMatrix4x4, mat);
-  for(int i = 0; i < 4; i++)
-  {
-      for(int j = 0; j < 4; j++)
-      {
-        mat->SetElement(i,j, left_P[j + i*4]);
-      }
+  for (int i = 0; i < 4; i++) {
+    for (int j = 0; j < 4; j++) {
+      mat->SetElement(i, j, left_P[j + i * 4]);
+    }
   }
   m_left_proj_trans->SetMatrix(mat);
 }
@@ -291,7 +289,8 @@ void Form::updateUIStates() {
   m_ui->save_transform_button->setEnabled(!m_waiting_response &&
                                           m_has_transform);
 
-  m_ui->over_encoding_combobox->setEnabled(m_has_oct_mass && m_has_stereo_cache);
+  m_ui->over_encoding_combobox->setEnabled(m_has_oct_mass &&
+                                           m_has_stereo_cache);
 
   m_ui->over_start_button->setEnabled(
       m_has_stereo_cache && !m_waiting_response && !m_viewing_realtime_overlay);
@@ -1059,271 +1058,188 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
   updateUIStates();
 }
 
-void Form::buildKDTree()
-{
-    //We call this after loading a transform. Not necessarily we have an oct
-    //mass loaded at this point, so return gracefully if we don't
-    if(m_oct_mass_poly_data->GetNumberOfPoints() == 0)
-    {
-        return;
-    }
+void Form::buildKDTree() {
+  // We call this after loading a transform. Not necessarily we have an oct
+  // mass loaded at this point, so return gracefully if we don't
+  if (m_oct_mass_poly_data->GetNumberOfPoints() == 0) {
+    return;
+  }
 
-    std::cout << "Building k-d tree\n";
+  std::cout << "Building k-d tree\n";
 
-    this->statusBar()->showMessage(
-        "Building k-d tree for vertex locations... ", 3000);
-    QApplication::processEvents();
+  this->statusBar()->showMessage("Building k-d tree for vertex locations... ",
+                                 3000);
+  QApplication::processEvents();
 
-    //Transforms the OCT mass polydata to the 3D stereocamera frame
-    VTK_NEW(vtkTransformFilter, trans_filt);
-    trans_filt->SetTransform(m_oct_stereo_trans);
-    trans_filt->SetInput(m_oct_mass_poly_data);
-    trans_filt->Update();
-    m_oct_mass_poly_data_stereo3D = trans_filt->GetPolyDataOutput();
+  // Transforms the OCT mass polydata to the 3D stereocamera frame
+  VTK_NEW(vtkTransformFilter, trans_filt);
+  trans_filt->SetTransform(m_oct_stereo_trans);
+  trans_filt->SetInput(m_oct_mass_poly_data);
+  trans_filt->Update();
+  m_oct_mass_poly_data_stereo3D = trans_filt->GetPolyDataOutput();
 
-    //Further transforms it into the 2D stereocamera image U,V coordinates
-    VTK_NEW(vtkTransformFilter, trans_filt2);
-    trans_filt2->SetInput(m_oct_mass_poly_data_stereo3D);
-    trans_filt2->SetTransform(m_left_proj_trans);
-    trans_filt2->Update();
-    m_oct_mass_poly_data_leftCamera = trans_filt2->GetPolyDataOutput();
+  // Further transforms it into the 2D stereocamera image U,V coordinates
+  VTK_NEW(vtkTransformFilter, trans_filt2);
+  trans_filt2->SetInput(m_oct_mass_poly_data_stereo3D);
+  trans_filt2->SetTransform(m_left_proj_trans);
+  trans_filt2->Update();
+  m_oct_mass_poly_data_leftCamera = trans_filt2->GetPolyDataOutput();
 
-    int num_pts = m_oct_mass_poly_data_leftCamera->GetNumberOfPoints();
-    vtkPoints* left_cam_pts = m_oct_mass_poly_data_leftCamera->GetPoints();
+  int num_pts = m_oct_mass_poly_data_leftCamera->GetNumberOfPoints();
+  vtkPoints* left_cam_pts = m_oct_mass_poly_data_leftCamera->GetPoints();
 
-    for(int i = 0; i < num_pts; i++)
-    {
-        double position[3];
-        left_cam_pts->GetPoint(i, position);
+  for (int i = 0; i < num_pts; i++) {
+    double position[3];
+    left_cam_pts->GetPoint(i, position);
 
-        position[0] /= position[2];
-        position[1] /= position[2];
-        position[2] = 0;
+    position[0] /= position[2];
+    position[1] /= position[2];
+    position[2] = 0;
 
-        left_cam_pts->SetPoint(i, position);
-    }
+    left_cam_pts->SetPoint(i, position);
+  }
 
-    m_oct_mass_kd_tree_locator = vtkSmartPointer<vtkKdTreePointLocator>::New();
-    m_oct_mass_kd_tree_locator->SetDataSet(m_oct_mass_poly_data_stereo3D);
-    m_oct_mass_kd_tree_locator->BuildLocator();
+  m_oct_mass_kd_tree_locator = vtkSmartPointer<vtkKdTreePointLocator>::New();
+  m_oct_mass_kd_tree_locator->SetDataSet(m_oct_mass_poly_data_stereo3D);
+  m_oct_mass_kd_tree_locator->BuildLocator();
 }
 
-void Form::encodeDepthInformation(vtkSmartPointer<vtkPolyData> surface,
-                                  vtkSmartPointer<vtkPolyData> mass,
-                                  vtkSmartPointer<vtkActor> surface_actor,
-                                  vtkSmartPointer<vtkActor> mass_actor)
-{
-    double position[3];
-    m_renderer_0->GetActiveCamera()->GetPosition(position);
+void Form::encodeColorDepth(vtkSmartPointer<vtkPolyData> surface,
+                            vtkSmartPointer<vtkPolyData> mass,
+                            vtkSmartPointer<vtkActor> surface_actor,
+                            vtkSmartPointer<vtkActor> mass_actor) {
 
-    int num_pts = 0;
-    vtkTypeUInt8Array* colors;
+  int j = 0;
+  double distance = 0;
+  int num_pts = 0;
+  vtkTypeUInt8Array* colors;
 
-    VTK_NEW(vtkTimerLog, timer);
-    double time = timer->GetUniversalTime();
+  num_pts = surface->GetNumberOfPoints();
 
-    VTK_NEW(vtkActor, actor);
-    VTK_NEW(vtkKdTreePointLocator, surface_locator);
-    VTK_NEW(vtkPlane, plane);
-    VTK_NEW(vtkPoints, proj_pts);
-    VTK_NEW(vtkCellArray, cells);
-    VTK_NEW(vtkPolyData, poly);
-    VTK_NEW(vtkPolyDataMapper, proj_mapper);
-    VTK_NEW(vtkPolyDataSilhouette, silh_filt);
+  colors = vtkTypeUInt8Array::SafeDownCast(
+      surface->GetPointData()->GetArray("Colors"));
 
-    VTK_NEW(vtkPolyDataToImageStencil, poly_to_stencil_filter);
+  for (int i = 0; i < num_pts; i++) {
+    double pt_surf[3];
+    surface->GetPoint(i, pt_surf);
 
-    int j = 0;
-    int num_cells = 0;
-    double distance = 0;
+    distance = 99999.0;
 
-    // Render the stereo surface differently depending on encoding
-    switch (m_encoding_mode) {
-      case 0:  // None
-        surface_actor->GetProperty()->SetOpacity(0.99);
-        surface_actor->GetProperty()->SetPointSize(5);
+    // Find the ID of the closest point to point i
+    j = m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(5.0, pt_surf,
+                                                                 distance);
+    distance = std::sqrt(distance);
 
-        break;
-      case 1:  // Colors
-        num_pts = surface->GetNumberOfPoints();
+    // Don't do anything to points too far away
+    if (distance > 5) continue;
 
-        colors = vtkTypeUInt8Array::SafeDownCast(
-            surface->GetPointData()->GetArray("Colors"));
-        for (int i = 0; i < num_pts; i++) {
-          double pt_surf[3];
-          surface->GetPoint(i, pt_surf);
+    double old_color[4];
+    double color_to_add[4];
 
-          distance = 99999.0;
+    colors->GetTuple(i, old_color);
+    m_overlay_lut->GetColor(distance, color_to_add);
 
-          // Find the ID of the closest point to point i
-          j = m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(5.0, pt_surf, distance);
-          distance = std::sqrt(distance);
+    old_color[0] *= color_to_add[0];
+    old_color[1] *= color_to_add[1];
+    old_color[2] *= color_to_add[2];
 
-          //Don't do anything to points too far away
-          if(distance > 5) continue;
+    colors->SetTuple(i, old_color);
+  }
 
-          double old_color[4];
-          double color_to_add[4];
+  // Turns on transparency calculations
+  surface_actor->GetProperty()->SetOpacity(0.99);
+  surface_actor->GetProperty()->SetPointSize(5);
+}
 
-          colors->GetTuple(i, old_color);
-          m_overlay_lut->GetColor(distance, color_to_add);
+void Form::encodeStereoProjDepth(vtkSmartPointer<vtkPolyData> surface,
+                                 vtkSmartPointer<vtkPolyData> mass,
+                                 vtkSmartPointer<vtkActor> surface_actor,
+                                 vtkSmartPointer<vtkActor> mass_actor) {
 
-          old_color[0] *= color_to_add[0];
-          old_color[1] *= color_to_add[1];
-          old_color[2] *= color_to_add[2];
+  VTK_NEW(vtkPolyDataSilhouette, silh_filt);
+  silh_filt->SetEnableFeatureAngle(0);
+  silh_filt->SetCamera(m_renderer_0->GetActiveCamera());
+  silh_filt->SetInput(mass);
 
-          colors->SetTuple(i, old_color);
-        }
+  VTK_NEW(vtkPolyDataMapper, proj_mapper);
+  proj_mapper->SetInputConnection(silh_filt->GetOutputPort());
 
-        surface_actor->GetProperty()->SetOpacity(0.99);
-        surface_actor->GetProperty()->SetPointSize(5);
-        break;
-      case 2:  // Opacity
-        num_pts = surface->GetNumberOfPoints();
+  VTK_NEW(vtkActor, actor);
+  actor->SetMapper(proj_mapper);
+  actor->GetProperty()->SetLineWidth(5);
 
-        colors = vtkTypeUInt8Array::SafeDownCast(
-            surface->GetPointData()->GetArray("Colors"));
+  // pass
+}
 
-        for (int i = 0; i < num_pts; i++) {
-            double pt_surf[3];
-            surface->GetPoint(i, pt_surf);
+void Form::encodeOCTProjDepth(vtkSmartPointer<vtkPolyData> surface,
+                              vtkSmartPointer<vtkPolyData> mass,
+                              vtkSmartPointer<vtkActor> surface_actor,
+                              vtkSmartPointer<vtkActor> mass_actor) {
 
-            distance = 99999.0;
-
-            // Find the ID of the closest point to point i
-            j = m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(10.0, pt_surf, distance);
-            distance = std::sqrt(distance);
-
-            double old_color[4];
-            double opacity;
-
-            colors->GetTuple(i, old_color);
-            opacity = m_overlay_lut->GetOpacity(distance);
-
-            old_color[3] *= opacity * opacity;
-
-            colors->SetTuple(i, old_color);
-        }
-
-
-        surface_actor->GetProperty()->SetOpacity(0.99);
-        surface_actor->GetProperty()->SetPointSize(5);
-        break;
-      case 3:  // Color silhouette
-
-            //Note that we invert the order: At this point, m_stereo_reproject_image
-            //already has been constructed
-            poly_to_stencil_filter->SetInput(m_oct_mass_poly_data_leftCamera);
-            poly_to_stencil_filter->SetInformationInput(m_stereo_reproject_image);
-
-            //Build a stencil with its mesh
-                //Use SetInformationInput(m_stereo_reproject_image);
-            //Apply color encoding, then apply the stencil. Leave it transparent
-            //outside the mass poly -> Background shows through
-
-        break;
-
-    case 4: //Kinetic depth
-
-        //Sit here for exactly 1 second, spinning around
-        time = timer->GetUniversalTime() + 1;
-        while(timer->GetUniversalTime() < time)
-        {
-            surface_actor->GetProperty()->SetOpacity(1.0);
-            surface_actor->GetProperty()->SetPointSize(1);
-            position[0] = 5*std::cos(timer->GetUniversalTime() * 10);
-            position[1] = 5*std::sin(timer->GetUniversalTime() * 10);
-            position[2] = -20;
-
-            m_renderer_0->GetActiveCamera()->SetFocalPoint(0, 0, 30);
-            m_renderer_0->GetActiveCamera()->SetViewUp(0, -1, 0);
-            m_renderer_0->GetActiveCamera()->SetPosition(position);
-            this->m_ui->qvtkWidget->update();
-            QApplication::processEvents();
-        }
-
-        break;
-      case 5:  //Silhouette
-         silh_filt->SetEnableFeatureAngle(0);
-         silh_filt->SetCamera(m_renderer_0->GetActiveCamera());
-         silh_filt->SetInput(mass);
-
-
-         proj_mapper->SetInputConnection(silh_filt->GetOutputPort());
-
-         actor->SetMapper(proj_mapper);
-         actor->GetProperty()->SetLineWidth(5);
-
-         m_renderer_0->AddActor(actor);
-
-        break;
-    }
+  // pass
 }
 
 void Form::mapReconstructionTo2D(vtkSmartPointer<vtkPolyData> surface,
                                  vtkSmartPointer<vtkTransform> P,
                                  vtkSmartPointer<vtkImageData> out_image,
-                                 int width, int height)
-{
-    int num_pts = surface->GetNumberOfPoints();
+                                 int width, int height) {
+  int num_pts = surface->GetNumberOfPoints();
 
-    out_image->ReleaseData();
-    out_image->SetDimensions(width, height, 1);
-    out_image->SetNumberOfScalarComponents(4);
-    out_image->SetScalarTypeToUnsignedChar();
-    out_image->AllocateScalars();
+  out_image->ReleaseData();
+  out_image->SetDimensions(width, height, 1);
+  out_image->SetNumberOfScalarComponents(4);
+  out_image->SetScalarTypeToUnsignedChar();
+  out_image->AllocateScalars();
 
-    vtkTypeUInt8Array*colors =
-            vtkTypeUInt8Array::SafeDownCast(
-                surface->GetPointData()->GetArray("Colors"));
+  vtkTypeUInt8Array* colors = vtkTypeUInt8Array::SafeDownCast(
+      surface->GetPointData()->GetArray("Colors"));
 
-    for(int i = 0; i < width; i++)
-    {
-        for(int j = 0; j < height; j++)
-        {
-            unsigned char* pixel = static_cast<unsigned char*>(
-                out_image->GetScalarPointer(i, j, 0));
+  for (int i = 0; i < width; i++) {
+    for (int j = 0; j < height; j++) {
+      unsigned char* pixel =
+          static_cast<unsigned char*>(out_image->GetScalarPointer(i, j, 0));
 
-            pixel[0] = 0;
-            pixel[1] = 0;
-            pixel[2] = 0;
-            pixel[3] = 0;
-        }
+      pixel[0] = 0;
+      pixel[1] = 0;
+      pixel[2] = 0;
+      pixel[3] = 0;
     }
+  }
 
-    for (uint32_t i = 0; i < num_pts; i++) {
-        double pos_3d[4];
-        surface->GetPoint(i, pos_3d);
+  for (uint32_t i = 0; i < num_pts; i++) {
+    double pos_3d[4];
+    surface->GetPoint(i, pos_3d);
 
-        //The stereomatching marks points that it can't reconstruct with
-        // a -1 depth, so we skip those
-        if(pos_3d[2] == -1) continue;
-        pos_3d[3] = 1;
+    // The stereomatching marks points that it can't reconstruct with
+    // a -1 depth, so we skip those
+    if (pos_3d[2] == -1) continue;
+    pos_3d[3] = 1;
 
-        double color[4];
-        colors->GetTuple(i, color);
+    double color[4];
+    colors->GetTuple(i, color);
 
-        double pos_2d[4];
-        P->MultiplyPoint(pos_3d, pos_2d); //out = P * in
+    double pos_2d[4];
+    P->MultiplyPoint(pos_3d, pos_2d);  // out = P * in
 
-        pos_2d[0] /= pos_2d[2];
-        pos_2d[1] /= pos_2d[2];
+    pos_2d[0] /= pos_2d[2];
+    pos_2d[1] /= pos_2d[2];
 
-        int u = (int)(pos_2d[0] + 0.5d);
-        int v = (int)(pos_2d[1] + 0.5d);
+    int u = (int)(pos_2d[0] + 0.5d);
+    int v = (int)(pos_2d[1] + 0.5d);
 
-        unsigned char *pixel = static_cast<unsigned char *>(
-            out_image->GetScalarPointer(u, height-v-1, 0));
+    unsigned char* pixel = static_cast<unsigned char*>(
+        out_image->GetScalarPointer(u, height - v - 1, 0));
 
-        pixel[0] = (unsigned char)color[0];
-        pixel[1] = (unsigned char)color[1];
-        pixel[2] = (unsigned char)color[2];
-        pixel[3] = (unsigned char)color[3];
+    pixel[0] = (unsigned char)color[0];
+    pixel[1] = (unsigned char)color[1];
+    pixel[2] = (unsigned char)color[2];
+    pixel[3] = (unsigned char)color[3];
 
-//        std::cout << "U: " << u << ", V: " << v << ", r: " << (unsigned int)pixel[0] << ", g: " <<
-//                     (unsigned int)pixel[1] << ", b: " << (unsigned int)pixel[2] << ", a: " << (unsigned int)pixel[3] << std::endl;
-    }
-
+    //        std::cout << "U: " << u << ", V: " << v << ", r: " << (unsigned
+    // int)pixel[0] << ", g: " <<
+    //                     (unsigned int)pixel[1] << ", b: " << (unsigned
+    // int)pixel[2] << ", a: " << (unsigned int)pixel[3] << std::endl;
+  }
 }
 
 //------------RENDERING---------------------------------------------------------
@@ -1564,12 +1480,10 @@ void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data,
   double scaling = 1;
   if (window_aspect_ratio >= image_aspect_ratio) {
     scaling = image_height / window_height;
-    actor->SetPosition((window_width - image_width / scaling) / 2,
-                                   0);
+    actor->SetPosition((window_width - image_width / scaling) / 2, 0);
   } else {
     scaling = image_width / window_width;
-    actor->SetPosition(
-        0, (window_height - image_height / scaling) / 2);
+    actor->SetPosition(0, (window_height - image_height / scaling) / 2);
   }
 
   VTK_NEW(vtkImageReslice, image_resize_filter);
@@ -1621,8 +1535,8 @@ void Form::renderOCTMass(vtkSmartPointer<vtkTransform> trans) {
 }
 
 void Form::renderStereoReconstructionWithEncoding() {
-    assert("Can't render a stereo reconstruction if it has no points!" &&
-           m_stereo_reconstr_poly_data->GetNumberOfPoints() > 0);
+  assert("Can't render a stereo reconstruction if it has no points!" &&
+         m_stereo_reconstr_poly_data->GetNumberOfPoints() > 0);
 
   VTK_NEW(vtkVertexGlyphFilter, vert);
   vert->SetInput(m_stereo_reconstr_poly_data);
@@ -1734,8 +1648,8 @@ void Form::on_browse_button_clicked() {
     trans->Identity();
 
     m_renderer_0->RemoveAllViewProps();
-  m_renderer_1->RemoveAllViewProps();
-  m_renderer_2->RemoveAllViewProps();
+    m_renderer_1->RemoveAllViewProps();
+    m_renderer_2->RemoveAllViewProps();
     renderOCTVolumePolyData(trans);
     m_renderer_0->ResetCamera();
 
@@ -1888,8 +1802,8 @@ void Form::on_browse_oct_surf_button_clicked() {
     trans->Identity();
 
     m_renderer_0->RemoveAllViewProps();
-  m_renderer_1->RemoveAllViewProps();
-  m_renderer_2->RemoveAllViewProps();
+    m_renderer_1->RemoveAllViewProps();
+    m_renderer_2->RemoveAllViewProps();
     renderOCTSurface(trans);
     m_renderer_0->ResetCamera();
 
@@ -1935,8 +1849,8 @@ void Form::on_browse_oct_mass_button_clicked() {
     trans->Identity();
 
     m_renderer_0->RemoveAllViewProps();
-  m_renderer_1->RemoveAllViewProps();
-  m_renderer_2->RemoveAllViewProps();
+    m_renderer_1->RemoveAllViewProps();
+    m_renderer_2->RemoveAllViewProps();
     renderOCTMass(trans);
     m_renderer_0->ResetCamera();
 
@@ -2236,8 +2150,8 @@ void Form::on_browse_left_image_button_clicked() {
     m_stereo_left_image = png_reader->GetOutput();
 
     m_renderer_0->RemoveAllViewProps();
-  m_renderer_1->RemoveAllViewProps();
-  m_renderer_2->RemoveAllViewProps();
+    m_renderer_1->RemoveAllViewProps();
+    m_renderer_2->RemoveAllViewProps();
     m_renderer_0->AddActor2D(m_stereo_2d_actor);
 
     render2DImageData(m_stereo_left_image, m_stereo_2d_actor);
@@ -2290,8 +2204,8 @@ void Form::on_browse_right_image_button_clicked() {
     m_stereo_right_image = png_reader->GetOutput();
 
     m_renderer_0->RemoveAllViewProps();
-  m_renderer_1->RemoveAllViewProps();
-  m_renderer_2->RemoveAllViewProps();
+    m_renderer_1->RemoveAllViewProps();
+    m_renderer_2->RemoveAllViewProps();
     m_renderer_0->AddActor2D(m_stereo_2d_actor);
 
     render2DImageData(m_stereo_right_image, m_stereo_2d_actor);
@@ -2343,8 +2257,8 @@ void Form::on_browse_disp_image_button_clicked() {
     m_stereo_disp_image = png_reader->GetOutput();
 
     m_renderer_0->RemoveAllViewProps();
-  m_renderer_1->RemoveAllViewProps();
-  m_renderer_2->RemoveAllViewProps();
+    m_renderer_1->RemoveAllViewProps();
+    m_renderer_2->RemoveAllViewProps();
     m_renderer_0->AddActor2D(m_stereo_2d_actor);
 
     render2DImageData(m_stereo_disp_image, m_stereo_2d_actor);
@@ -2391,8 +2305,8 @@ void Form::on_browse_depth_image_button_clicked() {
     m_crossbar->floatVectorToImageData2D(depth_vector, m_stereo_depth_image);
 
     m_renderer_0->RemoveAllViewProps();
-  m_renderer_1->RemoveAllViewProps();
-  m_renderer_2->RemoveAllViewProps();
+    m_renderer_1->RemoveAllViewProps();
+    m_renderer_2->RemoveAllViewProps();
     m_renderer_0->AddActor2D(m_stereo_2d_actor);
 
     render2DImageData(m_stereo_depth_image, m_stereo_2d_actor);
@@ -2803,8 +2717,8 @@ void Form::on_over_raw_checkbox_clicked() {
   // If we started viewing overlay from another tab, then clear actors
   if (!m_viewing_overlay) {
     m_renderer_0->RemoveAllViewProps();
-  m_renderer_1->RemoveAllViewProps();
-  m_renderer_2->RemoveAllViewProps();
+    m_renderer_1->RemoveAllViewProps();
+    m_renderer_2->RemoveAllViewProps();
     m_viewing_overlay = true;
   }
   m_waiting_response = true;
@@ -2833,8 +2747,8 @@ void Form::on_over_oct_surf_checkbox_clicked() {
   // If we started viewing overlay from another tab, then clear actors
   if (!m_viewing_overlay) {
     m_renderer_0->RemoveAllViewProps();
-  m_renderer_1->RemoveAllViewProps();
-  m_renderer_2->RemoveAllViewProps();
+    m_renderer_1->RemoveAllViewProps();
+    m_renderer_2->RemoveAllViewProps();
     m_viewing_overlay = true;
   }
   m_waiting_response = true;
@@ -2863,8 +2777,8 @@ void Form::on_over_oct_mass_checkbox_clicked() {
   // If we started viewing overlay from another tab, then clear actors
   if (!m_viewing_overlay) {
     m_renderer_0->RemoveAllViewProps();
-  m_renderer_1->RemoveAllViewProps();
-  m_renderer_2->RemoveAllViewProps();
+    m_renderer_1->RemoveAllViewProps();
+    m_renderer_2->RemoveAllViewProps();
     m_viewing_overlay = true;
   }
   m_waiting_response = true;
@@ -2892,8 +2806,8 @@ void Form::on_over_depth_checkbox_clicked() {
   // If we started viewing overlay from another tab, then clear actors
   if (!m_viewing_overlay) {
     m_renderer_0->RemoveAllViewProps();
-  m_renderer_1->RemoveAllViewProps();
-  m_renderer_2->RemoveAllViewProps();
+    m_renderer_1->RemoveAllViewProps();
+    m_renderer_2->RemoveAllViewProps();
     m_viewing_overlay = true;
   }
   m_waiting_response = true;
@@ -2940,8 +2854,8 @@ void Form::on_over_oct_axes_checkbox_clicked() {
   // If we started viewing overlay from another tab, then clear actors
   if (!m_viewing_overlay) {
     m_renderer_0->RemoveAllViewProps();
-  m_renderer_1->RemoveAllViewProps();
-  m_renderer_2->RemoveAllViewProps();
+    m_renderer_1->RemoveAllViewProps();
+    m_renderer_2->RemoveAllViewProps();
     m_viewing_overlay = true;
   }
   m_waiting_response = true;
@@ -2975,8 +2889,8 @@ void Form::on_over_trans_axes_checkbox_clicked() {
   // If we started viewing overlay from another tab, then clear actors
   if (!m_viewing_overlay) {
     m_renderer_0->RemoveAllViewProps();
-  m_renderer_1->RemoveAllViewProps();
-  m_renderer_2->RemoveAllViewProps();
+    m_renderer_1->RemoveAllViewProps();
+    m_renderer_2->RemoveAllViewProps();
     m_viewing_overlay = true;
   }
   m_waiting_response = true;
@@ -3056,7 +2970,7 @@ void Form::on_browse_transform_button_clicked() {
 
     buildKDTree();
 
-    //Since we have a new transform, remove all actors to force re-rendering
+    // Since we have a new transform, remove all actors to force re-rendering
     m_renderer_0->RemoveAllViewProps();
     m_renderer_1->RemoveAllViewProps();
     m_renderer_2->RemoveAllViewProps();
@@ -3140,8 +3054,8 @@ void Form::on_print_transform_button_clicked() {
 void Form::on_over_start_button_clicked() {
   if (!m_viewing_overlay) {
     m_renderer_0->RemoveAllViewProps();
-  m_renderer_1->RemoveAllViewProps();
-  m_renderer_2->RemoveAllViewProps();
+    m_renderer_1->RemoveAllViewProps();
+    m_renderer_2->RemoveAllViewProps();
     m_viewing_overlay = true;
   }
 
@@ -3169,7 +3083,7 @@ void Form::on_over_stop_button_clicked() {
 
   m_viewing_realtime_overlay = false;
   m_waiting_response = false;
-  updateUIStates();  
+  updateUIStates();
 
   Q_EMIT stopOverlay();
 }
@@ -3281,7 +3195,7 @@ void Form::receivedRegistration() {
 
   buildKDTree();
 
-  //Since we have a new transform, remove all actors to force re-rendering
+  // Since we have a new transform, remove all actors to force re-rendering
   m_renderer_0->RemoveAllViewProps();
   m_renderer_1->RemoveAllViewProps();
   m_renderer_2->RemoveAllViewProps();
@@ -3302,117 +3216,127 @@ void Form::receivedRegistration() {
 }
 
 void Form::newSurface(vtkPolyData* surf) {
-    m_stereo_reconstr_poly_data.TakeReference(surf);
+  // Take ownership of the surf
+  m_stereo_reconstr_poly_data.TakeReference(surf);
 
-    //No depth encoding, 2D view
-    if(m_viewing_realtime_overlay && m_encoding_mode == 0 && m_view_mode == 0) {
+  // No depth encoding, 2D view
+  if (m_viewing_realtime_overlay && m_encoding_mode == 0 && m_view_mode == 0) {
 
-        mapReconstructionTo2D(m_stereo_reconstr_poly_data,
-                              m_left_proj_trans,
-                              m_stereo_reproject_image,
-                              640, 480);
+    mapReconstructionTo2D(m_stereo_reconstr_poly_data, m_left_proj_trans,
+                          m_stereo_reproject_image, 640, 480);
 
-        render2DImageData(m_stereo_reproject_image, m_stereo_2d_actor);
-        render2DImageData(m_stereo_left_image, m_stereo_2d_background_actor);
+    render2DImageData(m_stereo_reproject_image, m_stereo_2d_actor);
+    render2DImageData(m_stereo_left_image, m_stereo_2d_background_actor);
 
-        this->m_ui->qvtkWidget->update();
-        QApplication::processEvents();
+    this->m_ui->qvtkWidget->update();
+    QApplication::processEvents();
+  }
+
+  // No depth encoding, 3D view
+  if (m_viewing_realtime_overlay && m_encoding_mode == 0 && m_view_mode == 1) {
+
+    m_renderer_0->AddActor(m_stereo_reconstr_actor);
+    renderStereoReconstructionWithEncoding();
+
+    this->m_ui->qvtkWidget->update();
+    QApplication::processEvents();
+  }
+
+  // Using some other encoding, 2D view
+  else if (m_viewing_realtime_overlay && m_view_mode == 0) {
+
+    switch (m_encoding_mode) {
+      case 1:  // Color
+        encodeColorDepth(surf, m_oct_mass_poly_data_stereo3D,
+                         m_stereo_reconstr_actor, m_oct_mass_actor);
+        break;
+      case 2:  // Stereocamera silhouette
+        encodeStereoProjDepth(surf, m_oct_mass_poly_data_stereo3D,
+                              m_stereo_reconstr_actor, m_oct_mass_actor);
+        break;
+
+      case 3:  // OCT silhouette
+        encodeOCTProjDepth(surf, m_oct_mass_poly_data_stereo3D,
+                           m_stereo_reconstr_actor, m_oct_mass_actor);
+        break;
     }
 
-    //No depth encoding, 3D view
-    if(m_viewing_realtime_overlay && m_encoding_mode == 0 && m_view_mode == 1) {
+    mapReconstructionTo2D(m_stereo_reconstr_poly_data, m_left_proj_trans,
+                          m_stereo_reproject_image, 640, 480);
 
-        m_renderer_0->AddActor(m_stereo_reconstr_actor);
-        renderStereoReconstructionWithEncoding();
+    render2DImageData(m_stereo_reproject_image, m_stereo_2d_actor);
+    render2DImageData(m_stereo_left_image, m_stereo_2d_background_actor);
 
-        this->m_ui->qvtkWidget->update();
-        QApplication::processEvents();
+    this->m_ui->qvtkWidget->update();
+    QApplication::processEvents();
+
+  }
+  // Using some other encoding, 3D view
+  else if (m_viewing_realtime_overlay && m_view_mode == 1) {
+
+    switch (m_encoding_mode) {
+      case 1:  // Color
+        encodeColorDepth(surf, m_oct_mass_poly_data_stereo3D,
+                         m_stereo_reconstr_actor, m_oct_mass_actor);
+        break;
+      case 2:  // Stereocamera silhouette
+        encodeStereoProjDepth(surf, m_oct_mass_poly_data_stereo3D,
+                              m_stereo_reconstr_actor, m_oct_mass_actor);
+        break;
+
+      case 3:  // OCT silhouette
+        encodeOCTProjDepth(surf, m_oct_mass_poly_data_stereo3D,
+                           m_stereo_reconstr_actor, m_oct_mass_actor);
+        break;
     }
 
-    //Using some other encoding, 2D view
-    else if (m_viewing_realtime_overlay && m_view_mode == 0) {
+    m_renderer_0->AddActor(m_stereo_reconstr_actor);
+    renderStereoReconstructionWithEncoding();
 
-        //Need to map first: encodeDepthInformation uses m_stereo_reproject_image
-        encodeDepthInformation(m_stereo_reconstr_poly_data,
-                               m_oct_mass_poly_data_stereo3D,
-                               m_stereo_reconstr_actor,
-                               m_oct_mass_actor);
-
-        mapReconstructionTo2D(m_stereo_reconstr_poly_data,
-                              m_left_proj_trans,
-                              m_stereo_reproject_image,
-                              640, 480);
-
-        render2DImageData(m_stereo_reproject_image, m_stereo_2d_actor);
-        render2DImageData(m_stereo_left_image, m_stereo_2d_background_actor);
-
-        this->m_ui->qvtkWidget->update();
-        QApplication::processEvents();
-
-    }
-    //Using some other encoding, 3D view
-    else if (m_viewing_realtime_overlay && m_view_mode == 1) {
-
-        encodeDepthInformation(m_stereo_reconstr_poly_data,
-                               m_oct_mass_poly_data_stereo3D,
-                               m_stereo_reconstr_actor,
-                               m_oct_mass_actor);
-
-        m_renderer_0->AddActor(m_stereo_reconstr_actor);
-        renderStereoReconstructionWithEncoding();
-
-        this->m_ui->qvtkWidget->update();
-        QApplication::processEvents();
-
-    }
+    this->m_ui->qvtkWidget->update();
+    QApplication::processEvents();
+  }
 
   Q_EMIT readyForOverlay();
 }
 
 void Form::newBackground(vtkImageData* back) {
-    m_stereo_left_image.TakeReference(back);
-    if (m_viewing_overlay && m_view_mode == 0) {
-    }
+  m_stereo_left_image.TakeReference(back);
 }
 
-void Form::on_over_mode_select_combobox_currentIndexChanged(int index)
-{
-    m_view_mode = m_ui->over_mode_select_combobox->currentIndex();
+void Form::on_over_mode_select_combobox_currentIndexChanged(int index) {
+  m_view_mode = m_ui->over_mode_select_combobox->currentIndex();
 
-    switch(m_view_mode)
-    {
-    case 0: // 2D
-        m_renderer_0->RemoveActor(m_stereo_reconstr_actor);
-        m_renderer_0->AddActor2D(m_stereo_2d_background_actor);
+  switch (m_view_mode) {
+    case 0:  // 2D
+      m_renderer_0->RemoveActor(m_stereo_reconstr_actor);
+      m_renderer_0->AddActor2D(m_stereo_2d_background_actor);
 
-        m_renderer_1->AddActor2D(m_stereo_2d_actor);
+      m_renderer_1->AddActor2D(m_stereo_2d_actor);
 
-        //this->m_ui->qvtkWidget->update();
-        //QApplication::processEvents();
-        break;
-    case 1: // 3D
-        m_renderer_0->AddActor(m_stereo_reconstr_actor);
-        m_renderer_0->RemoveActor2D(m_stereo_2d_background_actor);
+      // this->m_ui->qvtkWidget->update();
+      // QApplication::processEvents();
+      break;
+    case 1:  // 3D
+      m_renderer_0->AddActor(m_stereo_reconstr_actor);
+      m_renderer_0->RemoveActor2D(m_stereo_2d_background_actor);
 
-        m_renderer_1->RemoveActor2D(m_stereo_2d_actor);
+      m_renderer_1->RemoveActor2D(m_stereo_2d_actor);
 
-        m_renderer_0->GetActiveCamera()->SetPosition(0, 0, -30);
-        m_renderer_0->GetActiveCamera()->SetFocalPoint(0, 0, 30);
-        m_renderer_0->GetActiveCamera()->SetViewUp(0, -1, 0);
+      m_renderer_0->GetActiveCamera()->SetPosition(0, 0, -30);
+      m_renderer_0->GetActiveCamera()->SetFocalPoint(0, 0, 30);
+      m_renderer_0->GetActiveCamera()->SetViewUp(0, -1, 0);
 
-        //this->m_ui->qvtkWidget->update();
-        //QApplication::processEvents();
-        break;
-
-    }
-
+      // this->m_ui->qvtkWidget->update();
+      // QApplication::processEvents();
+      break;
+  }
 }
 
-void Form::on_over_encoding_combobox_currentIndexChanged(int index)
-{
-    m_encoding_mode = m_ui->over_encoding_combobox->currentIndex();
+void Form::on_over_encoding_combobox_currentIndexChanged(int index) {
+  m_encoding_mode = m_ui->over_encoding_combobox->currentIndex();
 
-    switch (m_encoding_mode) {
+  switch (m_encoding_mode) {
     case 0:  // None
       break;
     case 1:  // Color
@@ -3448,22 +3372,22 @@ void Form::on_over_encoding_combobox_currentIndexChanged(int index)
       this->m_ui->qvtkWidget->update();
       QApplication::processEvents();
       break;
-  case 3:   // Color silhouette
+    case 3:  // Color silhouette
       m_renderer_2->RemoveActor2D(m_scalar_bar_actor);
       this->m_ui->qvtkWidget->update();
       QApplication::processEvents();
       break;
 
-   case 4: //Kinetic depth
+    case 4:  // Kinetic depth
       m_renderer_2->RemoveActor2D(m_scalar_bar_actor);
       this->m_ui->qvtkWidget->update();
       QApplication::processEvents();
       break;
 
-    case 5: //Silhouette
-       m_renderer_2->RemoveActor2D(m_scalar_bar_actor);
-       this->m_ui->qvtkWidget->update();
-       QApplication::processEvents();
-       break;
+    case 5:  // Silhouette
+      m_renderer_2->RemoveActor2D(m_scalar_bar_actor);
+      this->m_ui->qvtkWidget->update();
+      QApplication::processEvents();
+      break;
   }
 }

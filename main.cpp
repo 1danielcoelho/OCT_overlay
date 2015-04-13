@@ -1,8 +1,22 @@
-/*  TODO:
-
--Implement visualizations
-
-* */
+/*  TODO LIST:
+ *
+ *  -Change encoding switch into multiple functions
+ *
+ *  -Implement the silhouette visualization from the stereocamera POV
+ *    -Look into VTK image stencils. Particularly PolyDataToImageStencil
+ *    -Continue using silhouette filter. Use these lines as a stencil, stencil
+ *     out the color overlay to show it just within the silhouette
+ *
+ *  -Implement the silhouette visualization from the OCT POV
+ *    -Apply the inverse OCT->stereo transform; Discard Z coordinate; Find all
+ *     edges in the mass poly that belong to only one triangle (outer edges);
+ *
+ *  -Remove stereocamera accumulators and simplify the QNode-Form interface
+ *
+ *
+ *
+ *
+ * */
 
 /* NEXT EXPERIMENT:
 *

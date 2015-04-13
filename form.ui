@@ -16,7 +16,7 @@
   <widget class="QWidget" name="centralWidget">
    <layout class="QGridLayout" name="gridLayout_3">
     <item row="0" column="1">
-     <widget class="QVTKWidget" name="qvtkWidget" native="true"/>
+     <widget class="QVTKWidget" name="qvtkWidget"/>
     </item>
    </layout>
   </widget>
@@ -26,7 +26,7 @@
      <x>0</x>
      <y>0</y>
      <width>996</width>
-     <height>25</height>
+     <height>22</height>
     </rect>
    </property>
   </widget>
@@ -3076,22 +3076,12 @@ QGroupBox::title {
                   </item>
                   <item>
                    <property name="text">
-                    <string>Opacity</string>
+                    <string>Stereocamera silhouette</string>
                    </property>
                   </item>
                   <item>
                    <property name="text">
-                    <string>Color silhouette</string>
-                   </property>
-                  </item>
-                  <item>
-                   <property name="text">
-                    <string>Kinetic depth</string>
-                   </property>
-                  </item>
-                  <item>
-                   <property name="text">
-                    <string>Silhouette</string>
+                    <string>OCT silhouette</string>
                    </property>
                   </item>
                  </widget>

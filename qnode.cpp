@@ -103,6 +103,7 @@ void QNode::setupSubscriptions() {
   resetAccumulators();
 
   ROS_INFO("Topic subscription and synchronization completed");
+
 }
 
 void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
@@ -111,7 +112,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
                           const sensor_msgs::ImageConstPtr &msg_depth) {
   // ROS_INFO("imageCallback called");
 
-  // If we're in overlaying mode, just display the images
+  // If we're in overlaying mode: Transfer image pointers as Qt Signals
   if (m_overlaying) {
 
     //Qt has no "signal dropping", so we need to make sure we don't overwhelm

@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<launch>
+    <node name="OCT_overlay" pkg="OCT_overlay" type="OCT_overlay" 
+        output="screen" launch-prefix="gdb -ex run --args">
+        <param name="leftImageTopicName" type="string" value="/stereomatching/
+            image_left"/>
+        <param name="rightImageTopicName" type="string" value="/stereomatching/
+            image_right"/>
+        <param name="dispImageTopicName" type="string" value="/stereomatching/
+            disparity_map"/>
+        <param name="depthImageTopicName" type="string" value="/stereomatching/
+            depth_map"/>
+    </node>    
+    <node name="bag_helper" pkg="bag_helper" type="bag_helper" 
+        output="screen" launch-prefix="gdb -ex run --args">
+    </node>  
+    
+    <node pkg="dynamic_reconfigure" type="reconfigure_gui" 
+            name="reconfigure_gui">
+  	</node> 
+</launch>

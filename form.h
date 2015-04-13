@@ -176,20 +176,38 @@ class Form : public QMainWindow {
   // by applying the currently loaded transform to it first
   void buildKDTree();
 
-  //Receives the surface and mass polydata and changes the RGBA values in
-  //in the "Colors" array of "surface" to match some form of encoding, selected
-  //by the combobox in the UI
-  void encodeDepthInformation(vtkSmartPointer<vtkPolyData> surface,
-                              vtkSmartPointer<vtkPolyData> mass,
-                              vtkSmartPointer<vtkActor> surface_actor,
-                              vtkSmartPointer<vtkActor> mass_actor);
+  // Receives the surface and mass polydata and changes the RGBA values in
+  // in the "Colors" array of "surface" to match the distance between it and
+  // mass
+  void encodeColorDepth(vtkSmartPointer<vtkPolyData> surface,
+                        vtkSmartPointer<vtkPolyData> mass,
+                        vtkSmartPointer<vtkActor> surface_actor,
+                        vtkSmartPointer<vtkActor> mass_actor);
+
+  // Receives the surface and mass polydata and changes the RGBA values in
+  // in the "Colors" array of "surface" to match the distance between it and
+  // mass, delimited by the projection of the silhouette of the mass to the
+  // POV of the stereocamera
+  void encodeStereoProjDepth(vtkSmartPointer<vtkPolyData> surface,
+                             vtkSmartPointer<vtkPolyData> mass,
+                             vtkSmartPointer<vtkActor> surface_actor,
+                             vtkSmartPointer<vtkActor> mass_actor);
+
+  // Receives the surface and mass polydata and changes the RGBA values in
+  // in the "Colors" array of "surface" to match the distance between it and
+  // mass, delimited by the projection of the silhouette of the mass to the
+  // POV of the OCT
+  void encodeOCTProjDepth(vtkSmartPointer<vtkPolyData> surface,
+                          vtkSmartPointer<vtkPolyData> mass,
+                          vtkSmartPointer<vtkActor> surface_actor,
+                          vtkSmartPointer<vtkActor> mass_actor);
 
   // Uses the transform P to map the point coordinates of the "surface" polydata
   // to truncated int indices into an imageData of width/height
   void mapReconstructionTo2D(vtkSmartPointer<vtkPolyData> surface,
                              vtkSmartPointer<vtkTransform> P,
-                             vtkSmartPointer<vtkImageData> out_image,
-                             int width, int height);
+                             vtkSmartPointer<vtkImageData> out_image, int width,
+                             int height);
 
   //-------------RENDERING------------------------------------------------------
 
@@ -293,7 +311,7 @@ Q_SLOTS:
   void on_save_transform_button_clicked();
 
   void on_over_start_button_clicked();
-  void on_over_stop_button_clicked();  
+  void on_over_stop_button_clicked();
 
   void on_over_mode_select_combobox_currentIndexChanged(int index);
   void on_over_encoding_combobox_currentIndexChanged(int index);
