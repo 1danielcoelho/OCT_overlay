@@ -77,6 +77,7 @@
 #include <vtkTextureMapToPlane.h>
 #include <vtkPolyDataSilhouette.h>
 #include <vtkPolyDataToImageStencil.h>
+#include <vtkStripper.h>
 // Mappers
 #include <vtkPolyDataMapper.h>
 #include <vtkImageMapper.h>
@@ -200,7 +201,7 @@ class Form : public QMainWindow {
   void encodeOCTProjDepth(vtkSmartPointer<vtkPolyData> surface,
                           vtkSmartPointer<vtkPolyData> mass,
                           vtkSmartPointer<vtkActor> surface_actor,
-                          vtkSmartPointer<vtkActor> mass_actor);
+                          vtkSmartPointer<vtkActor> mass_actor);  
 
   // Uses the transform P to map the point coordinates of the "surface" polydata
   // to truncated int indices into an imageData of width/height
@@ -208,6 +209,10 @@ class Form : public QMainWindow {
                              vtkSmartPointer<vtkTransform> P,
                              vtkSmartPointer<vtkImageData> out_image, int width,
                              int height);
+
+  // Construct a polyline silhouette from the transformed OCT mass, according to
+  // the point of view of the camera
+  void constructViewPOVPolyline();
 
   //-------------RENDERING------------------------------------------------------
 
@@ -369,6 +374,7 @@ Q_SLOTS:
   vtkSmartPointer<vtkPolyData> m_oct_surf_poly_data;
   vtkSmartPointer<vtkPolyData> m_stereo_left_poly_data;
   vtkSmartPointer<vtkPolyData> m_stereo_reconstr_poly_data;
+  vtkSmartPointer<vtkPolyData> m_silhouette_polyline;
   vtkSmartPointer<vtkImageData> m_stereo_left_image;
   vtkSmartPointer<vtkImageData> m_stereo_right_image;
   vtkSmartPointer<vtkImageData> m_stereo_disp_image;

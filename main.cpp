@@ -1,7 +1,5 @@
 /*  TODO LIST:
  *
- *  -Change encoding switch into multiple functions
- *
  *  -Implement the silhouette visualization from the stereocamera POV
  *    -Look into VTK image stencils. Particularly PolyDataToImageStencil
  *    -Continue using silhouette filter. Use these lines as a stencil, stencil
@@ -11,8 +9,9 @@
  *    -Apply the inverse OCT->stereo transform; Discard Z coordinate; Find all
  *     edges in the mass poly that belong to only one triangle (outer edges);
  *
- *  -Remove stereocamera accumulators and simplify the QNode-Form interface
+ *  -Change m_oct_mass_poly_data_stereo3D to something less stupid
  *
+ *  -Maybe find a way to implement opacity encoding
  *
  *
  *

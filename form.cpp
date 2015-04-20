@@ -108,6 +108,7 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_oct_mass_poly_data_leftCamera = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_left_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_reconstr_poly_data = vtkSmartPointer<vtkPolyData>::New();
+  m_silhouette_polyline = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_left_image = vtkSmartPointer<vtkImageData>::New();
   m_stereo_right_image = vtkSmartPointer<vtkImageData>::New();
   m_stereo_disp_image = vtkSmartPointer<vtkImageData>::New();
@@ -1140,18 +1141,6 @@ void Form::encodeStereoProjDepth(vtkSmartPointer<vtkPolyData> surface,
                                  vtkSmartPointer<vtkActor> surface_actor,
                                  vtkSmartPointer<vtkActor> mass_actor) {
 
-  VTK_NEW(vtkPolyDataSilhouette, silh_filt);
-  silh_filt->SetEnableFeatureAngle(0);
-  silh_filt->SetCamera(m_renderer_0->GetActiveCamera());
-  silh_filt->SetInput(mass);
-
-  VTK_NEW(vtkPolyDataMapper, proj_mapper);
-  proj_mapper->SetInputConnection(silh_filt->GetOutputPort());
-
-  VTK_NEW(vtkActor, actor);
-  actor->SetMapper(proj_mapper);
-  actor->GetProperty()->SetLineWidth(5);
-
   // pass
 }
 
@@ -1224,6 +1213,65 @@ void Form::mapReconstructionTo2D(vtkSmartPointer<vtkPolyData> surface,
     //                     (unsigned int)pixel[1] << ", b: " << (unsigned
     // int)pixel[2] << ", a: " << (unsigned int)pixel[3] << std::endl;
   }
+}
+
+void Form::constructViewPOVPolyline()
+{
+  VTK_NEW(vtkPolyDataSilhouette, silh_filt);
+  silh_filt->SetEnableFeatureAngle(1);
+  silh_filt->SetFeatureAngle(180);
+  silh_filt->SetCamera(m_renderer_0->GetActiveCamera());
+  silh_filt->SetInput(m_oct_mass_poly_data_stereo3D);
+  silh_filt->Update();
+
+  vtkPolyData* silh_output = silh_filt->GetOutput();
+
+  VTK_NEW(vtkStripper, stripper);
+  stripper->SetInput(silh_output);
+  stripper->Update();
+
+  m_silhouette_polyline = stripper->GetOutput();
+
+  VTK_NEW(vtkPolyDataMapper, mapper);
+  mapper->SetInput(m_silhouette_polyline);
+
+  VTK_NEW(vtkActor, actor);
+  actor->SetMapper(mapper);
+
+  m_renderer_0->AddActor(actor);
+
+  //Use vtkStripper to convert from the 87 lines into contigous polylines
+
+//  uint32_t num_pts = silhouette->GetNumberOfPoints();
+
+//  for (uint32_t i = 0; i < num_pts; i++) {
+//    double pos_3d[4];
+//    silhouette->GetPoint(i, pos_3d);
+
+//    pos_3d[3] = 1;
+
+//    double pos_2d[4];
+//    m_left_proj_trans->MultiplyPoint(pos_3d, pos_2d);  // out = P * in
+
+//    pos_2d[0] /= pos_2d[2];
+//    pos_2d[1] /= pos_2d[2];
+
+//    int u = (int)(pos_2d[0] + 0.5d);
+//    int v = (int)(pos_2d[1] + 0.5d);
+
+//    unsigned char* pixel = static_cast<unsigned char*>(
+//        out_image->GetScalarPointer(u, height - v - 1, 0));
+
+//    pixel[0] = (unsigned char)color[0];
+//    pixel[1] = (unsigned char)color[1];
+//    pixel[2] = (unsigned char)color[2];
+//    pixel[3] = (unsigned char)color[3];
+
+//    //        std::cout << "U: " << u << ", V: " << v << ", r: " << (unsigned
+//    // int)pixel[0] << ", g: " <<
+//    //                     (unsigned int)pixel[1] << ", b: " << (unsigned
+//    // int)pixel[2] << ", a: " << (unsigned int)pixel[3] << std::endl;
+//  }
 }
 
 //------------RENDERING---------------------------------------------------------
@@ -3232,31 +3280,14 @@ void Form::on_over_encoding_combobox_currentIndexChanged(int index) {
       this->m_ui->qvtkWidget->update();
       QApplication::processEvents();
       break;
-    case 2:  // Opacity
-      m_overlay_lut->SetTableRange(0.0, 5.0);
-      m_overlay_lut->SetSaturationRange(1, 1);
-      m_overlay_lut->SetHueRange(1, 1);
-      m_overlay_lut->SetValueRange(1, 1);
-      m_overlay_lut->SetAlphaRange(0.1, 1);
-      m_overlay_lut->Build();
-
-      m_renderer_2->RemoveActor2D(m_scalar_bar_actor);
-      this->m_ui->qvtkWidget->update();
-      QApplication::processEvents();
-      break;
-    case 3:  // Color silhouette
+    case 2:  // Stereocamera silhouette
+      constructViewPOVPolyline();
       m_renderer_2->RemoveActor2D(m_scalar_bar_actor);
       this->m_ui->qvtkWidget->update();
       QApplication::processEvents();
       break;
 
-    case 4:  // Kinetic depth
-      m_renderer_2->RemoveActor2D(m_scalar_bar_actor);
-      this->m_ui->qvtkWidget->update();
-      QApplication::processEvents();
-      break;
-
-    case 5:  // Silhouette
+    case 3:  // OCT silhouette
       m_renderer_2->RemoveActor2D(m_scalar_bar_actor);
       this->m_ui->qvtkWidget->update();
       QApplication::processEvents();
