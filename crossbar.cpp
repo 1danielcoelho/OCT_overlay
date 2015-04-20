@@ -6,9 +6,6 @@ void Crossbar::clearAllFiles() {
   remove(OCT_RAW_CACHE_PATH);
   remove(OCT_SURF_CACHE_PATH);
   remove(OCT_MASS_CACHE_PATH);
-  remove(STEREO_LEFT_CACHE_PATH);
-  remove(STEREO_RIGHT_CACHE_PATH);
-  remove(STEREO_DISP_CACHE_PATH);
   remove(STEREO_DEPTH_CACHE_PATH);
   remove(VIS_TRANS_CACHE_PATH);
 }

@@ -23,7 +23,7 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_waiting_response = false;
   m_has_oct_surf = false;
   m_has_oct_mass = false;
-  m_has_stereo_cache = false;
+  m_has_stereocamera = false;
   m_has_left_image = false;
   m_has_right_image = false;
   m_has_disp_image = false;
@@ -44,6 +44,7 @@ Form::Form(int argc, char** argv, QWidget* parent)
   qRegisterMetaType<std::vector<uint8_t> >();
   qRegisterMetaType<vtkPolyData*>();
   qRegisterMetaType<vtkImageData*>();
+  qRegisterMetaType<std::vector<vtkImageData*> >();
 
   // Connect signals and slots
   connect(m_qnode, SIGNAL(rosMasterChanged(bool)), this,
@@ -65,26 +66,18 @@ Form::Form(int argc, char** argv, QWidget* parent)
   connect(m_qnode, SIGNAL(receivedOCTSurfData(OCTinfo)), this,
           SLOT(receivedOCTSurfData(OCTinfo)), Qt::QueuedConnection);
 
-  connect(m_qnode, SIGNAL(receivedStereoImages()), this,
-          SLOT(receivedStereoImages()), Qt::QueuedConnection);
-
-  connect(m_qnode, SIGNAL(accumulated(float)), this, SLOT(accumulated(float)),
-          Qt::QueuedConnection);
-
   connect(m_qnode, SIGNAL(newSurface(vtkPolyData*)), this,
           SLOT(newSurface(vtkPolyData*)), Qt::QueuedConnection);
 
   connect(m_qnode, SIGNAL(newBackground(vtkImageData*)), this,
           SLOT(newBackground(vtkImageData*)), Qt::QueuedConnection);
 
+  connect(m_qnode, SIGNAL(newStereoImages(std::vector<vtkImageData*>)), this,
+          SLOT(newStereoImages(std::vector<vtkImageData*>)),
+          Qt::QueuedConnection);
+
   connect(m_qnode, SIGNAL(receivedRegistration()), this,
           SLOT(receivedRegistration()), Qt::QueuedConnection);
-
-  connect(this, SIGNAL(setAccumulatorSize(uint)), m_qnode,
-          SLOT(setAccumulatorSize(uint)), Qt::QueuedConnection);
-
-  connect(this, SIGNAL(resetAccumulators()), m_qnode, SLOT(resetAccumulators()),
-          Qt::QueuedConnection);
 
   connect(this, SIGNAL(startOverlay()), m_qnode, SLOT(startOverlay()),
           Qt::QueuedConnection);
@@ -92,8 +85,8 @@ Form::Form(int argc, char** argv, QWidget* parent)
   connect(this, SIGNAL(stopOverlay()), m_qnode, SLOT(stopOverlay()),
           Qt::QueuedConnection);
 
-  connect(this, SIGNAL(readyForOverlay()), m_qnode, SLOT(readyForOverlay()),
-          Qt::QueuedConnection);
+  connect(this, SIGNAL(readyForStereoImages()), m_qnode,
+          SLOT(readyForStereoImages()), Qt::QueuedConnection);
 
   // Wire up qnode and it's thread. Don't touch this unless absolutely
   // necessary. It allows both to quit gracefully
@@ -229,14 +222,8 @@ void Form::updateUIStates() {
   m_ui->browse_oct_mass_button->setEnabled(!m_waiting_response);
 
   // Stereocamera page
-  m_ui->request_left_image_button->setEnabled(m_has_stereo_cache &&
-                                              !m_waiting_response);
-  m_ui->request_right_image_button->setEnabled(m_has_stereo_cache &&
-                                               !m_waiting_response);
-  m_ui->request_disp_image_button->setEnabled(m_has_stereo_cache &&
-                                              !m_waiting_response);
-  m_ui->request_depth_image_button->setEnabled(m_has_stereo_cache &&
-                                               !m_waiting_response);
+  m_ui->request_stereo_images->setEnabled(m_has_stereocamera &&
+                                          !m_waiting_response);
 
   m_ui->browse_left_image_button->setEnabled(!m_waiting_response);
   m_ui->browse_right_image_button->setEnabled(!m_waiting_response);
@@ -260,9 +247,6 @@ void Form::updateUIStates() {
                                            !m_waiting_response);
   m_ui->view_depth_image_button->setEnabled(m_has_depth_image &&
                                             !m_waiting_response);
-
-  m_ui->accu_spinbox->setEnabled(!m_waiting_response);
-  m_ui->accu_reset_button->setEnabled(!m_waiting_response);
 
   // Visualization page
   m_ui->over_min_vis_spinbox->setEnabled(!m_waiting_response);
@@ -290,10 +274,10 @@ void Form::updateUIStates() {
                                           m_has_transform);
 
   m_ui->over_encoding_combobox->setEnabled(m_has_oct_mass &&
-                                           m_has_stereo_cache);
+                                           m_has_stereocamera);
 
   m_ui->over_start_button->setEnabled(
-      m_has_stereo_cache && !m_waiting_response && !m_viewing_realtime_overlay);
+      m_has_stereocamera && !m_waiting_response && !m_viewing_realtime_overlay);
   m_ui->over_stop_button->setEnabled(m_viewing_realtime_overlay);
 
   // Clear the overlay selections if we go back to viewing something else
@@ -1441,24 +1425,30 @@ void Form::renderStereocameraReconstruction() {
 void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data,
                              vtkSmartPointer<vtkActor2D> actor) {
 
-  if (image_data->GetScalarType() == VTK_FLOAT) {
-    std::cout << "Input 2D Image data is not of float"
-                 " type. Casting to uchar..." << std::endl;
+  // We use this to render the depth map
+  //  if (image_data->GetScalarType() == VTK_FLOAT) {
+  //    std::cout << "Input 2D Image data is not of float"
+  //                 " type. Casting to uchar..." << std::endl;
 
-    double ranges[2];
-    image_data->GetScalarRange(ranges);
+  //    double ranges[2];
+  //    image_data->GetScalarRange(ranges);
 
-    VTK_NEW(vtkImageShiftScale, cast_filter);
-    cast_filter->SetInput(image_data);
-    cast_filter->SetShift(-ranges[0]);
-    cast_filter->SetScale(1);
-    cast_filter->SetOutputScalarTypeToUnsignedChar();
-    cast_filter->Update();
+  //    //Depth map has 3d float coordinates of the sample surface points. This
+  // maps
+  //    //The most negative of those coordinates to zero, so that it can be
+  // viewed
+  //    //as a 2d image
+  //    VTK_NEW(vtkImageShiftScale, cast_filter);
+  //    cast_filter->SetInput(image_data);
+  //    cast_filter->SetShift(-ranges[0]); //why x?
+  //    cast_filter->SetScale(1);
+  //    cast_filter->SetOutputScalarTypeToUnsignedChar();
+  //    cast_filter->Update();
 
-    image_data = cast_filter->GetOutput();
+  //    image_data = cast_filter->GetOutput();
 
-    image_data->GetScalarRange(ranges);
-  }
+  //    image_data->GetScalarRange(ranges);
+  //  }
 
   // Calculate the image and window's aspect ratios
   int* window_sizes = this->m_ui->qvtkWidget->GetRenderWindow()->GetSize();
@@ -1980,139 +1970,15 @@ void Form::on_view_oct_mass_button_clicked() {
   updateUIStates();
 }
 
-void Form::on_accu_reset_button_clicked() {
-  m_has_stereo_cache = false;
-  m_ui->accu_progress->setValue(0);
-
-  ROS_INFO("Accu reset");
-  updateUIStates();
-
-  Q_EMIT setAccumulatorSize(m_ui->accu_spinbox->value());
-  Q_EMIT resetAccumulators();
-}
-
-void Form::on_request_left_image_button_clicked() {
-  this->m_ui->status_bar->showMessage("Rendering left image...");
+void Form::on_request_stereo_images_clicked() {
+  this->m_ui->status_bar->showMessage("Requesting stereo images...");
   QApplication::processEvents();
 
   m_waiting_response = true;
   m_viewing_overlay = false;
   updateUIStates();
 
-  std::vector<uint32_t> left_vector;
-  m_crossbar->readVector(STEREO_LEFT_CACHE_PATH, left_vector);
-  m_crossbar->intVectorToImageData2D(left_vector, m_stereo_left_image);
-
-  m_renderer_0->RemoveAllViewProps();
-  m_renderer_1->RemoveAllViewProps();
-  m_renderer_2->RemoveAllViewProps();
-  m_renderer_0->AddActor2D(m_stereo_2d_actor);
-
-  render2DImageData(m_stereo_left_image, m_stereo_2d_actor);
-
-  this->m_ui->qvtkWidget->update();
-  QApplication::processEvents();
-
-  this->m_ui->status_bar->showMessage("Rendering left image... done!");
-  QApplication::processEvents();
-
-  m_has_left_image = true;
-  m_waiting_response = false;
-  updateUIStates();
-}
-
-void Form::on_request_right_image_button_clicked() {
-  this->m_ui->status_bar->showMessage("Rendering right image... ");
-  QApplication::processEvents();
-
-  m_waiting_response = true;
-  m_viewing_overlay = false;
-  updateUIStates();
-
-  std::vector<uint32_t> right_vector;
-  m_crossbar->readVector(STEREO_RIGHT_CACHE_PATH, right_vector);
-  m_crossbar->intVectorToImageData2D(right_vector, m_stereo_right_image);
-
-  m_renderer_0->RemoveAllViewProps();
-  m_renderer_1->RemoveAllViewProps();
-  m_renderer_2->RemoveAllViewProps();
-  m_renderer_0->AddActor2D(m_stereo_2d_actor);
-
-  render2DImageData(m_stereo_right_image, m_stereo_2d_actor);
-
-  this->m_ui->qvtkWidget->update();
-  QApplication::processEvents();
-
-  this->m_ui->status_bar->showMessage("Rendering right image... done!");
-  QApplication::processEvents();
-
-  m_has_right_image = true;
-  m_waiting_response = false;
-  updateUIStates();
-}
-
-void Form::on_request_disp_image_button_clicked() {
-  this->m_ui->status_bar->showMessage("Rendering displacement image... ");
-  QApplication::processEvents();
-
-  m_waiting_response = true;
-  m_viewing_overlay = false;
-  updateUIStates();
-
-  std::vector<uint32_t> disp_vector;
-  m_crossbar->readVector(STEREO_DISP_CACHE_PATH, disp_vector);
-  m_crossbar->intVectorToImageData2D(disp_vector, m_stereo_disp_image);
-
-  m_renderer_0->RemoveAllViewProps();
-  m_renderer_1->RemoveAllViewProps();
-  m_renderer_2->RemoveAllViewProps();
-  m_renderer_0->AddActor2D(m_stereo_2d_actor);
-
-  render2DImageData(m_stereo_disp_image, m_stereo_2d_actor);
-
-  this->m_ui->qvtkWidget->update();
-  QApplication::processEvents();
-
-  this->m_ui->status_bar->showMessage("Rendering displacement image... done!");
-  QApplication::processEvents();
-
-  m_has_disp_image = true;
-  m_waiting_response = false;
-  updateUIStates();
-}
-
-void Form::on_request_depth_image_button_clicked() {
-  this->m_ui->status_bar->showMessage("Rendering depth map... ");
-  QApplication::processEvents();
-
-  m_waiting_response = true;
-  m_viewing_overlay = false;
-  updateUIStates();
-
-  std::vector<float> depth_vector;
-  m_crossbar->readVector(STEREO_DEPTH_CACHE_PATH, depth_vector);
-
-  std::cout << "on_request_depth_image_button_clicked, size: "
-            << depth_vector.size() << std::endl;
-
-  m_crossbar->floatVectorToImageData2D(depth_vector, m_stereo_depth_image);
-
-  m_renderer_0->RemoveAllViewProps();
-  m_renderer_1->RemoveAllViewProps();
-  m_renderer_2->RemoveAllViewProps();
-  m_renderer_0->AddActor2D(m_stereo_2d_actor);
-
-  render2DImageData(m_stereo_depth_image, m_stereo_2d_actor);
-
-  this->m_ui->qvtkWidget->update();
-  QApplication::processEvents();
-
-  this->m_ui->status_bar->showMessage("Rendering depth map... done!");
-  QApplication::processEvents();
-
-  m_has_depth_image = true;
-  m_waiting_response = false;
-  updateUIStates();
+  Q_EMIT readyForStereoImages();
 }
 
 void Form::on_browse_left_image_button_clicked() {
@@ -3163,15 +3029,6 @@ void Form::receivedOCTSurfData(OCTinfo params) {
   updateUIStates();
 }
 
-void Form::receivedStereoImages() {
-  m_has_stereo_cache = true;
-  updateUIStates();
-}
-
-void Form::accumulated(float new_ratio) {
-  m_ui->accu_progress->setValue((int)(new_ratio * 100));
-}
-
 void Form::receivedRegistration() {
   // Read and parse the YAML 4x4 transform
   cv::Mat cv_matrix;
@@ -3297,7 +3154,7 @@ void Form::newSurface(vtkPolyData* surf) {
     QApplication::processEvents();
   }
 
-  Q_EMIT readyForOverlay();
+  Q_EMIT readyForStereoImages();
 }
 
 void Form::newBackground(vtkImageData* back) {
@@ -3331,6 +3188,21 @@ void Form::on_over_mode_select_combobox_currentIndexChanged(int index) {
       // QApplication::processEvents();
       break;
   }
+}
+
+void Form::newStereoImages(std::vector<vtkImageData*> images) {
+  m_stereo_left_image.TakeReference(images[0]);
+  m_stereo_right_image.TakeReference(images[1]);
+  m_stereo_disp_image.TakeReference(images[2]);
+  m_stereo_depth_image.TakeReference(images[3]);
+
+  m_waiting_response = false;
+  m_has_stereocamera = true;
+  m_has_left_image = true;
+  m_has_right_image = true;
+  m_has_disp_image = true;
+  m_has_depth_image = true;
+  updateUIStates();
 }
 
 void Form::on_over_encoding_combobox_currentIndexChanged(int index) {

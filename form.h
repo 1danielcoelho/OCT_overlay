@@ -265,12 +265,6 @@ Q_SLOTS:
   void on_view_oct_surf_button_clicked();
   void on_view_oct_mass_button_clicked();
 
-  void on_accu_reset_button_clicked();
-
-  void on_request_left_image_button_clicked();
-  void on_request_right_image_button_clicked();
-  void on_request_disp_image_button_clicked();
-  void on_request_depth_image_button_clicked();
   void on_browse_left_image_button_clicked();
   void on_browse_right_image_button_clicked();
   void on_browse_disp_image_button_clicked();
@@ -319,22 +313,21 @@ Q_SLOTS:
   //------------QNODE CALLBACKS-------------------------------------------------
 
   void receivedRawOCTData(OCTinfo params);
-  void receivedOCTSurfData(OCTinfo params);
-  void receivedStereoImages();
+  void receivedOCTSurfData(OCTinfo params);  
   void receivedRegistration();
-  void accumulated(float new_ratio);
   void newSurface(vtkPolyData* surf);
   void newBackground(vtkImageData* back);
+  void newStereoImages(std::vector<vtkImageData*> images);
 
-Q_SIGNALS:
+  void on_request_stereo_images_clicked();
+
+  Q_SIGNALS:
   void requestScan(OCTinfo);
   void requestSegmentation(OCTinfo);
   void requestRegistration();
-  void setAccumulatorSize(unsigned int);
-  void resetAccumulators();
   void startOverlay();
   void stopOverlay();
-  void readyForOverlay();
+  void readyForStereoImages();
 
  private:
   Ui::Form* m_ui;
@@ -356,7 +349,7 @@ Q_SIGNALS:
   bool m_waiting_response;
   bool m_has_oct_surf;
   bool m_has_oct_mass;
-  bool m_has_stereo_cache;
+  bool m_has_stereocamera;
   bool m_has_left_image;
   bool m_has_right_image;
   bool m_has_disp_image;

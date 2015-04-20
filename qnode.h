@@ -63,6 +63,7 @@ Q_DECLARE_METATYPE(OCTinfo)
 Q_DECLARE_METATYPE(std::vector<uint8_t>)
 Q_DECLARE_METATYPE(vtkPolyData*)
 Q_DECLARE_METATYPE(vtkImageData*)
+Q_DECLARE_METATYPE(std::vector<vtkImageData*>)
 
 class QNode : public QObject {
   Q_OBJECT
@@ -113,13 +114,6 @@ Q_SLOTS:
   // surface registration. Both are read from cache locations also known by Form
   void requestRegistration();
 
-  // Sets the size of the accumulator for the four images
-  void setAccumulatorSize(unsigned int number_of_images);
-
-  // Cleans the current accumulators and resets the counters for the number of
-  // images held by them, as well as fetching new right and disp images
-  void resetAccumulators();
-
   // Loads the visualization mesh from file and begins overlaying it on top
   // of the captured stereocamera left image
   void startOverlay();
@@ -128,18 +122,17 @@ Q_SLOTS:
   void stopOverlay();
 
   // Signals qnode that Form is ready to receive new images
-  void readyForOverlay();
+  void readyForStereoImages();
 
 Q_SIGNALS:  // Same as 'signals'
   void rosMasterChanged(bool);
   void finished();
   void receivedOCTRawData(OCTinfo params);
-  void receivedOCTSurfData(OCTinfo params);
-  void accumulated(float new_ratio);
-  void receivedStereoImages();
+  void receivedOCTSurfData(OCTinfo params);  
   void receivedRegistration();
   void newSurface(vtkPolyData* surf);
   void newBackground(vtkImageData* back);
+  void newStereoImages(std::vector<vtkImageData*> images);
 
  private:
   ros::NodeHandle* m_nh;
@@ -157,15 +150,7 @@ Q_SIGNALS:  // Same as 'signals'
   bool m_form_is_ready;
   bool m_overlaying;
 
-  uint32_t m_accu_count;
-  uint32_t m_accu_size;
-
   sensor_msgs::Image test_depth;
-
-  cv::Mat m_left_accu;
-  cv::Mat m_right_accu;
-  cv::Mat m_disp_accu;
-  cv::Mat m_depth_accu;
 
   boost::shared_ptr<message_filters::Subscriber<sensor_msgs::Image> >
       m_left_image_sub;

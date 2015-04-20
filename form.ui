@@ -72,7 +72,7 @@
         </sizepolicy>
        </property>
        <property name="currentIndex">
-        <number>2</number>
+        <number>1</number>
        </property>
        <widget class="QWidget" name="OCT">
         <attribute name="title">
@@ -1353,6 +1353,99 @@ QGroupBox::title {
          <string>Stereocamera</string>
         </attribute>
         <layout class="QGridLayout" name="gridLayout_9">
+         <item row="0" column="0">
+          <widget class="QGroupBox" name="input_from_ROS_groupbox_2">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>250</width>
+             <height>50</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>250</width>
+             <height>100</height>
+            </size>
+           </property>
+           <property name="styleSheet">
+            <string notr="true">QGroupBox
+{
+border: 1px solid gray;
+border-radius: 2px;
+margin-top: 7px;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 5px;
+    padding: 0 3px 0 3px;
+}</string>
+           </property>
+           <property name="title">
+            <string>Input from ROS</string>
+           </property>
+           <layout class="QGridLayout" name="gridLayout_7">
+            <item row="0" column="0">
+             <layout class="QHBoxLayout" name="horizontalLayout_9">
+              <item>
+               <widget class="QCheckBox" name="connected_master_checkbox_2">
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="font">
+                 <font>
+                  <pointsize>8</pointsize>
+                 </font>
+                </property>
+                <property name="text">
+                 <string>Connected to Master</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="request_stereo_images">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>100</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>50</width>
+                  <height>20</height>
+                 </size>
+                </property>
+                <property name="font">
+                 <font>
+                  <pointsize>8</pointsize>
+                 </font>
+                </property>
+                <property name="text">
+                 <string>Request images</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </widget>
+         </item>
          <item row="1" column="0">
           <widget class="QGroupBox" name="pipeline_groupbox_2">
            <property name="sizePolicy">
@@ -1435,36 +1528,6 @@ QGroupBox::title {
               <item>
                <layout class="QHBoxLayout" name="horizontalLayout_32">
                 <item>
-                 <widget class="QPushButton" name="request_left_image_button">
-                  <property name="sizePolicy">
-                   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                   </sizepolicy>
-                  </property>
-                  <property name="minimumSize">
-                   <size>
-                    <width>50</width>
-                    <height>0</height>
-                   </size>
-                  </property>
-                  <property name="maximumSize">
-                   <size>
-                    <width>50</width>
-                    <height>20</height>
-                   </size>
-                  </property>
-                  <property name="font">
-                   <font>
-                    <pointsize>8</pointsize>
-                   </font>
-                  </property>
-                  <property name="text">
-                   <string>Request</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
                  <widget class="QPushButton" name="browse_left_image_button">
                   <property name="sizePolicy">
                    <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -1540,7 +1603,7 @@ QGroupBox::title {
                   </property>
                   <property name="maximumSize">
                    <size>
-                    <width>50</width>
+                    <width>100</width>
                     <height>20</height>
                    </size>
                   </property>
@@ -1550,7 +1613,7 @@ QGroupBox::title {
                    </font>
                   </property>
                   <property name="text">
-                   <string>View</string>
+                   <string>View current</string>
                   </property>
                  </widget>
                 </item>
@@ -1601,36 +1664,6 @@ QGroupBox::title {
               </item>
               <item>
                <layout class="QHBoxLayout" name="horizontalLayout_11">
-                <item>
-                 <widget class="QPushButton" name="request_right_image_button">
-                  <property name="sizePolicy">
-                   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                   </sizepolicy>
-                  </property>
-                  <property name="minimumSize">
-                   <size>
-                    <width>50</width>
-                    <height>0</height>
-                   </size>
-                  </property>
-                  <property name="maximumSize">
-                   <size>
-                    <width>50</width>
-                    <height>20</height>
-                   </size>
-                  </property>
-                  <property name="font">
-                   <font>
-                    <pointsize>8</pointsize>
-                   </font>
-                  </property>
-                  <property name="text">
-                   <string>Request</string>
-                  </property>
-                 </widget>
-                </item>
                 <item>
                  <widget class="QPushButton" name="browse_right_image_button">
                   <property name="sizePolicy">
@@ -1701,7 +1734,7 @@ QGroupBox::title {
                   </property>
                   <property name="minimumSize">
                    <size>
-                    <width>50</width>
+                    <width>100</width>
                     <height>20</height>
                    </size>
                   </property>
@@ -1717,7 +1750,7 @@ QGroupBox::title {
                    </font>
                   </property>
                   <property name="text">
-                   <string>View</string>
+                   <string>View current</string>
                   </property>
                  </widget>
                 </item>
@@ -1768,36 +1801,6 @@ QGroupBox::title {
               </item>
               <item>
                <layout class="QHBoxLayout" name="horizontalLayout_15">
-                <item>
-                 <widget class="QPushButton" name="request_disp_image_button">
-                  <property name="sizePolicy">
-                   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                   </sizepolicy>
-                  </property>
-                  <property name="minimumSize">
-                   <size>
-                    <width>50</width>
-                    <height>0</height>
-                   </size>
-                  </property>
-                  <property name="maximumSize">
-                   <size>
-                    <width>50</width>
-                    <height>20</height>
-                   </size>
-                  </property>
-                  <property name="font">
-                   <font>
-                    <pointsize>8</pointsize>
-                   </font>
-                  </property>
-                  <property name="text">
-                   <string>Request</string>
-                  </property>
-                 </widget>
-                </item>
                 <item>
                  <widget class="QPushButton" name="browse_disp_image_button">
                   <property name="sizePolicy">
@@ -1868,7 +1871,7 @@ QGroupBox::title {
                   </property>
                   <property name="minimumSize">
                    <size>
-                    <width>50</width>
+                    <width>100</width>
                     <height>20</height>
                    </size>
                   </property>
@@ -1884,7 +1887,7 @@ QGroupBox::title {
                    </font>
                   </property>
                   <property name="text">
-                   <string>View</string>
+                   <string>View current</string>
                   </property>
                  </widget>
                 </item>
@@ -1935,36 +1938,6 @@ QGroupBox::title {
               </item>
               <item>
                <layout class="QHBoxLayout" name="horizontalLayout_17">
-                <item>
-                 <widget class="QPushButton" name="request_depth_image_button">
-                  <property name="sizePolicy">
-                   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                   </sizepolicy>
-                  </property>
-                  <property name="minimumSize">
-                   <size>
-                    <width>50</width>
-                    <height>0</height>
-                   </size>
-                  </property>
-                  <property name="maximumSize">
-                   <size>
-                    <width>50</width>
-                    <height>20</height>
-                   </size>
-                  </property>
-                  <property name="font">
-                   <font>
-                    <pointsize>8</pointsize>
-                   </font>
-                  </property>
-                  <property name="text">
-                   <string>Request</string>
-                  </property>
-                 </widget>
-                </item>
                 <item>
                  <widget class="QPushButton" name="browse_depth_image_button">
                   <property name="sizePolicy">
@@ -2035,7 +2008,7 @@ QGroupBox::title {
                   </property>
                   <property name="minimumSize">
                    <size>
-                    <width>50</width>
+                    <width>100</width>
                     <height>20</height>
                    </size>
                   </property>
@@ -2051,195 +2024,11 @@ QGroupBox::title {
                    </font>
                   </property>
                   <property name="text">
-                   <string>View</string>
+                   <string>View current</string>
                   </property>
                  </widget>
                 </item>
                </layout>
-              </item>
-             </layout>
-            </item>
-           </layout>
-          </widget>
-         </item>
-         <item row="0" column="0">
-          <widget class="QGroupBox" name="input_from_ROS_groupbox_2">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="minimumSize">
-            <size>
-             <width>250</width>
-             <height>100</height>
-            </size>
-           </property>
-           <property name="maximumSize">
-            <size>
-             <width>250</width>
-             <height>100</height>
-            </size>
-           </property>
-           <property name="styleSheet">
-            <string notr="true">QGroupBox
-{
-border: 1px solid gray;
-border-radius: 2px;
-margin-top: 7px;
-}
-
-QGroupBox::title {
-    subcontrol-origin: margin;
-    left: 5px;
-    padding: 0 3px 0 3px;
-}</string>
-           </property>
-           <property name="title">
-            <string>Input from ROS</string>
-           </property>
-           <layout class="QGridLayout" name="gridLayout_7">
-            <item row="0" column="0">
-             <widget class="QCheckBox" name="connected_master_checkbox_2">
-              <property name="enabled">
-               <bool>false</bool>
-              </property>
-              <property name="font">
-               <font>
-                <pointsize>8</pointsize>
-               </font>
-              </property>
-              <property name="text">
-               <string>Connected to Master</string>
-              </property>
-              <property name="checkable">
-               <bool>true</bool>
-              </property>
-             </widget>
-            </item>
-            <item row="1" column="0">
-             <layout class="QHBoxLayout" name="horizontalLayout_9">
-              <item>
-               <spacer name="horizontalSpacer_20">
-                <property name="orientation">
-                 <enum>Qt::Horizontal</enum>
-                </property>
-                <property name="sizeHint" stdset="0">
-                 <size>
-                  <width>40</width>
-                  <height>14</height>
-                 </size>
-                </property>
-               </spacer>
-              </item>
-              <item>
-               <widget class="QLabel" name="accu_label">
-                <property name="font">
-                 <font>
-                  <pointsize>8</pointsize>
-                 </font>
-                </property>
-                <property name="text">
-                 <string>Accumulator size</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QSpinBox" name="accu_spinbox">
-                <property name="font">
-                 <font>
-                  <pointsize>8</pointsize>
-                 </font>
-                </property>
-                <property name="minimum">
-                 <number>1</number>
-                </property>
-                <property name="maximum">
-                 <number>255</number>
-                </property>
-                <property name="value">
-                 <number>1</number>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QPushButton" name="accu_reset_button">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="minimumSize">
-                 <size>
-                  <width>50</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>50</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="font">
-                 <font>
-                  <pointsize>8</pointsize>
-                 </font>
-                </property>
-                <property name="text">
-                 <string>Reset</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-            <item row="2" column="0">
-             <layout class="QHBoxLayout" name="horizontalLayout_38">
-              <item>
-               <spacer name="horizontalSpacer_5">
-                <property name="orientation">
-                 <enum>Qt::Horizontal</enum>
-                </property>
-                <property name="sizeHint" stdset="0">
-                 <size>
-                  <width>40</width>
-                  <height>20</height>
-                 </size>
-                </property>
-               </spacer>
-              </item>
-              <item>
-               <widget class="QLabel" name="label_4">
-                <property name="font">
-                 <font>
-                  <pointsize>8</pointsize>
-                 </font>
-                </property>
-                <property name="text">
-                 <string>Accumulator state</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QProgressBar" name="accu_progress">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="minimumSize">
-                 <size>
-                  <width>100</width>
-                  <height>0</height>
-                 </size>
-                </property>
-                <property name="value">
-                 <number>0</number>
-                </property>
-               </widget>
               </item>
              </layout>
             </item>

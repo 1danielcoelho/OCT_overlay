@@ -7,7 +7,6 @@ QNode::QNode(int argc, char **argv) : no_argc(argc), no_argv(argv) {
 
   m_overlaying = false;
   m_form_is_ready = true;
-  m_accu_size = 1;
 }
 
 QNode::~QNode() {
@@ -99,25 +98,20 @@ void QNode::setupSubscriptions() {
   m_synchronizer->registerCallback(
       boost::bind(&QNode::imageCallback, this, _1, _2, _3, _4));
 
-  // Initialize the accumulator matrices with camera dimensions
-  resetAccumulators();
-
   ROS_INFO("Topic subscription and synchronization completed");
-
 }
 
 void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
                           const sensor_msgs::ImageConstPtr &msg_right,
                           const sensor_msgs::ImageConstPtr &msg_disp,
                           const sensor_msgs::ImageConstPtr &msg_depth) {
-  // ROS_INFO("imageCallback called");
-
-  // If we're in overlaying mode: Transfer image pointers as Qt Signals
+  // If we're in overlaying mode: Reconstruct the colored surface; Send raw
+  // pointers to it and to the left stereocamera image as Qt Signals
   if (m_overlaying) {
 
-    //Qt has no "signal dropping", so we need to make sure we don't overwhelm
-    //form with new images
-    if(!m_form_is_ready) return;
+    // Qt has no "signal dropping", so we need to make sure we don't overwhelm
+    // form with new images. This gets set to true by form whenever it is ready
+    if (!m_form_is_ready) return;
 
     m_form_is_ready = false;
 
@@ -172,7 +166,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
 
         // Sets our color in the background image
         unsigned char *pixel = static_cast<unsigned char *>(
-            left_imagedata->GetScalarPointer(j, rows-i-1, 0));
+            left_imagedata->GetScalarPointer(j, rows - i - 1, 0));
         memcpy(&pixel[0], &color[0], 3);
 
         // Sets our point in the polydata arrays
@@ -192,142 +186,122 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
     Q_EMIT newSurface(surf_poly);
   }
 
-  // We're not overlaying: Accumulate and write images to disk
+  // We're not overlaying: Send raw pointers to all four stereocamera images to
+  // Form as Qt Signals
   else {
-    // Accumulator is not full yet; Accumulate
-    if (m_accu_count < m_accu_size) {
-      ROS_INFO("Accumulating images: %u of %u", m_accu_count, m_accu_size);
+    // Qt has no "signal dropping", so we need to make sure we don't overwhelm
+    // form with new images. This gets set to true by form whenever it is ready
+    if (!m_form_is_ready) return;
 
-      cv::Mat image_left, image_right, image_disp, image_depth;
+    m_form_is_ready = false;
 
-      // Convert our image message to a cv::Mat
-      cv_bridge::CvImagePtr cv_image_ptr;
+    cv::Mat image_left, image_right, image_disp, image_depth;
 
-      cv_image_ptr = cv_bridge::toCvCopy(msg_left, enc::RGB8);
-      image_left = cv_image_ptr->image;
+    // Convert our image message to a cv::Mat
+    cv_bridge::CvImagePtr cv_image_ptr;
 
-      cv_image_ptr = cv_bridge::toCvCopy(msg_right, enc::RGB8);
-      image_right = cv_image_ptr->image;
+    cv_image_ptr = cv_bridge::toCvCopy(msg_left, enc::RGB8);
+    image_left = cv_image_ptr->image;
 
-      cv_image_ptr = cv_bridge::toCvCopy(msg_disp, enc::TYPE_32FC1);
-      image_disp = cv_image_ptr->image;
+    cv_image_ptr = cv_bridge::toCvCopy(msg_right, enc::RGB8);
+    image_right = cv_image_ptr->image;
 
-      cv_image_ptr = cv_bridge::toCvCopy(msg_depth, enc::TYPE_32FC3);
-      image_depth = cv_image_ptr->image;
+    cv_image_ptr = cv_bridge::toCvCopy(msg_disp, enc::TYPE_32FC1);
+    image_disp = cv_image_ptr->image;
 
-      cv::accumulate(image_left, m_left_accu);
-      cv::accumulate(image_right, m_right_accu);
-      cv::accumulate(image_disp, m_disp_accu);
-      cv::accumulate(image_depth, m_depth_accu);
+    cv_image_ptr = cv_bridge::toCvCopy(msg_depth, enc::TYPE_32FC3);
+    image_depth = cv_image_ptr->image;
 
-      m_accu_count++;
+    // Convert disp image from 32FC1 to 8UC1
+    cv::Mat image_disp_r;
+    cv::normalize(image_disp, image_disp_r, 0, 255, cv::NORM_MINMAX, CV_8U);
 
-      Q_EMIT accumulated((1.0f * m_accu_count) / m_accu_size);
+    // Convert depth image from 32FC3 to 8UC3
+    cv::Mat image_depth_rgb;
+    cv::normalize(image_depth, image_depth_rgb, 0, 255, cv::NORM_MINMAX,
+                  CV_8UC3);
+
+    int rows = image_left.rows;
+    int cols = image_left.cols;
+
+    ROS_INFO("Rows: %d, cols: %d", rows, cols);
+
+    // All the imagedata pointers we'll be sending as signals need
+    // to be raw pointers. Smart pointers would self-delete if the garbage
+    // collector caught them before the signal arrived on Form
+    vtkImageData *left_imagedata = vtkImageData::New();
+    left_imagedata->SetDimensions(cols, rows, 1);
+    left_imagedata->SetNumberOfScalarComponents(3);
+    left_imagedata->SetScalarTypeToUnsignedChar();
+    left_imagedata->AllocateScalars();
+
+    vtkImageData *right_imagedata = vtkImageData::New();
+    right_imagedata->SetDimensions(cols, rows, 1);
+    right_imagedata->SetNumberOfScalarComponents(3);
+    right_imagedata->SetScalarTypeToUnsignedChar();
+    right_imagedata->AllocateScalars();
+
+    vtkImageData *disp_imagedata = vtkImageData::New();
+    disp_imagedata->SetDimensions(cols, rows, 1);
+    disp_imagedata->SetNumberOfScalarComponents(3);
+    disp_imagedata->SetScalarTypeToUnsignedChar();
+    disp_imagedata->AllocateScalars();
+
+    vtkImageData *depth_imagedata = vtkImageData::New();
+    depth_imagedata->SetDimensions(cols, rows, 1);
+    depth_imagedata->SetNumberOfScalarComponents(3);
+    depth_imagedata->SetScalarTypeToUnsignedChar();
+    depth_imagedata->AllocateScalars();
+
+    unsigned char color[3];
+    unsigned char *pixel;
+
+    for (uint32_t i = 0; i < rows; i++) {
+      for (uint32_t j = 0; j < cols; j++) {
+
+        // Left image
+        color[0] = image_left.at<cv::Vec3b>(i, j)[0];
+        color[1] = image_left.at<cv::Vec3b>(i, j)[1];
+        color[2] = image_left.at<cv::Vec3b>(i, j)[2];
+        // Puts our color in the left imagedata. We need to invert the y
+        // axis since the (0,0) is at different positions for VTK and OpenCV
+        pixel = static_cast<unsigned char *>(
+            left_imagedata->GetScalarPointer(j, rows - i - 1, 0));
+        memcpy(&pixel[0], &color[0], 3);
+
+        // Right image
+        color[0] = image_right.at<cv::Vec3b>(i, j)[0];
+        color[1] = image_right.at<cv::Vec3b>(i, j)[1];
+        color[2] = image_right.at<cv::Vec3b>(i, j)[2];
+        pixel = static_cast<unsigned char *>(
+            right_imagedata->GetScalarPointer(j, rows - i - 1, 0));
+        memcpy(&pixel[0], &color[0], 3);
+
+        // Disp image
+        color[0] = image_disp_r.at<unsigned char>(i, j);
+        color[1] = color[0];
+        color[2] = color[0];
+        pixel = static_cast<unsigned char *>(
+            disp_imagedata->GetScalarPointer(j, rows - i - 1, 0));
+        memcpy(&pixel[0], &color[0], 3);
+
+        // Depth image
+        color[0] = image_depth_rgb.at<cv::Vec3b>(i, j)[0];
+        color[1] = image_depth_rgb.at<cv::Vec3b>(i, j)[1];
+        color[2] = image_depth_rgb.at<cv::Vec3b>(i, j)[2];
+        pixel = static_cast<unsigned char *>(
+            depth_imagedata->GetScalarPointer(j, rows - i - 1, 0));
+        memcpy(&pixel[0], &color[0], 3);
+      }
     }
 
-    // Finish accumulating, write to files
-    if (m_accu_count == m_accu_size) {
-      m_accu_count++;  // Only come back here again after accumulator is reset
+    std::vector<vtkImageData *> images;
+    images.push_back(left_imagedata);
+    images.push_back(right_imagedata);
+    images.push_back(disp_imagedata);
+    images.push_back(depth_imagedata);
 
-      test_depth = *msg_depth;
-
-      m_left_accu /= m_accu_size;
-      m_right_accu /= m_accu_size;
-      m_disp_accu /= m_accu_size;
-      m_depth_accu /= m_accu_size;
-
-      uint32_t rows = m_left_accu.rows;
-      uint32_t cols = m_left_accu.cols;
-
-      // Cast our 32FC3 to a 8UC3, for display
-      // Need to directly cast as opposed to cv::convertScaleAbs, since that
-      // would
-      // produce distorted brightness levels (a sequence of dark images would
-      // have
-      // been converted to a single brighter image)
-      // cv::Mat result = cv::Mat(rows, cols, CV_8U);
-      m_left_accu.convertTo(m_left_accu, CV_8U);
-      m_right_accu.convertTo(m_right_accu, CV_8U);
-
-      // Write a simple header
-      std::vector<uint32_t> header;
-      header.clear();
-      header.resize(2);
-      memcpy(&header[0], &rows, 4);
-      memcpy(&header[1], &cols, 4);
-
-      // Write the three images
-      std::vector<uint32_t> left, right, disp;
-      left.reserve(rows * cols);
-      right.reserve(rows * cols);
-      disp.reserve(rows * cols);
-
-      for (uint32_t i = 0; i < rows; i++) {
-        for (uint32_t j = 0; j < cols; j++) {
-          left.push_back(m_left_accu.at<cv::Vec3b>(i, j)[0] << 16 |
-                         m_left_accu.at<cv::Vec3b>(i, j)[1] << 8 |
-                         m_left_accu.at<cv::Vec3b>(i, j)[2]);
-        }
-      }
-
-      m_crossbar->writeVector(header, STEREO_LEFT_CACHE_PATH, false);
-      m_crossbar->writeVector(left, STEREO_LEFT_CACHE_PATH, true);
-
-      for (uint32_t i = 0; i < rows; i++) {
-        for (uint32_t j = 0; j < cols; j++) {
-          right.push_back(m_right_accu.at<cv::Vec3b>(i, j)[0] << 16 |
-                          m_right_accu.at<cv::Vec3b>(i, j)[1] << 8 |
-                          m_right_accu.at<cv::Vec3b>(i, j)[2]);
-        }
-      }
-
-      m_crossbar->writeVector(header, STEREO_RIGHT_CACHE_PATH, false);
-      m_crossbar->writeVector(right, STEREO_RIGHT_CACHE_PATH, true);
-
-      // Disp map is CV_32FC1; Here we scale it down to CV_8UC1 while
-      // normalizing
-      // it so the largest value in m_disp_accu gets mapped to 255, and the
-      // lowest
-      // to 0. We won't use the disp map for anything really, it will just be
-      // displayed for debugging, so this is fine
-      cv::Mat result;
-      cv::normalize(m_disp_accu, result, 0, 255, cv::NORM_MINMAX, CV_8U);
-
-      for (uint32_t i = 0; i < rows; i++) {
-        for (uint32_t j = 0; j < cols; j++) {
-          disp.push_back(
-              result.at<uint8_t>(i, j));  // Implicit uint8_t -> uint32_t
-        }
-      }
-
-      m_crossbar->writeVector(header, STEREO_DISP_CACHE_PATH, false);
-      m_crossbar->writeVector(disp, STEREO_DISP_CACHE_PATH, true);
-
-      std::vector<float> depth;
-
-      //    memcpy(&header_depth[0], &rows_f, 4);
-      //    memcpy(&header_depth[1], &cols_f, 4);
-      depth.reserve(rows * cols * 3);  // 3-channel
-
-      for (uint32_t i = 0; i < rows; i++) {
-        for (uint32_t j = 0; j < cols; j++) {
-
-          float red = m_depth_accu.at<cv::Vec3f>(i, j)[0];
-          float green = m_depth_accu.at<cv::Vec3f>(i, j)[1];
-          float blue = m_depth_accu.at<cv::Vec3f>(i, j)[2];
-
-          depth.push_back(red);
-          depth.push_back(green);
-          depth.push_back(blue);
-        }
-      }
-
-      m_crossbar->writeVector(header, STEREO_DEPTH_CACHE_PATH, false);
-      m_crossbar->writeVector(depth, STEREO_DEPTH_CACHE_PATH, true);
-
-      // Lets Form know it can read the stereo images from the cache locations
-      Q_EMIT receivedStereoImages();
-    }
+    Q_EMIT newStereoImages(images);
   }
 }
 
@@ -341,9 +315,6 @@ void QNode::stopCurrentNode() {
     // Deletes the node handle manually, so it can be created again whenever we
     // find a new Master
     delete m_nh;
-
-    m_left_accu.release();
-    m_depth_accu.release();
   }
 }
 
@@ -551,33 +522,6 @@ void QNode::requestRegistration() {
   Q_EMIT receivedRegistration();
 }
 
-void QNode::setAccumulatorSize(unsigned int n) {
-  n > 0 ? m_accu_size = n : m_accu_size = 1;
-  resetAccumulators();
-}
-
-void QNode::resetAccumulators() {
-  int rows, cols;
-  // Tries to grab the rows and cols from the ROS param server; Uses third
-  // arguments if can't
-  m_nh->param<int>("imageHeight", rows, 480);
-  m_nh->param<int>("imageWidth", cols, 640);
-
-  // Left and right accus are also float or else they would overflow
-  m_left_accu.create(rows, cols, CV_32FC3);
-  m_right_accu.create(rows, cols, CV_32FC3);
-  m_disp_accu.create(rows, cols, CV_32FC1);
-  m_depth_accu.create(rows, cols, CV_32FC3);
-
-  // Reset, in case it hasn't re-allocated
-  m_left_accu = cv::Mat::zeros(rows, cols, CV_32FC3);
-  m_right_accu = cv::Mat::zeros(rows, cols, CV_32FC3);
-  m_disp_accu = cv::Mat::zeros(rows, cols, CV_32FC1);
-  m_depth_accu = cv::Mat::zeros(rows, cols, CV_32FC3);
-
-  m_accu_count = 0;
-}
-
 void QNode::startOverlay() {
   m_overlaying = true;
   m_form_is_ready = true;
@@ -599,4 +543,4 @@ void QNode::startOverlay() {
 
 void QNode::stopOverlay() { m_overlaying = false; }
 
-void QNode::readyForOverlay() {m_form_is_ready = true;}
+void QNode::readyForStereoImages() { m_form_is_ready = true; }
