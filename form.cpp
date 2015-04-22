@@ -1249,9 +1249,9 @@ void Form::constructViewPOVPolyline() {
   int extents[6];
   m_stereo_left_image->GetExtent(extents);
 
-  poly_to_stencil->SetOutputOrigin();
-  poly_to_stencil->SetOutputSpacing();
-  poly_to_stencil->SetOutputWholeExtent();
+  poly_to_stencil->SetOutputOrigin(origin);
+  poly_to_stencil->SetOutputSpacing(spacing);
+  poly_to_stencil->SetOutputWholeExtent(extents);
   poly_to_stencil->Update();
 
 //  std::cout << "In Construct: Origin: " << origin[0] << ", " << origin[1] << ", " << origin[2] <<
@@ -1265,7 +1265,6 @@ void Form::constructViewPOVPolyline() {
   stencil->Update();
 
   VTK_NEW(vtkActor2D, stencil_actor);
-
   render2DImageData(stencil->GetOutput(), stencil_actor);
 
   VTK_NEW(vtkPolyDataMapper, mapper);
@@ -1275,7 +1274,7 @@ void Form::constructViewPOVPolyline() {
   actor->SetMapper(mapper);
 
   m_renderer_0->AddActor(actor);
-  m_renderer_0->AddActor2D(stencil_actor);
+  m_renderer_2->AddActor2D(stencil_actor);
 }
 
 //------------RENDERING---------------------------------------------------------
@@ -1512,20 +1511,6 @@ void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data,
   image_mapper->SetInputConnection(image_resize_filter->GetOutputPort());
   image_mapper->SetColorWindow(255.0);
   image_mapper->SetColorLevel(127.5);
-
-  double origin[3];
-  image_resize_filter->GetOutput()->GetOrigin(origin);
-
-  double spacing[3];
-  image_resize_filter->GetOutput()->GetSpacing(spacing);
-
-  int extents[6];
-  image_resize_filter->GetOutput()->GetExtent(extents);
-
-//  std::cout << "In Render: Origin: " << origin[0] << ", " << origin[1] << ", " << origin[2] <<
-//  ", Spacing: " << spacing[0] << ", " << spacing[1] << ", " << spacing[2] << ", Extents: " <<
-//  extents[0] << ", " << extents[1] << ", " << extents[2] << ", " << extents[3] << ", " <<
-//  extents[4] << ", " <<extents[5] << std::endl;
 
   actor->SetMapper(image_mapper);
 }

@@ -106,6 +106,7 @@
 #include <vtkPlaneSource.h>
 #include <vtkKdTreePointLocator.h>
 #include <vtkTimerLog.h>
+#include <vtkProperty2D.h>
 
 // Project files
 #include "qnode.h"
