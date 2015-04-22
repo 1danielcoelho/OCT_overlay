@@ -181,27 +181,21 @@ class Form : public QMainWindow {
   // in the "Colors" array of "surface" to match the distance between it and
   // mass
   void encodeColorDepth(vtkSmartPointer<vtkPolyData> surface,
-                        vtkSmartPointer<vtkPolyData> mass,
-                        vtkSmartPointer<vtkActor> surface_actor,
-                        vtkSmartPointer<vtkActor> mass_actor);
+                        vtkSmartPointer<vtkActor> surface_actor);
 
   // Receives the surface and mass polydata and changes the RGBA values in
   // in the "Colors" array of "surface" to match the distance between it and
   // mass, delimited by the projection of the silhouette of the mass to the
   // POV of the stereocamera
   void encodeStereoProjDepth(vtkSmartPointer<vtkPolyData> surface,
-                             vtkSmartPointer<vtkPolyData> mass,
-                             vtkSmartPointer<vtkActor> surface_actor,
-                             vtkSmartPointer<vtkActor> mass_actor);
+                             vtkSmartPointer<vtkActor> surface_actor);
 
   // Receives the surface and mass polydata and changes the RGBA values in
   // in the "Colors" array of "surface" to match the distance between it and
   // mass, delimited by the projection of the silhouette of the mass to the
   // POV of the OCT
   void encodeOCTProjDepth(vtkSmartPointer<vtkPolyData> surface,
-                          vtkSmartPointer<vtkPolyData> mass,
-                          vtkSmartPointer<vtkActor> surface_actor,
-                          vtkSmartPointer<vtkActor> mass_actor);  
+                          vtkSmartPointer<vtkActor> surface_actor);
 
   // Uses the transform P to map the point coordinates of the "surface" polydata
   // to truncated int indices into an imageData of width/height
@@ -318,7 +312,7 @@ Q_SLOTS:
   //------------QNODE CALLBACKS-------------------------------------------------
 
   void receivedRawOCTData(OCTinfo params);
-  void receivedOCTSurfData(OCTinfo params);  
+  void receivedOCTSurfData(OCTinfo params);
   void receivedRegistration();
   void newSurface(vtkPolyData* surf);
   void newBackground(vtkImageData* back);
@@ -326,7 +320,7 @@ Q_SLOTS:
 
   void on_request_stereo_images_clicked();
 
-  Q_SIGNALS:
+Q_SIGNALS:
   void requestScan(OCTinfo);
   void requestSegmentation(OCTinfo);
   void requestRegistration();
@@ -369,7 +363,6 @@ Q_SLOTS:
   // VTK objects
   vtkSmartPointer<vtkPolyData> m_oct_poly_data;
   vtkSmartPointer<vtkPolyData> m_oct_mass_poly_data;
-  vtkSmartPointer<vtkPolyData> m_oct_mass_poly_data_stereo3D;
   vtkSmartPointer<vtkPolyData> m_oct_mass_poly_data_leftCamera;
   vtkSmartPointer<vtkPolyData> m_oct_surf_poly_data;
   vtkSmartPointer<vtkPolyData> m_stereo_left_poly_data;

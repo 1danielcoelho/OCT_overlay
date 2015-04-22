@@ -104,7 +104,6 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_oct_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_oct_surf_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_oct_mass_poly_data = vtkSmartPointer<vtkPolyData>::New();
-  m_oct_mass_poly_data_stereo3D = vtkSmartPointer<vtkPolyData>::New();
   m_oct_mass_poly_data_leftCamera = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_left_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_reconstr_poly_data = vtkSmartPointer<vtkPolyData>::New();
@@ -1061,38 +1060,14 @@ void Form::buildKDTree() {
   trans_filt->SetTransform(m_oct_stereo_trans);
   trans_filt->SetInput(m_oct_mass_poly_data);
   trans_filt->Update();
-  m_oct_mass_poly_data_stereo3D = trans_filt->GetPolyDataOutput();
-
-  // Further transforms it into the 2D stereocamera image U,V coordinates
-  VTK_NEW(vtkTransformFilter, trans_filt2);
-  trans_filt2->SetInput(m_oct_mass_poly_data_stereo3D);
-  trans_filt2->SetTransform(m_left_proj_trans);
-  trans_filt2->Update();
-  m_oct_mass_poly_data_leftCamera = trans_filt2->GetPolyDataOutput();
-
-  int num_pts = m_oct_mass_poly_data_leftCamera->GetNumberOfPoints();
-  vtkPoints* left_cam_pts = m_oct_mass_poly_data_leftCamera->GetPoints();
-
-  for (int i = 0; i < num_pts; i++) {
-    double position[3];
-    left_cam_pts->GetPoint(i, position);
-
-    position[0] /= position[2];
-    position[1] /= position[2];
-    position[2] = 0;
-
-    left_cam_pts->SetPoint(i, position);
-  }
 
   m_oct_mass_kd_tree_locator = vtkSmartPointer<vtkKdTreePointLocator>::New();
-  m_oct_mass_kd_tree_locator->SetDataSet(m_oct_mass_poly_data_stereo3D);
+  m_oct_mass_kd_tree_locator->SetDataSet(trans_filt->GetPolyDataOutput());
   m_oct_mass_kd_tree_locator->BuildLocator();
 }
 
 void Form::encodeColorDepth(vtkSmartPointer<vtkPolyData> surface,
-                            vtkSmartPointer<vtkPolyData> mass,
-                            vtkSmartPointer<vtkActor> surface_actor,
-                            vtkSmartPointer<vtkActor> mass_actor) {
+                            vtkSmartPointer<vtkActor> surface_actor) {
 
   int j = 0;
   double distance = 0;
@@ -1137,17 +1112,13 @@ void Form::encodeColorDepth(vtkSmartPointer<vtkPolyData> surface,
 }
 
 void Form::encodeStereoProjDepth(vtkSmartPointer<vtkPolyData> surface,
-                                 vtkSmartPointer<vtkPolyData> mass,
-                                 vtkSmartPointer<vtkActor> surface_actor,
-                                 vtkSmartPointer<vtkActor> mass_actor) {
+                                 vtkSmartPointer<vtkActor> surface_actor) {
 
   // pass
 }
 
 void Form::encodeOCTProjDepth(vtkSmartPointer<vtkPolyData> surface,
-                              vtkSmartPointer<vtkPolyData> mass,
-                              vtkSmartPointer<vtkActor> surface_actor,
-                              vtkSmartPointer<vtkActor> mass_actor) {
+                              vtkSmartPointer<vtkActor> surface_actor) {
 
   // pass
 }
@@ -1215,13 +1186,18 @@ void Form::mapReconstructionTo2D(vtkSmartPointer<vtkPolyData> surface,
   }
 }
 
-void Form::constructViewPOVPolyline()
-{
+void Form::constructViewPOVPolyline() {
+  // Transforms the OCT mass from OCT CS to stereocamera 3d CS
+  VTK_NEW(vtkTransformFilter, trans_filt);
+  trans_filt->SetTransform(m_oct_stereo_trans);
+  trans_filt->SetInput(m_oct_mass_poly_data);
+  trans_filt->Update();
+
   VTK_NEW(vtkPolyDataSilhouette, silh_filt);
   silh_filt->SetEnableFeatureAngle(1);
   silh_filt->SetFeatureAngle(180);
   silh_filt->SetCamera(m_renderer_0->GetActiveCamera());
-  silh_filt->SetInput(m_oct_mass_poly_data_stereo3D);
+  silh_filt->SetInput(trans_filt->GetPolyDataOutput());
   silh_filt->Update();
 
   vtkPolyData* silh_output = silh_filt->GetOutput();
@@ -1232,6 +1208,66 @@ void Form::constructViewPOVPolyline()
 
   m_silhouette_polyline = stripper->GetOutput();
 
+  uint32_t num_pts = m_silhouette_polyline->GetNumberOfPoints();
+
+  // Transform the silhouette polyline into the coordinate space of the left
+  // camera image
+  for (uint32_t i = 0; i < num_pts; i++) {
+
+    double pos_3d[4];
+    m_silhouette_polyline->GetPoint(i, pos_3d);
+
+    // Set the 'w' coordinate to 1
+    pos_3d[3] = 1;
+
+    double pos_2d[4];
+    m_left_proj_trans->MultiplyPoint(pos_3d, pos_2d);  // out = P * in
+
+    pos_2d[0] /= pos_2d[2];
+    pos_2d[1] /= pos_2d[2];
+
+//    std::cout << "Index: " << i << "; Pos mass: " << pos_sil[0] << ", "
+//              << pos_sil[1] << ", " << pos_sil[2]
+//              << "; pos before: " << pos_3d[0] << ", " << pos_3d[1] << ", "
+//              << pos_3d[2] << "; Pos after: " << pos_2d[0] << ", " << pos_2d[1]
+//              << ", " << pos_2d[2] << std::endl;
+
+    m_silhouette_polyline->GetPoints()->SetPoint(i, pos_2d[0], pos_2d[1],
+                                                 0);
+  }
+
+  VTK_NEW(vtkPolyDataToImageStencil, poly_to_stencil);
+  poly_to_stencil->SetTolerance(0);
+  poly_to_stencil->SetInput(m_silhouette_polyline);
+
+  double origin[3];
+  m_stereo_left_image->GetOrigin(origin);
+
+  double spacing[3];
+  m_stereo_left_image->GetSpacing(spacing);
+
+  int extents[6];
+  m_stereo_left_image->GetExtent(extents);
+
+  poly_to_stencil->SetOutputOrigin();
+  poly_to_stencil->SetOutputSpacing();
+  poly_to_stencil->SetOutputWholeExtent();
+  poly_to_stencil->Update();
+
+//  std::cout << "In Construct: Origin: " << origin[0] << ", " << origin[1] << ", " << origin[2] <<
+//  ", Spacing: " << spacing[0] << ", " << spacing[1] << ", " << spacing[2] << ", Extents: " <<
+//  extents[0] << ", " << extents[1] << ", " << extents[2] << ", " << extents[3] << ", " <<
+//  extents[4] << ", " <<extents[5] << std::endl;
+
+  VTK_NEW(vtkImageStencil, stencil);
+  stencil->SetStencil(poly_to_stencil->GetOutput());
+  stencil->SetInput(m_stereo_left_image);
+  stencil->Update();
+
+  VTK_NEW(vtkActor2D, stencil_actor);
+
+  render2DImageData(stencil->GetOutput(), stencil_actor);
+
   VTK_NEW(vtkPolyDataMapper, mapper);
   mapper->SetInput(m_silhouette_polyline);
 
@@ -1239,39 +1275,7 @@ void Form::constructViewPOVPolyline()
   actor->SetMapper(mapper);
 
   m_renderer_0->AddActor(actor);
-
-  //Use vtkStripper to convert from the 87 lines into contigous polylines
-
-//  uint32_t num_pts = silhouette->GetNumberOfPoints();
-
-//  for (uint32_t i = 0; i < num_pts; i++) {
-//    double pos_3d[4];
-//    silhouette->GetPoint(i, pos_3d);
-
-//    pos_3d[3] = 1;
-
-//    double pos_2d[4];
-//    m_left_proj_trans->MultiplyPoint(pos_3d, pos_2d);  // out = P * in
-
-//    pos_2d[0] /= pos_2d[2];
-//    pos_2d[1] /= pos_2d[2];
-
-//    int u = (int)(pos_2d[0] + 0.5d);
-//    int v = (int)(pos_2d[1] + 0.5d);
-
-//    unsigned char* pixel = static_cast<unsigned char*>(
-//        out_image->GetScalarPointer(u, height - v - 1, 0));
-
-//    pixel[0] = (unsigned char)color[0];
-//    pixel[1] = (unsigned char)color[1];
-//    pixel[2] = (unsigned char)color[2];
-//    pixel[3] = (unsigned char)color[3];
-
-//    //        std::cout << "U: " << u << ", V: " << v << ", r: " << (unsigned
-//    // int)pixel[0] << ", g: " <<
-//    //                     (unsigned int)pixel[1] << ", b: " << (unsigned
-//    // int)pixel[2] << ", a: " << (unsigned int)pixel[3] << std::endl;
-//  }
+  m_renderer_0->AddActor2D(stencil_actor);
 }
 
 //------------RENDERING---------------------------------------------------------
@@ -1473,31 +1477,6 @@ void Form::renderStereocameraReconstruction() {
 void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data,
                              vtkSmartPointer<vtkActor2D> actor) {
 
-  // We use this to render the depth map
-  //  if (image_data->GetScalarType() == VTK_FLOAT) {
-  //    std::cout << "Input 2D Image data is not of float"
-  //                 " type. Casting to uchar..." << std::endl;
-
-  //    double ranges[2];
-  //    image_data->GetScalarRange(ranges);
-
-  //    //Depth map has 3d float coordinates of the sample surface points. This
-  // maps
-  //    //The most negative of those coordinates to zero, so that it can be
-  // viewed
-  //    //as a 2d image
-  //    VTK_NEW(vtkImageShiftScale, cast_filter);
-  //    cast_filter->SetInput(image_data);
-  //    cast_filter->SetShift(-ranges[0]); //why x?
-  //    cast_filter->SetScale(1);
-  //    cast_filter->SetOutputScalarTypeToUnsignedChar();
-  //    cast_filter->Update();
-
-  //    image_data = cast_filter->GetOutput();
-
-  //    image_data->GetScalarRange(ranges);
-  //  }
-
   // Calculate the image and window's aspect ratios
   int* window_sizes = this->m_ui->qvtkWidget->GetRenderWindow()->GetSize();
   double window_width, window_height;
@@ -1527,11 +1506,26 @@ void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data,
   VTK_NEW(vtkImageReslice, image_resize_filter);
   image_resize_filter->SetInputConnection(image_data->GetProducerPort());
   image_resize_filter->SetOutputSpacing(scaling, scaling, 1.0);
+  image_resize_filter->Update();
 
   VTK_NEW(vtkImageMapper, image_mapper);
   image_mapper->SetInputConnection(image_resize_filter->GetOutputPort());
   image_mapper->SetColorWindow(255.0);
   image_mapper->SetColorLevel(127.5);
+
+  double origin[3];
+  image_resize_filter->GetOutput()->GetOrigin(origin);
+
+  double spacing[3];
+  image_resize_filter->GetOutput()->GetSpacing(spacing);
+
+  int extents[6];
+  image_resize_filter->GetOutput()->GetExtent(extents);
+
+//  std::cout << "In Render: Origin: " << origin[0] << ", " << origin[1] << ", " << origin[2] <<
+//  ", Spacing: " << spacing[0] << ", " << spacing[1] << ", " << spacing[2] << ", Extents: " <<
+//  extents[0] << ", " << extents[1] << ", " << extents[2] << ", " << extents[3] << ", " <<
+//  extents[4] << ", " <<extents[5] << std::endl;
 
   actor->SetMapper(image_mapper);
 }
@@ -2979,9 +2973,6 @@ void Form::on_over_start_button_clicked() {
       3000);
   QApplication::processEvents();
 
-  on_over_mode_select_combobox_currentIndexChanged(m_encoding_mode);
-  on_over_encoding_combobox_currentIndexChanged(m_view_mode);
-
   m_viewing_realtime_overlay = true;
   m_waiting_response = true;
   updateUIStates();
@@ -3152,17 +3143,14 @@ void Form::newSurface(vtkPolyData* surf) {
 
     switch (m_encoding_mode) {
       case 1:  // Color
-        encodeColorDepth(surf, m_oct_mass_poly_data_stereo3D,
-                         m_stereo_reconstr_actor, m_oct_mass_actor);
+        encodeColorDepth(surf, m_stereo_reconstr_actor);
         break;
       case 2:  // Stereocamera silhouette
-        encodeStereoProjDepth(surf, m_oct_mass_poly_data_stereo3D,
-                              m_stereo_reconstr_actor, m_oct_mass_actor);
+        encodeStereoProjDepth(surf, m_stereo_reconstr_actor);
         break;
 
       case 3:  // OCT silhouette
-        encodeOCTProjDepth(surf, m_oct_mass_poly_data_stereo3D,
-                           m_stereo_reconstr_actor, m_oct_mass_actor);
+        encodeOCTProjDepth(surf, m_stereo_reconstr_actor);
         break;
     }
 
@@ -3181,17 +3169,14 @@ void Form::newSurface(vtkPolyData* surf) {
 
     switch (m_encoding_mode) {
       case 1:  // Color
-        encodeColorDepth(surf, m_oct_mass_poly_data_stereo3D,
-                         m_stereo_reconstr_actor, m_oct_mass_actor);
+        encodeColorDepth(surf, m_stereo_reconstr_actor);
         break;
       case 2:  // Stereocamera silhouette
-        encodeStereoProjDepth(surf, m_oct_mass_poly_data_stereo3D,
-                              m_stereo_reconstr_actor, m_oct_mass_actor);
+        encodeStereoProjDepth(surf, m_stereo_reconstr_actor);
         break;
 
       case 3:  // OCT silhouette
-        encodeOCTProjDepth(surf, m_oct_mass_poly_data_stereo3D,
-                           m_stereo_reconstr_actor, m_oct_mass_actor);
+        encodeOCTProjDepth(surf, m_stereo_reconstr_actor);
         break;
     }
 
@@ -3218,9 +3203,6 @@ void Form::on_over_mode_select_combobox_currentIndexChanged(int index) {
       m_renderer_0->AddActor2D(m_stereo_2d_background_actor);
 
       m_renderer_1->AddActor2D(m_stereo_2d_actor);
-
-      // this->m_ui->qvtkWidget->update();
-      // QApplication::processEvents();
       break;
     case 1:  // 3D
       m_renderer_0->AddActor(m_stereo_reconstr_actor);
@@ -3228,12 +3210,9 @@ void Form::on_over_mode_select_combobox_currentIndexChanged(int index) {
 
       m_renderer_1->RemoveActor2D(m_stereo_2d_actor);
 
-      m_renderer_0->GetActiveCamera()->SetPosition(0, 0, -30);
+      m_renderer_0->GetActiveCamera()->SetPosition(0, 0, 0);  //-30);
       m_renderer_0->GetActiveCamera()->SetFocalPoint(0, 0, 30);
       m_renderer_0->GetActiveCamera()->SetViewUp(0, -1, 0);
-
-      // this->m_ui->qvtkWidget->update();
-      // QApplication::processEvents();
       break;
   }
 }
@@ -3255,6 +3234,8 @@ void Form::newStereoImages(std::vector<vtkImageData*> images) {
 
 void Form::on_over_encoding_combobox_currentIndexChanged(int index) {
   m_encoding_mode = m_ui->over_encoding_combobox->currentIndex();
+
+  std::cout << "Encoding changed\n";
 
   switch (m_encoding_mode) {
     case 0:  // None
