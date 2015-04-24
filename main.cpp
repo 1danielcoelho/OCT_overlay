@@ -1,9 +1,12 @@
 /*  TODO LIST:
  *
  *  -Implement the silhouette visualization from the stereocamera POV
- *    -Look into VTK image stencils. Particularly PolyDataToImageStencil
- *    -Continue using silhouette filter. Use these lines as a stencil, stencil
- *     out the color overlay to show it just within the silhouette
+ *    -Need to export the origin/spacing/extent from the left camera image AFTER
+ *     it has been rendered (render2DImageData changes them to fit window size)
+ *    -Need to find a way to clean up the silhouette: It has inner lines that
+ *     don't handle being stencils super well
+ *    -Find a way to use the colored reconstruction/left image as input to the
+ *     stencil filter
  *
  *  -Implement the silhouette visualization from the OCT POV
  *    -Apply the inverse OCT->stereo transform; Discard Z coordinate; Find all

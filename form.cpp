@@ -1226,52 +1226,42 @@ void Form::constructViewPOVPolyline() {
     pos_2d[0] /= pos_2d[2];
     pos_2d[1] /= pos_2d[2];
 
-//    std::cout << "Index: " << i << "; Pos mass: " << pos_sil[0] << ", "
-//              << pos_sil[1] << ", " << pos_sil[2]
-//              << "; pos before: " << pos_3d[0] << ", " << pos_3d[1] << ", "
-//              << pos_3d[2] << "; Pos after: " << pos_2d[0] << ", " << pos_2d[1]
-//              << ", " << pos_2d[2] << std::endl;
+    //    std::cout << "Index: " << i << "; Pos mass: " << pos_sil[0] << ", "
+    //              << pos_sil[1] << ", " << pos_sil[2]
+    //              << "; pos before: " << pos_3d[0] << ", " << pos_3d[1] << ",
+    // "
+    //              << pos_3d[2] << "; Pos after: " << pos_2d[0] << ", " <<
+    // pos_2d[1]
+    //              << ", " << pos_2d[2] << std::endl;
 
-    m_silhouette_polyline->GetPoints()->SetPoint(i, pos_2d[0], pos_2d[1],
-                                                 0);
+    m_silhouette_polyline->GetPoints()->SetPoint(i, pos_2d[0], pos_2d[1], 0);
   }
 
   VTK_NEW(vtkPolyDataToImageStencil, poly_to_stencil);
   poly_to_stencil->SetTolerance(0);
   poly_to_stencil->SetInput(m_silhouette_polyline);
-
-  double origin[3];
-  m_stereo_left_image->GetOrigin(origin);
-
-  double spacing[3];
-  m_stereo_left_image->GetSpacing(spacing);
-
-  int extents[6];
-  m_stereo_left_image->GetExtent(extents);
-
-  poly_to_stencil->SetOutputOrigin(origin);
-  poly_to_stencil->SetOutputSpacing(spacing);
-  poly_to_stencil->SetOutputWholeExtent(extents);
+  poly_to_stencil->SetInformationInput(m_stereo_left_image);
   poly_to_stencil->Update();
-
-//  std::cout << "In Construct: Origin: " << origin[0] << ", " << origin[1] << ", " << origin[2] <<
-//  ", Spacing: " << spacing[0] << ", " << spacing[1] << ", " << spacing[2] << ", Extents: " <<
-//  extents[0] << ", " << extents[1] << ", " << extents[2] << ", " << extents[3] << ", " <<
-//  extents[4] << ", " <<extents[5] << std::endl;
 
   VTK_NEW(vtkImageStencil, stencil);
   stencil->SetStencil(poly_to_stencil->GetOutput());
+  stencil->SetBackgroundColor(255.0, 0.0, 0.0, 0.0);
   stencil->SetInput(m_stereo_left_image);
   stencil->Update();
 
   VTK_NEW(vtkActor2D, stencil_actor);
   render2DImageData(stencil->GetOutput(), stencil_actor);
+  stencil_actor->GetProperty()->SetOpacity(0.5);
 
   VTK_NEW(vtkPolyDataMapper, mapper);
   mapper->SetInput(m_silhouette_polyline);
 
+  // Need to make this actor a class variable, or find a way to remove the old
+  // one when we add a new one
+  m_renderer_2->RemoveAllViewProps();
+
   VTK_NEW(vtkActor, actor);
-  actor->SetMapper(mapper);
+  actor->SetMapper(mapper);  
 
   m_renderer_0->AddActor(actor);
   m_renderer_2->AddActor2D(stencil_actor);
@@ -1503,8 +1493,9 @@ void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data,
   }
 
   VTK_NEW(vtkImageReslice, image_resize_filter);
-  image_resize_filter->SetInputConnection(image_data->GetProducerPort());
+  image_resize_filter->SetInput(image_data);
   image_resize_filter->SetOutputSpacing(scaling, scaling, 1.0);
+  image_resize_filter->SetOutputOrigin(0, 0, 0);
   image_resize_filter->Update();
 
   VTK_NEW(vtkImageMapper, image_mapper);

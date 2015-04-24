@@ -42,6 +42,7 @@
 #include <vtkPointSet.h>
 #include <vtkPlane.h>
 #include <vtkImageStencil.h>
+#include <vtkImageStencilData.h>
 // Filters
 #include <vtkContourFilter.h>
 #include <vtkVertexGlyphFilter.h>
