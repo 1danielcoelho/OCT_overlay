@@ -113,10 +113,11 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_stereo_disp_image = vtkSmartPointer<vtkImageData>::New();
   m_stereo_depth_image = vtkSmartPointer<vtkImageData>::New();
   m_stereo_reproject_image = vtkSmartPointer<vtkImageData>::New();
+  m_stencil_binary_image = vtkSmartPointer<vtkImageData>::New();
   m_oct_stereo_trans = vtkSmartPointer<vtkTransform>::New();
   m_oct_stereo_trans->Identity();
   m_left_proj_trans = vtkSmartPointer<vtkTransform>::New();
-  m_left_proj_trans->Identity();
+  m_left_proj_trans->Identity();  
   // Actors
   m_oct_vol_actor = vtkSmartPointer<vtkActor>::New();
   m_oct_surf_actor = vtkSmartPointer<vtkActor>::New();
@@ -1113,8 +1114,19 @@ void Form::encodeColorDepth(vtkSmartPointer<vtkPolyData> surface,
 
 void Form::encodeStereoProjDepth(vtkSmartPointer<vtkPolyData> surface,
                                  vtkSmartPointer<vtkActor> surface_actor) {
+  // Get all white pixels from the binary image
+  // For those, use the rows, cols, and pixel index to find its 3d position in
+  // the polydata surface
+  // Use the kd-tree locator to find the closest mass vertex
+  // Color the "in" pixel accordingly in the polydata surface
+  // Done
 
-  // pass
+  //TODO: Get this to work
+  VTK_NEW(vtkPolyDataMapper, mapper);
+  mapper->SetInput(m_silhouette_polyline);
+  VTK_NEW(vtkActor, actor);
+  actor->SetMapper(mapper);
+  m_renderer_0->AddActor(actor);
 }
 
 void Form::encodeOCTProjDepth(vtkSmartPointer<vtkPolyData> surface,
@@ -1193,6 +1205,7 @@ void Form::constructViewPOVPolyline() {
   trans_filt->SetInput(m_oct_mass_poly_data);
   trans_filt->Update();
 
+  //Extract its silhouette when projected on the XY plane
   VTK_NEW(vtkPolyDataSilhouette, silh_filt);
   silh_filt->SetEnableFeatureAngle(1);
   silh_filt->SetFeatureAngle(180);
@@ -1200,10 +1213,8 @@ void Form::constructViewPOVPolyline() {
   silh_filt->SetInput(trans_filt->GetPolyDataOutput());
   silh_filt->Update();
 
-  vtkPolyData* silh_output = silh_filt->GetOutput();
-
   VTK_NEW(vtkStripper, stripper);
-  stripper->SetInput(silh_output);
+  stripper->SetInput(silh_filt->GetOutput());
   stripper->Update();
 
   m_silhouette_polyline = stripper->GetOutput();
@@ -1211,7 +1222,8 @@ void Form::constructViewPOVPolyline() {
   uint32_t num_pts = m_silhouette_polyline->GetNumberOfPoints();
 
   // Transform the silhouette polyline into the coordinate space of the left
-  // camera image
+  // camera image, that is, vertex coordinates will go to the 0->640 range for x
+  // and 0->480 range for y
   for (uint32_t i = 0; i < num_pts; i++) {
 
     double pos_3d[4];
@@ -1226,15 +1238,30 @@ void Form::constructViewPOVPolyline() {
     pos_2d[0] /= pos_2d[2];
     pos_2d[1] /= pos_2d[2];
 
-    //    std::cout << "Index: " << i << "; Pos mass: " << pos_sil[0] << ", "
-    //              << pos_sil[1] << ", " << pos_sil[2]
-    //              << "; pos before: " << pos_3d[0] << ", " << pos_3d[1] << ",
-    // "
-    //              << pos_3d[2] << "; Pos after: " << pos_2d[0] << ", " <<
-    // pos_2d[1]
-    //              << ", " << pos_2d[2] << std::endl;
-
     m_silhouette_polyline->GetPoints()->SetPoint(i, pos_2d[0], pos_2d[1], 0);
+  }
+
+  int dimensions[3];
+  m_stereo_left_image->GetDimensions(dimensions);
+
+  //Create a white image with the same dimensions as the left image. This will
+  //help us create our binary image later. Note that we use the binary image
+  //pointer itself to hold it, so we don't need to allocate twice
+  m_stencil_binary_image->SetDimensions(dimensions);
+  m_stencil_binary_image->SetNumberOfScalarComponents(3);
+  m_stencil_binary_image->SetScalarTypeToUnsignedChar();
+  m_stencil_binary_image->AllocateScalars();
+  unsigned char* pixel;
+  for(int x = 0; x < dimensions[0]; x++)
+  {
+    for(int y = 0; y < dimensions[1]; y++)
+    {
+      pixel = static_cast<unsigned char *>(
+            m_stencil_binary_image->GetScalarPointer(x,y, 0));
+      pixel[0] = 255;
+      pixel[1] = 255;
+      pixel[2] = 255;
+    }
   }
 
   VTK_NEW(vtkPolyDataToImageStencil, poly_to_stencil);
@@ -1245,26 +1272,11 @@ void Form::constructViewPOVPolyline() {
 
   VTK_NEW(vtkImageStencil, stencil);
   stencil->SetStencil(poly_to_stencil->GetOutput());
-  stencil->SetBackgroundColor(255.0, 0.0, 0.0, 0.0);
-  stencil->SetInput(m_stereo_left_image);
+  stencil->SetBackgroundColor(0.0, 0.0, 0.0, 0.0);
+  stencil->SetInput(m_stencil_binary_image);
   stencil->Update();
 
-  VTK_NEW(vtkActor2D, stencil_actor);
-  render2DImageData(stencil->GetOutput(), stencil_actor);
-  stencil_actor->GetProperty()->SetOpacity(0.5);
-
-  VTK_NEW(vtkPolyDataMapper, mapper);
-  mapper->SetInput(m_silhouette_polyline);
-
-  // Need to make this actor a class variable, or find a way to remove the old
-  // one when we add a new one
-  m_renderer_2->RemoveAllViewProps();
-
-  VTK_NEW(vtkActor, actor);
-  actor->SetMapper(mapper);  
-
-  m_renderer_0->AddActor(actor);
-  m_renderer_2->AddActor2D(stencil_actor);
+  m_stencil_binary_image = stencil->GetOutput();
 }
 
 //------------RENDERING---------------------------------------------------------
@@ -3119,14 +3131,15 @@ void Form::newSurface(vtkPolyData* surf) {
 
     switch (m_encoding_mode) {
       case 1:  // Color
-        encodeColorDepth(surf, m_stereo_reconstr_actor);
+        encodeColorDepth(m_stereo_reconstr_poly_data, m_stereo_reconstr_actor);
         break;
       case 2:  // Stereocamera silhouette
-        encodeStereoProjDepth(surf, m_stereo_reconstr_actor);
+        encodeStereoProjDepth(m_stereo_reconstr_poly_data,
+                              m_stereo_reconstr_actor);
         break;
-
       case 3:  // OCT silhouette
-        encodeOCTProjDepth(surf, m_stereo_reconstr_actor);
+        encodeOCTProjDepth(m_stereo_reconstr_poly_data,
+                           m_stereo_reconstr_actor);
         break;
     }
 
@@ -3145,14 +3158,16 @@ void Form::newSurface(vtkPolyData* surf) {
 
     switch (m_encoding_mode) {
       case 1:  // Color
-        encodeColorDepth(surf, m_stereo_reconstr_actor);
+        encodeColorDepth(m_stereo_reconstr_poly_data, m_stereo_reconstr_actor);
         break;
       case 2:  // Stereocamera silhouette
-        encodeStereoProjDepth(surf, m_stereo_reconstr_actor);
+        encodeStereoProjDepth(m_stereo_reconstr_poly_data,
+                              m_stereo_reconstr_actor);
         break;
 
       case 3:  // OCT silhouette
-        encodeOCTProjDepth(surf, m_stereo_reconstr_actor);
+        encodeOCTProjDepth(m_stereo_reconstr_poly_data,
+                           m_stereo_reconstr_actor);
         break;
     }
 

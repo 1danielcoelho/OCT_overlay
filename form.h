@@ -375,6 +375,7 @@ Q_SIGNALS:
   vtkSmartPointer<vtkImageData> m_stereo_disp_image;
   vtkSmartPointer<vtkImageData> m_stereo_depth_image;
   vtkSmartPointer<vtkImageData> m_stereo_reproject_image;
+  vtkSmartPointer<vtkImageData> m_stencil_binary_image;
   vtkSmartPointer<vtkTransform> m_oct_stereo_trans;
   vtkSmartPointer<vtkTransform> m_left_proj_trans;
   // Actors are kept since we need their references when we add/remove actors in
