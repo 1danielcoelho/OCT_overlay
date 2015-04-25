@@ -117,7 +117,7 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_oct_stereo_trans = vtkSmartPointer<vtkTransform>::New();
   m_oct_stereo_trans->Identity();
   m_left_proj_trans = vtkSmartPointer<vtkTransform>::New();
-  m_left_proj_trans->Identity();  
+  m_left_proj_trans->Identity();
   // Actors
   m_oct_vol_actor = vtkSmartPointer<vtkActor>::New();
   m_oct_surf_actor = vtkSmartPointer<vtkActor>::New();
@@ -1121,12 +1121,61 @@ void Form::encodeStereoProjDepth(vtkSmartPointer<vtkPolyData> surface,
   // Color the "in" pixel accordingly in the polydata surface
   // Done
 
-  //TODO: Get this to work
-  VTK_NEW(vtkPolyDataMapper, mapper);
-  mapper->SetInput(m_silhouette_polyline);
-  VTK_NEW(vtkActor, actor);
-  actor->SetMapper(mapper);
-  m_renderer_0->AddActor(actor);
+  int dimensions[3];
+  int num_surf_pts = surface->GetNumberOfPoints();
+
+  vtkTypeUInt8Array* colors = vtkTypeUInt8Array::SafeDownCast(
+      surface->GetPointData()->GetArray("Colors"));
+
+  m_stencil_binary_image->GetDimensions(dimensions);
+  unsigned char* pixel;
+  int pt_id = -1;
+  double position[3];
+  double distance;
+
+  for (int y = 0; y < dimensions[1]; y++) {
+    for (int x = 0; x < dimensions[0]; x++) {
+      pt_id++;
+
+      pixel = static_cast<unsigned char*>(
+          m_stencil_binary_image->GetScalarPointer(x, y, 0));
+
+      //Only do the depth calculations for the white pixels in the binary img
+      if (pixel[0] == 0) {
+        continue;
+      }
+
+      surface->GetPoint(pt_id, position);
+
+      int other_id = m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(
+          5.0, position, distance);
+
+      distance = std::sqrt(distance);
+
+      double old_color[4];
+      double color_to_add[4];
+
+      colors->GetTuple(pt_id, old_color);
+      m_overlay_lut->GetColor(distance, color_to_add);
+
+      old_color[0] *= color_to_add[0];
+      old_color[1] *= color_to_add[1];
+      old_color[2] *= color_to_add[2];
+
+      colors->SetTuple(pt_id, old_color);
+    }
+  }
+
+  // Turns on transparency calculations
+  surface_actor->GetProperty()->SetOpacity(0.99);
+  surface_actor->GetProperty()->SetPointSize(5);
+
+  // TODO: Get this to work
+//  VTK_NEW(vtkPolyDataMapper, mapper);
+//  mapper->SetInput(m_silhouette_polyline);
+//  VTK_NEW(vtkActor, actor);
+//  actor->SetMapper(mapper);
+//  m_renderer_0->AddActor(actor);
 }
 
 void Form::encodeOCTProjDepth(vtkSmartPointer<vtkPolyData> surface,
@@ -1205,7 +1254,7 @@ void Form::constructViewPOVPolyline() {
   trans_filt->SetInput(m_oct_mass_poly_data);
   trans_filt->Update();
 
-  //Extract its silhouette when projected on the XY plane
+  // Extract its silhouette when projected on the XY plane
   VTK_NEW(vtkPolyDataSilhouette, silh_filt);
   silh_filt->SetEnableFeatureAngle(1);
   silh_filt->SetFeatureAngle(180);
@@ -1244,20 +1293,18 @@ void Form::constructViewPOVPolyline() {
   int dimensions[3];
   m_stereo_left_image->GetDimensions(dimensions);
 
-  //Create a white image with the same dimensions as the left image. This will
-  //help us create our binary image later. Note that we use the binary image
-  //pointer itself to hold it, so we don't need to allocate twice
+  // Create a white image with the same dimensions as the left image. This will
+  // help us create our binary image later. Note that we use the binary image
+  // pointer itself to hold it, so we don't need to allocate twice
   m_stencil_binary_image->SetDimensions(dimensions);
   m_stencil_binary_image->SetNumberOfScalarComponents(3);
   m_stencil_binary_image->SetScalarTypeToUnsignedChar();
   m_stencil_binary_image->AllocateScalars();
   unsigned char* pixel;
-  for(int x = 0; x < dimensions[0]; x++)
-  {
-    for(int y = 0; y < dimensions[1]; y++)
-    {
-      pixel = static_cast<unsigned char *>(
-            m_stencil_binary_image->GetScalarPointer(x,y, 0));
+  for (int x = 0; x < dimensions[0]; x++) {
+    for (int y = 0; y < dimensions[1]; y++) {
+      pixel = static_cast<unsigned char*>(
+          m_stencil_binary_image->GetScalarPointer(x, y, 0));
       pixel[0] = 255;
       pixel[1] = 255;
       pixel[2] = 255;
@@ -1276,7 +1323,7 @@ void Form::constructViewPOVPolyline() {
   stencil->SetInput(m_stencil_binary_image);
   stencil->Update();
 
-  m_stencil_binary_image = stencil->GetOutput();
+  m_stencil_binary_image->DeepCopy(stencil->GetOutput());
 }
 
 //------------RENDERING---------------------------------------------------------
@@ -3253,12 +3300,27 @@ void Form::on_over_encoding_combobox_currentIndexChanged(int index) {
       QApplication::processEvents();
       break;
     case 2:  // Stereocamera silhouette
-      constructViewPOVPolyline();
-      m_renderer_2->RemoveActor2D(m_scalar_bar_actor);
+      m_overlay_lut->SetTableRange(0, 5);
+      m_overlay_lut->SetSaturationRange(1, 0);
+      m_overlay_lut->SetHueRange(0.0, 0.667);
+      m_overlay_lut->SetValueRange(1, 1);
+      m_overlay_lut->SetAlphaRange(1, 1);
+      m_overlay_lut->Build();
+
+      m_scalar_bar_actor->SetLookupTable(m_overlay_lut);
+      m_scalar_bar_actor->SetTitle("Distance to mass surface [mm]");
+      m_scalar_bar_actor->SetNumberOfLabels(5);
+      m_scalar_bar_actor->SetHeight(0.08);
+      m_scalar_bar_actor->SetWidth(0.6);
+      m_scalar_bar_actor->SetPosition(0.2, 0);
+      m_scalar_bar_actor->SetOrientationToHorizontal();
+      m_scalar_bar_actor->SetLayerNumber(1);
+
+      m_renderer_2->AddActor2D(m_scalar_bar_actor);
       this->m_ui->qvtkWidget->update();
       QApplication::processEvents();
+      constructViewPOVPolyline();
       break;
-
     case 3:  // OCT silhouette
       m_renderer_2->RemoveActor2D(m_scalar_bar_actor);
       this->m_ui->qvtkWidget->update();
