@@ -1,12 +1,10 @@
 /*  TODO LIST:
  *
  *  -Implement the silhouette visualization from the stereocamera POV
- *    -Need to export the origin/spacing/extent from the left camera image AFTER
- *     it has been rendered (render2DImageData changes them to fit window size)
- *    -Need to find a way to clean up the silhouette: It has inner lines that
- *     don't handle being stencils super well
- *    -Find a way to use the colored reconstruction/left image as input to the
- *     stencil filter
+ *    -Got the artifact lines with vtkPolyDataToImageStencil. Apparently the guy
+ *     fixed this problem in a newer version, so I need to jack his file and add
+ *     to my own program, since I wouldn't recompile VTK at this point even if
+ *     I were paid
  *
  *  -Implement the silhouette visualization from the OCT POV
  *    -Apply the inverse OCT->stereo transform; Discard Z coordinate; Find all
@@ -16,6 +14,7 @@
  *
  *  -Maybe find a way to implement opacity encoding
  *
+ *  -Have P be read from the file as opposed to being hard-coded
  *
  *
  * */

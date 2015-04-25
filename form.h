@@ -79,6 +79,7 @@
 #include <vtkPolyDataSilhouette.h>
 #include <vtkPolyDataToImageStencil.h>
 #include <vtkStripper.h>
+#include <vtkLinearSubdivisionFilter.h>
 // Mappers
 #include <vtkPolyDataMapper.h>
 #include <vtkImageMapper.h>
@@ -365,7 +366,7 @@ Q_SIGNALS:
   // VTK objects
   vtkSmartPointer<vtkPolyData> m_oct_poly_data;
   vtkSmartPointer<vtkPolyData> m_oct_mass_poly_data;
-  vtkSmartPointer<vtkPolyData> m_oct_mass_poly_data_leftCamera;
+  vtkSmartPointer<vtkPolyData> m_oct_mass_poly_data_processed;
   vtkSmartPointer<vtkPolyData> m_oct_surf_poly_data;
   vtkSmartPointer<vtkPolyData> m_stereo_left_poly_data;
   vtkSmartPointer<vtkPolyData> m_stereo_reconstr_poly_data;

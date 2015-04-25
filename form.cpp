@@ -103,8 +103,8 @@ Form::Form(int argc, char** argv, QWidget* parent)
   // Data structures
   m_oct_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_oct_surf_poly_data = vtkSmartPointer<vtkPolyData>::New();
-  m_oct_mass_poly_data = vtkSmartPointer<vtkPolyData>::New();
-  m_oct_mass_poly_data_leftCamera = vtkSmartPointer<vtkPolyData>::New();
+  m_oct_mass_poly_data = vtkSmartPointer<vtkPolyData>::New();  
+  m_oct_mass_poly_data_processed = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_left_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_reconstr_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_silhouette_polyline = vtkSmartPointer<vtkPolyData>::New();
@@ -1056,11 +1056,26 @@ void Form::buildKDTree() {
                                  3000);
   QApplication::processEvents();
 
+  //Homogenize our mesh a bit by subdividing and cleaning. This helps during the
+  //depth encoding, since it will generate smoother distance fields
+  VTK_NEW(vtkLinearSubdivisionFilter, subdivide);
+  subdivide->SetInput(m_oct_mass_poly_data);
+  subdivide->SetNumberOfSubdivisions(2);
+  subdivide->Update();
+
+  VTK_NEW(vtkCleanPolyData, clean);
+  clean->SetTolerance(0.01);
+  clean->SetInput(subdivide->GetOutput());
+  clean->SetPointMerging(1);
+  clean->Update();
+
   // Transforms the OCT mass polydata to the 3D stereocamera frame
   VTK_NEW(vtkTransformFilter, trans_filt);
   trans_filt->SetTransform(m_oct_stereo_trans);
-  trans_filt->SetInput(m_oct_mass_poly_data);
+  trans_filt->SetInput(clean->GetOutput());
   trans_filt->Update();
+
+  m_oct_mass_poly_data_processed->DeepCopy(trans_filt->GetOutput());
 
   m_oct_mass_kd_tree_locator = vtkSmartPointer<vtkKdTreePointLocator>::New();
   m_oct_mass_kd_tree_locator->SetDataSet(trans_filt->GetPolyDataOutput());
@@ -1121,54 +1136,60 @@ void Form::encodeStereoProjDepth(vtkSmartPointer<vtkPolyData> surface,
   // Color the "in" pixel accordingly in the polydata surface
   // Done
 
-  int dimensions[3];
-  int num_surf_pts = surface->GetNumberOfPoints();
+  VTK_NEW(vtkActor2D, stencil_actor);
+  render2DImageData(m_stencil_binary_image, stencil_actor);
 
-  vtkTypeUInt8Array* colors = vtkTypeUInt8Array::SafeDownCast(
-      surface->GetPointData()->GetArray("Colors"));
+  m_renderer_2->RemoveAllViewProps();
+  m_renderer_2->AddActor2D(stencil_actor);
 
-  m_stencil_binary_image->GetDimensions(dimensions);
-  unsigned char* pixel;
-  int pt_id = -1;
-  double position[3];
-  double distance;
+//  int dimensions[3];
+//  int num_surf_pts = surface->GetNumberOfPoints();
 
-  for (int y = 0; y < dimensions[1]; y++) {
-    for (int x = 0; x < dimensions[0]; x++) {
-      pt_id++;
+//  vtkTypeUInt8Array* colors = vtkTypeUInt8Array::SafeDownCast(
+//      surface->GetPointData()->GetArray("Colors"));
 
-      pixel = static_cast<unsigned char*>(
-          m_stencil_binary_image->GetScalarPointer(x, y, 0));
+//  m_stencil_binary_image->GetDimensions(dimensions);
+//  unsigned char* pixel;
+//  int pt_id = -1;
+//  double position[3];
+//  double distance;
 
-      //Only do the depth calculations for the white pixels in the binary img
-      if (pixel[0] == 0) {
-        continue;
-      }
+//  for (int y = 0; y < dimensions[1]; y++) {
+//    for (int x = 0; x < dimensions[0]; x++) {
+//      pt_id++;
 
-      surface->GetPoint(pt_id, position);
+//      pixel = static_cast<unsigned char*>(
+//          m_stencil_binary_image->GetScalarPointer(x, y, 0));
 
-      int other_id = m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(
-          5.0, position, distance);
+//      //Only do the depth calculations for the white pixels in the binary img
+//      if (pixel[0] == 0) {
+//        continue;
+//      }
 
-      distance = std::sqrt(distance);
+//      surface->GetPoint(pt_id, position);
 
-      double old_color[4];
-      double color_to_add[4];
+//      int other_id = m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(
+//          5.0, position, distance);
 
-      colors->GetTuple(pt_id, old_color);
-      m_overlay_lut->GetColor(distance, color_to_add);
+//      distance = std::sqrt(distance);
 
-      old_color[0] *= color_to_add[0];
-      old_color[1] *= color_to_add[1];
-      old_color[2] *= color_to_add[2];
+//      double old_color[4];
+//      double color_to_add[4];
 
-      colors->SetTuple(pt_id, old_color);
-    }
-  }
+//      colors->GetTuple(pt_id, old_color);
+//      m_overlay_lut->GetColor(distance, color_to_add);
 
-  // Turns on transparency calculations
-  surface_actor->GetProperty()->SetOpacity(0.99);
-  surface_actor->GetProperty()->SetPointSize(5);
+//      old_color[0] *= color_to_add[0];
+//      old_color[1] *= color_to_add[1];
+//      old_color[2] *= color_to_add[2];
+
+//      colors->SetTuple(pt_id, old_color);
+//    }
+//  }
+
+//  // Turns on transparency calculations
+//  surface_actor->GetProperty()->SetOpacity(0.99);
+//  surface_actor->GetProperty()->SetPointSize(5);
 
   // TODO: Get this to work
 //  VTK_NEW(vtkPolyDataMapper, mapper);
@@ -1249,17 +1270,18 @@ void Form::mapReconstructionTo2D(vtkSmartPointer<vtkPolyData> surface,
 
 void Form::constructViewPOVPolyline() {
   // Transforms the OCT mass from OCT CS to stereocamera 3d CS
-  VTK_NEW(vtkTransformFilter, trans_filt);
-  trans_filt->SetTransform(m_oct_stereo_trans);
-  trans_filt->SetInput(m_oct_mass_poly_data);
-  trans_filt->Update();
+//  VTK_NEW(vtkTransformFilter, trans_filt);
+//  trans_filt->SetTransform(m_oct_stereo_trans);
+//  trans_filt->SetInput(m_oct_mass_poly_data);
+//  trans_filt->Update();
 
   // Extract its silhouette when projected on the XY plane
   VTK_NEW(vtkPolyDataSilhouette, silh_filt);
   silh_filt->SetEnableFeatureAngle(1);
-  silh_filt->SetFeatureAngle(180);
+  silh_filt->SetFeatureAngle(0);
+  silh_filt->SetPieceInvariant(0);
   silh_filt->SetCamera(m_renderer_0->GetActiveCamera());
-  silh_filt->SetInput(trans_filt->GetPolyDataOutput());
+  silh_filt->SetInput(m_oct_mass_poly_data_processed);
   silh_filt->Update();
 
   VTK_NEW(vtkStripper, stripper);
@@ -1312,7 +1334,7 @@ void Form::constructViewPOVPolyline() {
   }
 
   VTK_NEW(vtkPolyDataToImageStencil, poly_to_stencil);
-  poly_to_stencil->SetTolerance(0);
+  poly_to_stencil->SetTolerance(0.000001);
   poly_to_stencil->SetInput(m_silhouette_polyline);
   poly_to_stencil->SetInformationInput(m_stereo_left_image);
   poly_to_stencil->Update();
@@ -1323,7 +1345,19 @@ void Form::constructViewPOVPolyline() {
   stencil->SetInput(m_stencil_binary_image);
   stencil->Update();
 
-  m_stencil_binary_image->DeepCopy(stencil->GetOutput());
+//  VTK_NEW(vtkImageContinuousDilate3D, dilate);
+//  dilate->SetInput(stencil->GetOutput());
+//  dilate->SetKernelSize(10, 10, 1);
+//  dilate->Update();
+
+//  VTK_NEW(vtkImageContinuousErode3D, erode);
+//  erode->SetInput(dilate->GetOutput());
+//  erode->SetKernelSize(10, 10, 1);
+//  erode->Update();
+
+//  m_stencil_binary_image->DeepCopy(erode->GetOutput());
+
+    m_stencil_binary_image->DeepCopy(stencil->GetOutput());
 }
 
 //------------RENDERING---------------------------------------------------------
