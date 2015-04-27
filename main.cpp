@@ -1,10 +1,8 @@
 /*  TODO LIST:
  *
  *  -Implement the silhouette visualization from the stereocamera POV
- *    -Got the artifact lines with vtkPolyDataToImageStencil. Apparently the guy
- *     fixed this problem in a newer version, so I need to jack his file and add
- *     to my own program, since I wouldn't recompile VTK at this point even if
- *     I were paid
+ *    -Find the correct way to initialize a vtkImageStencilData. Trying to
+ *     access >ExtentListLengths[incr]; causes a SEGFAULT
  *
  *  -Implement the silhouette visualization from the OCT POV
  *    -Apply the inverse OCT->stereo transform; Discard Z coordinate; Find all

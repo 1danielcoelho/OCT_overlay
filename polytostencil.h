@@ -1,8 +1,12 @@
-//The current version of VTK (5.8) has a very outdated vtkPolyDataToImageStencil
-//filter, which produces undesirable artifacts on its outputs. The PolyToStencil
-//class is a container to hold the algorithm of the newer version, along with
-//the simplest form of interface (that simulates a VTK interface). The following
-//license boilerplate was present on the file this algorithm was extracted from.
+// The current version of VTK (5.8) has a very outdated
+// vtkPolyDataToImageStencil
+// filter, which produces undesirable artifacts on its outputs. The
+// PolyToStencil
+// class is a container to hold the algorithm of the newer version, along with
+// the simplest form of interface (that simulates a VTK interface). The
+// following
+// license boilerplate was present on the file this algorithm was extracted
+// from.
 
 /*=========================================================================
 
@@ -80,26 +84,36 @@ POSSIBILITY OF SUCH DAMAGES.
 
 #include <math.h>
 
-class PolyToStencil{
-public:
+class PolyToStencil {
+ public:
   PolyToStencil();
   ~PolyToStencil();
 
-  void SetInput(vtkPolyData* input);
-  void SetTolerance(double tolerance);
-  void SetInformationInput(vtkImageData* info_input);
-  void Update();
-  vtkImageStencilData* GetOutput();
+  void SetInput(vtkPolyData *input);
+  vtkPolyData* GetInput();
 
-private:
+  void SetTolerance(double tolerance);
+  double GetTolerance();
+
+  void SetInformationInput(vtkImageData *info_input);
+  void Update();
+  vtkImageStencilData *GetOutput();
+
+  void ThreadedExecute(vtkImageStencilData *output, int extent[6],
+                       int threadId);
+  void PolyDataCutter(vtkPolyData *input, vtkPolyData *output, double z);
+  void PolyDataSelector(vtkPolyData *input, vtkPolyData *output, double z,
+                        double thickness);
+
+ private:
   double m_tolerance;
+
+  int m_output_extent[6];
+  double m_output_origin[3];
+  double m_output_spacing[3];
+
   vtkSmartPointer<vtkPolyData> m_input;
   vtkSmartPointer<vtkImageStencilData> m_output;
-
 };
 
-
-
-
-
-#endif //POLYTOSTENCIL_H
+#endif  // POLYTOSTENCIL_H

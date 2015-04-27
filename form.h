@@ -116,6 +116,7 @@
 #include "octinfo.h"
 #include "sliceinteractor.h"
 #include "clustering.h"
+#include "polytostencil.h"
 
 namespace Ui {
 class Form;

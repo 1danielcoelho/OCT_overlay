@@ -1136,60 +1136,60 @@ void Form::encodeStereoProjDepth(vtkSmartPointer<vtkPolyData> surface,
   // Color the "in" pixel accordingly in the polydata surface
   // Done
 
-  VTK_NEW(vtkActor2D, stencil_actor);
-  render2DImageData(m_stencil_binary_image, stencil_actor);
+//  VTK_NEW(vtkActor2D, stencil_actor);
+//  render2DImageData(m_stencil_binary_image, stencil_actor);
 
-  m_renderer_2->RemoveAllViewProps();
-  m_renderer_2->AddActor2D(stencil_actor);
+//  m_renderer_2->RemoveAllViewProps();
+//  m_renderer_2->AddActor2D(stencil_actor);
 
-//  int dimensions[3];
-//  int num_surf_pts = surface->GetNumberOfPoints();
+  int dimensions[3];
+  int num_surf_pts = surface->GetNumberOfPoints();
 
-//  vtkTypeUInt8Array* colors = vtkTypeUInt8Array::SafeDownCast(
-//      surface->GetPointData()->GetArray("Colors"));
+  vtkTypeUInt8Array* colors = vtkTypeUInt8Array::SafeDownCast(
+      surface->GetPointData()->GetArray("Colors"));
 
-//  m_stencil_binary_image->GetDimensions(dimensions);
-//  unsigned char* pixel;
-//  int pt_id = -1;
-//  double position[3];
-//  double distance;
+  m_stencil_binary_image->GetDimensions(dimensions);
+  unsigned char* pixel;
+  int pt_id = -1;
+  double position[3];
+  double distance;
 
-//  for (int y = 0; y < dimensions[1]; y++) {
-//    for (int x = 0; x < dimensions[0]; x++) {
-//      pt_id++;
+  for (int y = 0; y < dimensions[1]; y++) {
+    for (int x = 0; x < dimensions[0]; x++) {
+      pt_id++;
 
-//      pixel = static_cast<unsigned char*>(
-//          m_stencil_binary_image->GetScalarPointer(x, y, 0));
+      pixel = static_cast<unsigned char*>(
+          m_stencil_binary_image->GetScalarPointer(x, y, 0));
 
-//      //Only do the depth calculations for the white pixels in the binary img
-//      if (pixel[0] == 0) {
-//        continue;
-//      }
+      //Only do the depth calculations for the white pixels in the binary img
+      if (pixel[0] == 0) {
+        continue;
+      }
 
-//      surface->GetPoint(pt_id, position);
+      surface->GetPoint(pt_id, position);
 
-//      int other_id = m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(
-//          5.0, position, distance);
+      int other_id = m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(
+          5.0, position, distance);
 
-//      distance = std::sqrt(distance);
+      distance = std::sqrt(distance);
 
-//      double old_color[4];
-//      double color_to_add[4];
+      double old_color[4];
+      double color_to_add[4];
 
-//      colors->GetTuple(pt_id, old_color);
-//      m_overlay_lut->GetColor(distance, color_to_add);
+      colors->GetTuple(pt_id, old_color);
+      m_overlay_lut->GetColor(distance, color_to_add);
 
-//      old_color[0] *= color_to_add[0];
-//      old_color[1] *= color_to_add[1];
-//      old_color[2] *= color_to_add[2];
+      old_color[0] *= color_to_add[0];
+      old_color[1] *= color_to_add[1];
+      old_color[2] *= color_to_add[2];
 
-//      colors->SetTuple(pt_id, old_color);
-//    }
-//  }
+      colors->SetTuple(pt_id, old_color);
+    }
+  }
 
-//  // Turns on transparency calculations
-//  surface_actor->GetProperty()->SetOpacity(0.99);
-//  surface_actor->GetProperty()->SetPointSize(5);
+  // Turns on transparency calculations
+  surface_actor->GetProperty()->SetOpacity(0.99);
+  surface_actor->GetProperty()->SetPointSize(5);
 
   // TODO: Get this to work
 //  VTK_NEW(vtkPolyDataMapper, mapper);
@@ -1338,6 +1338,12 @@ void Form::constructViewPOVPolyline() {
   poly_to_stencil->SetInput(m_silhouette_polyline);
   poly_to_stencil->SetInformationInput(m_stereo_left_image);
   poly_to_stencil->Update();
+
+//  PolyToStencil poly_to_stencil;
+//  poly_to_stencil.SetTolerance(0.000001);
+//  poly_to_stencil.SetInput(m_silhouette_polyline);
+//  poly_to_stencil.SetInformationInput(m_stereo_left_image);
+//  poly_to_stencil.Update();
 
   VTK_NEW(vtkImageStencil, stencil);
   stencil->SetStencil(poly_to_stencil->GetOutput());
