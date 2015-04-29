@@ -230,9 +230,10 @@ class Form : public QMainWindow {
   // passed in transform before rendering
   void renderOCTSurface(vtkSmartPointer<vtkTransform> trans);
 
-  // Renders the reconstruction of the surface observed by the stereocamera, by
-  // combining both a left and depth images
-  void renderStereocameraReconstruction();
+  // Combines the position information in m_stereo_depth_image with the color in
+  // m_stereo_left_image to generate a 3d, coloured vtkPolyData of the surface
+  // observed by the stereocamera
+  void reconstructStereoSurface();
 
   // Clears m_renderer from actors and renders either the left, right or
   // displacement map vtkImageData objects from by load2DVectorCacheToImageData
@@ -243,8 +244,10 @@ class Form : public QMainWindow {
   // Applies the passed in transform before rendering
   void renderOCTMass(vtkSmartPointer<vtkTransform> trans);
 
-  // Renders the stereocamera surface reconstructed by qnode
-  void renderStereoReconstructionWithEncoding();
+  // Runs the passed 'polydata' through a vtkVertexGlyphFilter, assigns the
+  // result to a vtkPolyDataMapper 'mapper', sets this mapper into the passed
+  // 'actor'
+  void renderPointPolyDataActor(vtkPolyData* polydata, vtkActor* actor);
 
   //--------------UI CALLBACKS--------------------------------------------------
 

@@ -217,9 +217,9 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
     cv::normalize(image_disp, image_disp_r, 0, 255, cv::NORM_MINMAX, CV_8U);
 
     // Convert depth image from 32FC3 to 8UC3
-    cv::Mat image_depth_rgb;
-    cv::normalize(image_depth, image_depth_rgb, 0, 255, cv::NORM_MINMAX,
-                  CV_8UC3);
+//    cv::Mat image_depth_rgb;
+//    cv::normalize(image_depth, image_depth_rgb, 0, 255, cv::NORM_MINMAX,
+//                  CV_8UC3);
 
     int rows = image_left.rows;
     int cols = image_left.cols;
@@ -250,11 +250,13 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
     vtkImageData *depth_imagedata = vtkImageData::New();
     depth_imagedata->SetDimensions(cols, rows, 1);
     depth_imagedata->SetNumberOfScalarComponents(3);
-    depth_imagedata->SetScalarTypeToUnsignedChar();
+    depth_imagedata->SetScalarTypeToFloat();
     depth_imagedata->AllocateScalars();
 
     unsigned char color[3];
+    float position[3];
     unsigned char *pixel;
+    float* pixel_float;
 
     for (uint32_t i = 0; i < rows; i++) {
       for (uint32_t j = 0; j < cols; j++) {
@@ -286,12 +288,12 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
         memcpy(&pixel[0], &color[0], 3);
 
         // Depth image
-        color[0] = image_depth_rgb.at<cv::Vec3b>(i, j)[0];
-        color[1] = image_depth_rgb.at<cv::Vec3b>(i, j)[1];
-        color[2] = image_depth_rgb.at<cv::Vec3b>(i, j)[2];
-        pixel = static_cast<unsigned char *>(
+        position[0] = (float) image_depth.at<cv::Vec3d>(i, j)[0];
+        position[1] = (float) image_depth.at<cv::Vec3d>(i, j)[1];
+        position[2] = (float) image_depth.at<cv::Vec3d>(i, j)[2];
+        pixel_float = static_cast<float *>(
             depth_imagedata->GetScalarPointer(j, rows - i - 1, 0));
-        memcpy(&pixel[0], &color[0], 3);
+        memcpy(&pixel_float[0], &position[0], 3*sizeof(float));
       }
     }
 

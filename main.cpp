@@ -1,14 +1,27 @@
 /*  TODO LIST:
  *
- *  -Implement the silhouette visualization from the stereocamera POV
- *    -Find the correct way to initialize a vtkImageStencilData. Trying to
- *     access >ExtentListLengths[incr]; causes a SEGFAULT
+ *  -Change m_oct_mass_poly_data_stereo3D to something less stupid
+ *
+ *  -QNode is sending out depth_image with double scalars, but previously we
+ *   converted it to uchar. We have to make it so that the depth image gets
+ *   transmitted either as double or float, and properly handled on Form. This
+ *   also includes making it so opening and saving an image converts from vector
+ *   to double/float, as well as making sure that render2DImageData can cast
+ *   down from double/float to a sensible unsigned char
+ *
+ *  -Fix weird bug that happened during presentation. I think it had something
+ *   to do with Starting in 2D mode as opposed to 3D, but I couldn't get it to
+ *   happen again. At least fix that to make sure everything is properly
+ *   initialized
+ *
+ *  -Make sure that ticking stereo reconstruction in overlay and starting/
+ *   stopping do similar things in similar ways
  *
  *  -Implement the silhouette visualization from the OCT POV
  *    -Apply the inverse OCT->stereo transform; Discard Z coordinate; Find all
  *     edges in the mass poly that belong to only one triangle (outer edges);
  *
- *  -Change m_oct_mass_poly_data_stereo3D to something less stupid
+
  *
  *  -Maybe find a way to implement opacity encoding
  *

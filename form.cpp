@@ -103,7 +103,7 @@ Form::Form(int argc, char** argv, QWidget* parent)
   // Data structures
   m_oct_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_oct_surf_poly_data = vtkSmartPointer<vtkPolyData>::New();
-  m_oct_mass_poly_data = vtkSmartPointer<vtkPolyData>::New();  
+  m_oct_mass_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_oct_mass_poly_data_processed = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_left_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_reconstr_poly_data = vtkSmartPointer<vtkPolyData>::New();
@@ -1037,6 +1037,7 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
   trans->Identity();
 
   renderOCTMass(trans);
+  m_renderer_0->AddActor(m_oct_mass_actor);
 
   m_has_oct_mass = true;
   m_waiting_response = false;
@@ -1056,8 +1057,9 @@ void Form::buildKDTree() {
                                  3000);
   QApplication::processEvents();
 
-  //Homogenize our mesh a bit by subdividing and cleaning. This helps during the
-  //depth encoding, since it will generate smoother distance fields
+  // Homogenize our mesh a bit by subdividing and cleaning. This helps during
+  // the
+  // depth encoding, since it will generate smoother distance fields
   VTK_NEW(vtkLinearSubdivisionFilter, subdivide);
   subdivide->SetInput(m_oct_mass_poly_data);
   subdivide->SetNumberOfSubdivisions(2);
@@ -1136,11 +1138,11 @@ void Form::encodeStereoProjDepth(vtkSmartPointer<vtkPolyData> surface,
   // Color the "in" pixel accordingly in the polydata surface
   // Done
 
-//  VTK_NEW(vtkActor2D, stencil_actor);
-//  render2DImageData(m_stencil_binary_image, stencil_actor);
+  //  VTK_NEW(vtkActor2D, stencil_actor);
+  //  render2DImageData(m_stencil_binary_image, stencil_actor);
 
-//  m_renderer_2->RemoveAllViewProps();
-//  m_renderer_2->AddActor2D(stencil_actor);
+  //  m_renderer_2->RemoveAllViewProps();
+  //  m_renderer_2->AddActor2D(stencil_actor);
 
   int dimensions[3];
   int num_surf_pts = surface->GetNumberOfPoints();
@@ -1161,7 +1163,7 @@ void Form::encodeStereoProjDepth(vtkSmartPointer<vtkPolyData> surface,
       pixel = static_cast<unsigned char*>(
           m_stencil_binary_image->GetScalarPointer(x, y, 0));
 
-      //Only do the depth calculations for the white pixels in the binary img
+      // Only do the depth calculations for the white pixels in the binary img
       if (pixel[0] == 0) {
         continue;
       }
@@ -1192,11 +1194,11 @@ void Form::encodeStereoProjDepth(vtkSmartPointer<vtkPolyData> surface,
   surface_actor->GetProperty()->SetPointSize(5);
 
   // TODO: Get this to work
-//  VTK_NEW(vtkPolyDataMapper, mapper);
-//  mapper->SetInput(m_silhouette_polyline);
-//  VTK_NEW(vtkActor, actor);
-//  actor->SetMapper(mapper);
-//  m_renderer_0->AddActor(actor);
+  //  VTK_NEW(vtkPolyDataMapper, mapper);
+  //  mapper->SetInput(m_silhouette_polyline);
+  //  VTK_NEW(vtkActor, actor);
+  //  actor->SetMapper(mapper);
+  //  m_renderer_0->AddActor(actor);
 }
 
 void Form::encodeOCTProjDepth(vtkSmartPointer<vtkPolyData> surface,
@@ -1332,8 +1334,7 @@ void Form::constructViewPOVPolyline() {
 
   con_filter->SetExtractionModeToSpecifiedRegions();
 
-  for(int i = 0; i< num_regions; i++)
-  {
+  for (int i = 0; i < num_regions; i++) {
     con_filter->InitializeSpecifiedRegionList();
     con_filter->AddSpecifiedRegion(i);
     con_filter->Update();
@@ -1396,8 +1397,6 @@ void Form::renderAxes(vtkSmartPointer<vtkAxesActor> actor,
   actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->SetColor(0.0, 0.0,
                                                                       1.0);
   actor->SetUserTransform(trans);
-
-  m_renderer_0->AddActor(actor);
 
   this->m_ui->qvtkWidget->update();
   QApplication::processEvents();
@@ -1514,7 +1513,7 @@ void Form::renderOCTSurface(vtkSmartPointer<vtkTransform> trans) {
   updateUIStates();
 }
 
-void Form::renderStereocameraReconstruction() {
+void Form::reconstructStereoSurface() {
   this->statusBar()->showMessage("Rendering stereocamera reconstruction... ",
                                  3000);
   QApplication::processEvents();
@@ -1557,7 +1556,13 @@ void Form::renderStereocameraReconstruction() {
   m_stereo_reconstr_poly_data->SetPoints(points);
   m_stereo_reconstr_poly_data->GetPointData()->SetScalars(color_array);
 
-  renderStereoReconstructionWithEncoding();
+  double* range = m_stereo_left_image->GetScalarRange();
+  std::cout << "Left scalar range: " << range[0] << ", " << range[1] << std::endl;
+
+  range = m_stereo_depth_image->GetScalarRange();
+  std::cout << "Depth scalar range: " << range[0] << ", " << range[1] << std::endl;
+
+  m_stereo_reconstr_poly_data->Print(std::cout << "reconstr\n");
 }
 
 void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data,
@@ -1627,8 +1632,6 @@ void Form::renderOCTMass(vtkSmartPointer<vtkTransform> trans) {
   m_oct_mass_actor->SetMapper(mapper);
   // m_oct_mass_actor->GetProperty()->SetColor(0.8d, 0.8d, 1.0d);
 
-  m_renderer_0->AddActor(m_oct_mass_actor);
-
   this->m_ui->qvtkWidget->update();
   QApplication::processEvents();
 
@@ -1639,18 +1642,25 @@ void Form::renderOCTMass(vtkSmartPointer<vtkTransform> trans) {
   updateUIStates();
 }
 
-void Form::renderStereoReconstructionWithEncoding() {
-  assert("Can't render a stereo reconstruction if it has no points!" &&
-         m_stereo_reconstr_poly_data->GetNumberOfPoints() > 0);
+void Form::renderPointPolyDataActor(vtkPolyData* polydata, vtkActor* actor) {
+  if (polydata == NULL || actor == NULL) {
+    std::cerr << "One of the arguments to renderPointPolyDataActor is null!";
+    std::abort;
+  }
+
+  if (polydata->GetNumberOfPoints() == 0) {
+    std::cerr << "Polydata passed to renderPointPolyDataActor has zero points!";
+    std::abort;
+  }
 
   VTK_NEW(vtkVertexGlyphFilter, vert);
-  vert->SetInput(m_stereo_reconstr_poly_data);
+  vert->SetInput(polydata);
 
   VTK_NEW(vtkPolyDataMapper, mapper);
   mapper->SetInputConnection(vert->GetOutputPort());
   mapper->SetScalarVisibility(1);
 
-  m_stereo_reconstr_actor->SetMapper(mapper);
+  actor->SetMapper(mapper);
 
   this->m_ui->qvtkWidget->update();
   QApplication::processEvents();
@@ -1759,6 +1769,7 @@ void Form::on_browse_button_clicked() {
     m_renderer_0->ResetCamera();
 
     renderAxes(m_oct_axes_actor, trans);
+    m_renderer_0->AddActor(m_oct_axes_actor);
 
     // Updates our UI param boxes
     on_reset_params_button_clicked();
@@ -1836,6 +1847,7 @@ void Form::on_view_raw_oct_button_clicked() {
   renderOCTVolumePolyData(trans);
 
   renderAxes(m_oct_axes_actor, trans);
+  m_renderer_0->AddActor(m_oct_axes_actor);
 
   this->m_ui->status_bar->showMessage("Rendering OCT volume data... done!");
   QApplication::processEvents();
@@ -1913,6 +1925,7 @@ void Form::on_browse_oct_surf_button_clicked() {
     m_renderer_0->ResetCamera();
 
     renderAxes(m_oct_axes_actor, trans);
+    m_renderer_0->AddActor(m_oct_axes_actor);
 
     m_has_oct_surf = true;
     m_waiting_response = false;
@@ -1957,9 +1970,11 @@ void Form::on_browse_oct_mass_button_clicked() {
     m_renderer_1->RemoveAllViewProps();
     m_renderer_2->RemoveAllViewProps();
     renderOCTMass(trans);
+    m_renderer_0->AddActor(m_oct_mass_actor);
     m_renderer_0->ResetCamera();
 
     renderAxes(m_oct_axes_actor, trans);
+    m_renderer_0->AddActor(m_oct_axes_actor);
 
     this->m_ui->status_bar->showMessage("Reading file... done!");
     QApplication::processEvents();
@@ -2052,6 +2067,7 @@ void Form::on_view_oct_surf_button_clicked() {
   renderOCTSurface(trans);
 
   renderAxes(m_oct_axes_actor, trans);
+  m_renderer_0->AddActor(m_oct_axes_actor);
 
   this->m_ui->status_bar->showMessage("Rendering OCT surface... done!");
   QApplication::processEvents();
@@ -2074,8 +2090,10 @@ void Form::on_view_oct_mass_button_clicked() {
   m_renderer_1->RemoveAllViewProps();
   m_renderer_2->RemoveAllViewProps();
   renderOCTMass(trans);
+  m_renderer_0->AddActor(m_oct_mass_actor);
 
   renderAxes(m_oct_axes_actor, trans);
+  m_renderer_0->AddActor(m_oct_axes_actor);
 
   this->m_ui->status_bar->showMessage(
       "Rendering OCT tumour segmentation... done!");
@@ -2574,6 +2592,7 @@ void Form::on_raw_min_vis_spinbox_editingFinished() {
   renderOCTVolumePolyData(trans);
 
   renderAxes(m_oct_axes_actor, trans);
+  m_renderer_0->AddActor(m_oct_axes_actor);
 }
 
 void Form::on_raw_max_vis_spinbox_editingFinished() {
@@ -2592,6 +2611,7 @@ void Form::on_raw_max_vis_spinbox_editingFinished() {
   renderOCTVolumePolyData(trans);
 
   renderAxes(m_oct_axes_actor, trans);
+  m_renderer_0->AddActor(m_oct_axes_actor);
 }
 
 void Form::on_raw_min_vis_slider_valueChanged(int value) {
@@ -2626,6 +2646,7 @@ void Form::on_raw_min_vis_slider_sliderReleased() {
   renderOCTVolumePolyData(trans);
 
   renderAxes(m_oct_axes_actor, trans);
+  m_renderer_0->AddActor(m_oct_axes_actor);
 }
 
 void Form::on_raw_max_vis_slider_sliderReleased() {
@@ -2638,6 +2659,7 @@ void Form::on_raw_max_vis_slider_sliderReleased() {
   renderOCTVolumePolyData(trans);
 
   renderAxes(m_oct_axes_actor, trans);
+  m_renderer_0->AddActor(m_oct_axes_actor);
 }
 
 void Form::on_over_min_vis_spinbox_editingFinished() {
@@ -2711,6 +2733,7 @@ void Form::on_over_raw_checkbox_clicked() {
     QApplication::processEvents();
 
     renderOCTVolumePolyData(m_oct_stereo_trans);
+    this->m_ui->qvtkWidget->update();
   } else {
     this->m_ui->status_bar->showMessage(
         "Removing OCT raw data from overlay view...", 3000);
@@ -2741,6 +2764,7 @@ void Form::on_over_oct_surf_checkbox_clicked() {
     QApplication::processEvents();
 
     renderOCTSurface(m_oct_stereo_trans);
+    this->m_ui->qvtkWidget->update();
   } else {
     this->m_ui->status_bar->showMessage(
         "Removing OCT surface from overlay view...", 3000);
@@ -2770,6 +2794,8 @@ void Form::on_over_oct_mass_checkbox_clicked() {
     QApplication::processEvents();
 
     renderOCTMass(m_oct_stereo_trans);
+    m_renderer_0->AddActor(m_oct_mass_actor);
+    this->m_ui->qvtkWidget->update();
   } else {
     this->m_ui->status_bar->showMessage(
         "Removing OCT mass from overlay view...", 3000);
@@ -2815,7 +2841,12 @@ void Form::on_over_depth_checkbox_clicked() {
       return;
     }
 
-    renderStereocameraReconstruction();
+    reconstructStereoSurface();
+    renderPointPolyDataActor(m_stereo_reconstr_poly_data,
+                             m_stereo_reconstr_actor);
+    m_renderer_0->AddActor(m_stereo_reconstr_actor);
+    m_stereo_reconstr_poly_data->Print(std::cout << "Checkbox\n");
+    this->m_ui->qvtkWidget->update();
 
   } else {
     this->m_ui->status_bar->showMessage(
@@ -2852,6 +2883,8 @@ void Form::on_over_oct_axes_checkbox_clicked() {
     VTK_NEW(vtkTransform, trans);
     trans->Identity();
     renderAxes(m_oct_axes_actor, trans);
+    m_renderer_0->AddActor(m_oct_axes_actor);
+    this->m_ui->qvtkWidget->update();
 
   } else {
     this->m_ui->status_bar->showMessage(
@@ -2885,6 +2918,8 @@ void Form::on_over_trans_axes_checkbox_clicked() {
     QApplication::processEvents();
 
     renderAxes(m_trans_axes_actor, m_oct_stereo_trans);
+    m_renderer_0->AddActor(m_trans_axes_actor);
+    this->m_ui->qvtkWidget->update();
 
   } else {
     this->m_ui->status_bar->showMessage(
@@ -3050,6 +3085,8 @@ void Form::on_over_start_button_clicked() {
   m_waiting_response = true;
   updateUIStates();
 
+  on_over_mode_select_combobox_currentIndexChanged(m_view_mode);
+
   Q_EMIT startOverlay();
 }
 
@@ -3107,6 +3144,7 @@ void Form::receivedRawOCTData(OCTinfo params) {
   m_renderer_0->ResetCamera();
 
   renderAxes(m_oct_axes_actor, trans);
+  m_renderer_0->AddActor(m_oct_axes_actor);
 
   m_has_raw_oct = true;
   m_waiting_response = false;
@@ -3135,6 +3173,7 @@ void Form::receivedOCTSurfData(OCTinfo params) {
   m_renderer_0->ResetCamera();
 
   renderAxes(m_oct_axes_actor, trans);
+  m_renderer_0->AddActor(m_oct_axes_actor);
 
   m_has_oct_surf = true;
   m_waiting_response = false;
@@ -3204,8 +3243,9 @@ void Form::newSurface(vtkPolyData* surf) {
   // No depth encoding, 3D view
   if (m_viewing_realtime_overlay && m_encoding_mode == 0 && m_view_mode == 1) {
 
+    renderPointPolyDataActor(m_stereo_reconstr_poly_data,
+                             m_stereo_reconstr_actor);
     m_renderer_0->AddActor(m_stereo_reconstr_actor);
-    renderStereoReconstructionWithEncoding();
 
     this->m_ui->qvtkWidget->update();
     QApplication::processEvents();
@@ -3256,8 +3296,9 @@ void Form::newSurface(vtkPolyData* surf) {
         break;
     }
 
+    renderPointPolyDataActor(m_stereo_reconstr_poly_data,
+                             m_stereo_reconstr_actor);
     m_renderer_0->AddActor(m_stereo_reconstr_actor);
-    renderStereoReconstructionWithEncoding();
 
     this->m_ui->qvtkWidget->update();
     QApplication::processEvents();
@@ -3354,10 +3395,11 @@ void Form::on_over_encoding_combobox_currentIndexChanged(int index) {
       m_scalar_bar_actor->SetOrientationToHorizontal();
       m_scalar_bar_actor->SetLayerNumber(1);
 
+      constructViewPOVPolyline();
+
       m_renderer_2->AddActor2D(m_scalar_bar_actor);
       this->m_ui->qvtkWidget->update();
       QApplication::processEvents();
-      constructViewPOVPolyline();
       break;
     case 3:  // OCT silhouette
       m_renderer_2->RemoveActor2D(m_scalar_bar_actor);
