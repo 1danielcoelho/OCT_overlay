@@ -80,6 +80,7 @@
 #include <vtkPolyDataToImageStencil.h>
 #include <vtkStripper.h>
 #include <vtkLinearSubdivisionFilter.h>
+#include <vtkImageStencilToImage.h>
 // Mappers
 #include <vtkPolyDataMapper.h>
 #include <vtkImageMapper.h>
@@ -109,6 +110,7 @@
 #include <vtkKdTreePointLocator.h>
 #include <vtkTimerLog.h>
 #include <vtkProperty2D.h>
+
 
 // Project files
 #include "qnode.h"

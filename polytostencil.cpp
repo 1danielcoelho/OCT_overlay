@@ -76,9 +76,18 @@ void PolyToStencil::SetTolerance(double tolerance) {
 }
 
 void PolyToStencil::SetInformationInput(vtkImageData *info_input) {
-  info_input->GetExtent(this->m_output_extent);
-  info_input->GetOrigin(this->m_output_origin);
-  info_input->GetSpacing(this->m_output_spacing);
+  int output_extent[6];
+  double output_origin[3];
+  double output_spacing[3];
+
+  info_input->GetExtent(output_extent);
+  info_input->GetOrigin(output_origin);
+  info_input->GetSpacing(output_spacing);
+
+  m_output->SetExtent(output_extent);
+  m_output->SetOrigin(output_origin);
+  m_output->SetSpacing(output_spacing);
+  m_output->AllocateExtents();
 }
 
 //----------------------------------------------------------------------------
@@ -383,8 +392,7 @@ void PolyToStencil::PolyDataCutter(vtkPolyData *input, vtkPolyData *output,
 }
 
 //----------------------------------------------------------------------------
-void PolyToStencil::ThreadedExecute(vtkImageStencilData *data, int extent[6],
-                                    int threadId) {
+void PolyToStencil::ThreadedExecute() {
   // Description of algorithm:
   // 1) cut the polydata at each z slice to create polylines
   // 2) find all "loose ends" and connect them to make polygons
@@ -395,15 +403,18 @@ void PolyToStencil::ThreadedExecute(vtkImageStencilData *data, int extent[6],
   //    and use them to create one z slice of the vtkStencilData
 
   // the spacing and origin of the generated stencil
-  double *spacing = m_output_spacing;
-  double *origin = m_output_origin;
+  m_output->Print(std::cout << "output\n");
 
-  std::cout << "Extent: " << extent[0] << ", " << extent[1] << ", " << extent[2]
-            << ", " << extent[3] << ", " << extent[4] << ", " << extent[5]
-            << ", "
-            << ". Spacing: " << spacing[0] << ", " << spacing[1] << ", "
-            << spacing[2] << ". Origin: " << origin[0] << ", " << origin[1]
-            << ", " << origin[2] << std::endl;
+  double *spacing = m_output->GetSpacing();
+  double *origin = m_output->GetOrigin();
+  int* extent = m_output->GetExtent();
+
+//  std::cout << "Extent: " << extent[0] << ", " << extent[1] << ", " << extent[2]
+//            << ", " << extent[3] << ", " << extent[4] << ", " << extent[5]
+//            << ", "
+//            << ". Spacing: " << spacing[0] << ", " << spacing[1] << ", "
+//            << spacing[2] << ". Origin: " << origin[0] << ", " << origin[1]
+//            << ", " << origin[2] << std::endl;
 
   // if we have no data then return
   if (!this->GetInput()->GetNumberOfPoints()) {
@@ -421,8 +432,6 @@ void PolyToStencil::ThreadedExecute(vtkImageStencilData *data, int extent[6],
 
   // the output produced by cutting the polydata with the Z plane
   vtkPolyData *slice = vtkPolyData::New();
-
-  std::cout << "a\n";
 
   // This raster stores all line segments by recording all "x"
   // positions on the surface for each y integer position.
@@ -445,8 +454,6 @@ void PolyToStencil::ThreadedExecute(vtkImageStencilData *data, int extent[6],
     //                           (extent[5] - extent[4] + 1));
     //    }
 
-    std::cout << "b\n";
-
     double z = idxZ * spacing[2] + origin[2];
 
     slice->PrepareForNewData();
@@ -468,8 +475,6 @@ void PolyToStencil::ThreadedExecute(vtkImageStencilData *data, int extent[6],
     vtkPoints *points = slice->GetPoints();
     vtkIdType numberOfPoints = points->GetNumberOfPoints();
 
-    std::cout << "c\n";
-
     for (vtkIdType j = 0; j < numberOfPoints; j++) {
       double tempPoint[3];
       points->GetPoint(j, tempPoint);
@@ -483,8 +488,6 @@ void PolyToStencil::ThreadedExecute(vtkImageStencilData *data, int extent[6],
     std::vector<vtkIdType> pointNeighbors(numberOfPoints);
     std::vector<vtkIdType> pointNeighborCounts(numberOfPoints);
     std::fill(pointNeighborCounts.begin(), pointNeighborCounts.end(), 0);
-
-    std::cout << "d\n";
 
     // get the connectivity count for each point
     vtkCellArray *lines = slice->GetLines();
@@ -507,8 +510,6 @@ void PolyToStencil::ThreadedExecute(vtkImageStencilData *data, int extent[6],
         }
       }
     }
-
-    std::cout << "e\n";
 
     // use connectivity count to identify loose ends and branch points
     std::vector<vtkIdType> looseEndIds;
@@ -536,8 +537,6 @@ void PolyToStencil::ThreadedExecute(vtkImageStencilData *data, int extent[6],
         }
       }
     }
-
-    std::cout << "f\n";
 
     // join any loose ends
     while (looseEndIds.size() >= 2) {
@@ -619,8 +618,6 @@ void PolyToStencil::ThreadedExecute(vtkImageStencilData *data, int extent[6],
         }
       }
 
-      std::cout << "g\n";
-
       // get info about the two loose ends and their neighbors
       vtkIdType firstLooseEndId = looseEndIds[firstIndex];
       vtkIdType neighborId = pointNeighbors[firstLooseEndId];
@@ -639,8 +636,6 @@ void PolyToStencil::ThreadedExecute(vtkImageStencilData *data, int extent[6],
       // remove these loose ends from the list
       looseEndIds.erase(looseEndIds.begin() + secondIndex);
       looseEndIds.erase(looseEndIds.begin() + firstIndex);
-
-      std::cout << "h\n";
 
       if (!isCoincident) {
         // create a new line segment by connecting these two points
@@ -679,15 +674,11 @@ void PolyToStencil::ThreadedExecute(vtkImageStencilData *data, int extent[6],
       }
     }
 
-    std::cout << "i\n";
-
     // Step 4: Use the x values stored in the xy raster to create
     // one z slice of the vtkStencilData
     sliceExtent[4] = idxZ;
     sliceExtent[5] = idxZ;
-    raster.FillStencilData(data, sliceExtent);
-
-    std::cout << "j\n";
+    raster.FillStencilData(m_output, sliceExtent);
   }
 
   slice->Delete();
@@ -698,7 +689,7 @@ void PolyToStencil::Update() {
 
   // Data and its extent are passed in. Inside, data's origin and spacing are
   // checked
-  this->ThreadedExecute(m_output, m_output_extent, 0);
+  this->ThreadedExecute();
 }
 
 vtkImageStencilData *PolyToStencil::GetOutput() { return m_output; }

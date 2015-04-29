@@ -76,6 +76,7 @@ POSSIBILITY OF SUCH DAMAGES.
 #include "vtkInformation.h"
 #include "vtkInformationVector.h"
 #include "vtkStreamingDemandDrivenPipeline.h"
+#include "vtkImageStencilSource.h"
 
 #include <map>
 #include <vector>
@@ -83,6 +84,8 @@ POSSIBILITY OF SUCH DAMAGES.
 #include <algorithm>
 
 #include <math.h>
+
+#include "defines.h"
 
 class PolyToStencil {
  public:
@@ -97,20 +100,16 @@ class PolyToStencil {
 
   void SetInformationInput(vtkImageData *info_input);
   void Update();
+
   vtkImageStencilData *GetOutput();
 
-  void ThreadedExecute(vtkImageStencilData *output, int extent[6],
-                       int threadId);
+  void ThreadedExecute();
   void PolyDataCutter(vtkPolyData *input, vtkPolyData *output, double z);
   void PolyDataSelector(vtkPolyData *input, vtkPolyData *output, double z,
                         double thickness);
 
  private:
   double m_tolerance;
-
-  int m_output_extent[6];
-  double m_output_origin[3];
-  double m_output_spacing[3];
 
   vtkSmartPointer<vtkPolyData> m_input;
   vtkSmartPointer<vtkImageStencilData> m_output;
