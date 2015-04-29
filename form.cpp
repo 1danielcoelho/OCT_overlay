@@ -1269,11 +1269,21 @@ void Form::mapReconstructionTo2D(vtkSmartPointer<vtkPolyData> surface,
 }
 
 void Form::constructViewPOVPolyline() {
-
-  //Separate the different meshes into separate polydatas
-  //Run each through the silhouette->stencil path
-  //Add all the stencils together
-  //Generate final binary image
+  // Ideally we just create a silhouette with vtkPolyDataSilhouette, transform
+  // the vertices to the same coordinate space as the stereo left image (that
+  // is, x going from 0 to 640; y going from 0 to 480, and z = 0), then convert
+  // the silhouette to a stencil with vtkPolyDataToImageStencil. We use this
+  // stencil to create a binary image (that is, black and white vtkImageData),
+  // which gets stored in m_stencil_binary_image, to be used every frame.
+  //
+  // There is a huge bug in vtkPolyDataToImageStencil, however, that generates
+  // huge horizontal lines between random disconnected points (check the mailing
+  // list). I've even tried making another class with the updated, supposedly
+  // "fixed" version of this filter, to no avail. The best way to sidestep the
+  // problem altogether is to independently process each mesh by itself, then
+  // add the stencils together. We'll fill in the silhouettes anyway, if we get
+  // the horizontal artifact lines there they will actually help filling in the
+  // space
 
   // Extract its silhouette when projected on the XY plane
   VTK_NEW(vtkPolyDataSilhouette, silh_filt);
@@ -1308,12 +1318,11 @@ void Form::constructViewPOVPolyline() {
     m_silhouette_poly_data->GetPoints()->SetPoint(i, pos_2d[0], pos_2d[1], 0);
   }
 
-  PolyToStencil polytostencil;
-  polytostencil.SetTolerance(0);
-  polytostencil.SetInformationInput(m_stereo_left_image);
+  VTK_NEW(vtkPolyDataToImageStencil, poly_to_stencil);
+  poly_to_stencil->SetTolerance(0);
+  poly_to_stencil->SetInformationInput(m_stereo_left_image);
 
   VTK_NEW(vtkImageStencilData, stencil);
-  stencil->DeepCopy(polytostencil.GetOutput());
 
   VTK_NEW(vtkPolyDataConnectivityFilter, con_filter);
   con_filter->SetInput(m_silhouette_poly_data);
@@ -1329,11 +1338,10 @@ void Form::constructViewPOVPolyline() {
     con_filter->AddSpecifiedRegion(i);
     con_filter->Update();
 
-    polytostencil.ClearOutputStencil();
-    polytostencil.SetInput(con_filter->GetOutput());
-    polytostencil.Update();
+    poly_to_stencil->SetInput(con_filter->GetOutput());
+    poly_to_stencil->Update();
 
-    stencil->Add(polytostencil.GetOutput());
+    stencil->Add(poly_to_stencil->GetOutput());
   }
 
   VTK_NEW(vtkImageStencilToImage, stencil_to_image);

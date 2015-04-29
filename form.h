@@ -111,14 +111,12 @@
 #include <vtkTimerLog.h>
 #include <vtkProperty2D.h>
 
-
 // Project files
 #include "qnode.h"
 #include "crossbar.h"
 #include "octinfo.h"
 #include "sliceinteractor.h"
 #include "clustering.h"
-#include "polytostencil.h"
 
 namespace Ui {
 class Form;
@@ -211,7 +209,9 @@ class Form : public QMainWindow {
                              int height);
 
   // Construct a polyline silhouette from the transformed OCT mass, according to
-  // the point of view of the camera
+  // the point of view of the camera, and converts this silhouette into a binary
+  // image (black-and-white vtkImageData), which is used as a mask when
+  // rendering the color overlay from the stereocamera's POV
   void constructViewPOVPolyline();
 
   //-------------RENDERING------------------------------------------------------

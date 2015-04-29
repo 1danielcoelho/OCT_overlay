@@ -62,7 +62,6 @@ SET(SOURCES
     qnode.cpp
     crossbar.cpp
     octinfo.cpp
-    polytostencil.cpp
     )
 
 SET(HEADERS
@@ -71,7 +70,6 @@ SET(HEADERS
     clustering.h
     sliceinteractor.h
     defines.h
-    polytostencil.h
     )
 
 SET(HEADERS_TO_MOC
