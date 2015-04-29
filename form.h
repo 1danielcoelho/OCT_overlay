@@ -373,7 +373,7 @@ Q_SIGNALS:
   vtkSmartPointer<vtkPolyData> m_oct_surf_poly_data;
   vtkSmartPointer<vtkPolyData> m_stereo_left_poly_data;
   vtkSmartPointer<vtkPolyData> m_stereo_reconstr_poly_data;
-  vtkSmartPointer<vtkPolyData> m_silhouette_polyline;
+  vtkSmartPointer<vtkPolyData> m_silhouette_poly_data;
   vtkSmartPointer<vtkImageData> m_stereo_left_image;
   vtkSmartPointer<vtkImageData> m_stereo_right_image;
   vtkSmartPointer<vtkImageData> m_stereo_disp_image;

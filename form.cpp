@@ -107,7 +107,7 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_oct_mass_poly_data_processed = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_left_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_reconstr_poly_data = vtkSmartPointer<vtkPolyData>::New();
-  m_silhouette_polyline = vtkSmartPointer<vtkPolyData>::New();
+  m_silhouette_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_left_image = vtkSmartPointer<vtkImageData>::New();
   m_stereo_right_image = vtkSmartPointer<vtkImageData>::New();
   m_stereo_disp_image = vtkSmartPointer<vtkImageData>::New();
@@ -1136,60 +1136,60 @@ void Form::encodeStereoProjDepth(vtkSmartPointer<vtkPolyData> surface,
   // Color the "in" pixel accordingly in the polydata surface
   // Done
 
-  VTK_NEW(vtkActor2D, stencil_actor);
-  render2DImageData(m_stencil_binary_image, stencil_actor);
+//  VTK_NEW(vtkActor2D, stencil_actor);
+//  render2DImageData(m_stencil_binary_image, stencil_actor);
 
-  m_renderer_2->RemoveAllViewProps();
-  m_renderer_2->AddActor2D(stencil_actor);
+//  m_renderer_2->RemoveAllViewProps();
+//  m_renderer_2->AddActor2D(stencil_actor);
 
-//  int dimensions[3];
-//  int num_surf_pts = surface->GetNumberOfPoints();
+  int dimensions[3];
+  int num_surf_pts = surface->GetNumberOfPoints();
 
-//  vtkTypeUInt8Array* colors = vtkTypeUInt8Array::SafeDownCast(
-//      surface->GetPointData()->GetArray("Colors"));
+  vtkTypeUInt8Array* colors = vtkTypeUInt8Array::SafeDownCast(
+      surface->GetPointData()->GetArray("Colors"));
 
-//  m_stencil_binary_image->GetDimensions(dimensions);
-//  unsigned char* pixel;
-//  int pt_id = -1;
-//  double position[3];
-//  double distance;
+  m_stencil_binary_image->GetDimensions(dimensions);
+  unsigned char* pixel;
+  int pt_id = -1;
+  double position[3];
+  double distance;
 
-//  for (int y = 0; y < dimensions[1]; y++) {
-//    for (int x = 0; x < dimensions[0]; x++) {
-//      pt_id++;
+  for (int y = 0; y < dimensions[1]; y++) {
+    for (int x = 0; x < dimensions[0]; x++) {
+      pt_id++;
 
-//      pixel = static_cast<unsigned char*>(
-//          m_stencil_binary_image->GetScalarPointer(x, y, 0));
+      pixel = static_cast<unsigned char*>(
+          m_stencil_binary_image->GetScalarPointer(x, y, 0));
 
-//      //Only do the depth calculations for the white pixels in the binary img
-//      if (pixel[0] == 0) {
-//        continue;
-//      }
+      //Only do the depth calculations for the white pixels in the binary img
+      if (pixel[0] == 0) {
+        continue;
+      }
 
-//      surface->GetPoint(pt_id, position);
+      surface->GetPoint(pt_id, position);
 
-//      int other_id = m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(
-//          5.0, position, distance);
+      int other_id = m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(
+          5.0, position, distance);
 
-//      distance = std::sqrt(distance);
+      distance = std::sqrt(distance);
 
-//      double old_color[4];
-//      double color_to_add[4];
+      double old_color[4];
+      double color_to_add[4];
 
-//      colors->GetTuple(pt_id, old_color);
-//      m_overlay_lut->GetColor(distance, color_to_add);
+      colors->GetTuple(pt_id, old_color);
+      m_overlay_lut->GetColor(distance, color_to_add);
 
-//      old_color[0] *= color_to_add[0];
-//      old_color[1] *= color_to_add[1];
-//      old_color[2] *= color_to_add[2];
+      old_color[0] *= color_to_add[0];
+      old_color[1] *= color_to_add[1];
+      old_color[2] *= color_to_add[2];
 
-//      colors->SetTuple(pt_id, old_color);
-//    }
-//  }
+      colors->SetTuple(pt_id, old_color);
+    }
+  }
 
-//  // Turns on transparency calculations
-//  surface_actor->GetProperty()->SetOpacity(0.99);
-//  surface_actor->GetProperty()->SetPointSize(5);
+  // Turns on transparency calculations
+  surface_actor->GetProperty()->SetOpacity(0.99);
+  surface_actor->GetProperty()->SetPointSize(5);
 
   // TODO: Get this to work
 //  VTK_NEW(vtkPolyDataMapper, mapper);
@@ -1269,11 +1269,11 @@ void Form::mapReconstructionTo2D(vtkSmartPointer<vtkPolyData> surface,
 }
 
 void Form::constructViewPOVPolyline() {
-  // Transforms the OCT mass from OCT CS to stereocamera 3d CS
-//  VTK_NEW(vtkTransformFilter, trans_filt);
-//  trans_filt->SetTransform(m_oct_stereo_trans);
-//  trans_filt->SetInput(m_oct_mass_poly_data);
-//  trans_filt->Update();
+
+  //Separate the different meshes into separate polydatas
+  //Run each through the silhouette->stencil path
+  //Add all the stencils together
+  //Generate final binary image
 
   // Extract its silhouette when projected on the XY plane
   VTK_NEW(vtkPolyDataSilhouette, silh_filt);
@@ -1284,25 +1284,17 @@ void Form::constructViewPOVPolyline() {
   silh_filt->SetInput(m_oct_mass_poly_data_processed);
   silh_filt->Update();
 
-  //View silhouette itself
-  //View stripper polyline
-  //Try feeding silhouette itself into polytostencil
+  m_silhouette_poly_data = silh_filt->GetOutput();
 
-  VTK_NEW(vtkStripper, stripper);
-  stripper->SetInput(silh_filt->GetOutput());
-  stripper->Update();
+  uint32_t num_pts = m_silhouette_poly_data->GetNumberOfPoints();
 
-  m_silhouette_polyline = stripper->GetOutput();
-
-  uint32_t num_pts = m_silhouette_polyline->GetNumberOfPoints();
-
-  // Transform the silhouette polyline into the coordinate space of the left
+  // Transform the silhouette polydata into the coordinate space of the left
   // camera image, that is, vertex coordinates will go to the 0->640 range for x
   // and 0->480 range for y
   for (uint32_t i = 0; i < num_pts; i++) {
 
     double pos_3d[4];
-    m_silhouette_polyline->GetPoint(i, pos_3d);
+    m_silhouette_poly_data->GetPoint(i, pos_3d);
 
     // Set the 'w' coordinate to 1
     pos_3d[3] = 1;
@@ -1313,41 +1305,55 @@ void Form::constructViewPOVPolyline() {
     pos_2d[0] /= pos_2d[2];
     pos_2d[1] /= pos_2d[2];
 
-    m_silhouette_polyline->GetPoints()->SetPoint(i, pos_2d[0], pos_2d[1], 0);
+    m_silhouette_poly_data->GetPoints()->SetPoint(i, pos_2d[0], pos_2d[1], 0);
   }
 
   PolyToStencil polytostencil;
   polytostencil.SetTolerance(0);
-  polytostencil.SetInput(m_silhouette_polyline);
   polytostencil.SetInformationInput(m_stereo_left_image);
-  polytostencil.Update();
+
+  VTK_NEW(vtkImageStencilData, stencil);
+  stencil->DeepCopy(polytostencil.GetOutput());
+
+  VTK_NEW(vtkPolyDataConnectivityFilter, con_filter);
+  con_filter->SetInput(m_silhouette_poly_data);
+  con_filter->SetExtractionModeToAllRegions();
+  con_filter->Update();
+  int num_regions = con_filter->GetNumberOfExtractedRegions();
+
+  con_filter->SetExtractionModeToSpecifiedRegions();
+
+  for(int i = 0; i< num_regions; i++)
+  {
+    con_filter->InitializeSpecifiedRegionList();
+    con_filter->AddSpecifiedRegion(i);
+    con_filter->Update();
+
+    polytostencil.ClearOutputStencil();
+    polytostencil.SetInput(con_filter->GetOutput());
+    polytostencil.Update();
+
+    stencil->Add(polytostencil.GetOutput());
+  }
 
   VTK_NEW(vtkImageStencilToImage, stencil_to_image);
   stencil_to_image->SetInsideValue(255);
   stencil_to_image->SetOutsideValue(0);
   stencil_to_image->SetOutputScalarTypeToUnsignedChar();
-  stencil_to_image->SetInput(polytostencil.GetOutput());
+  stencil_to_image->SetInput(stencil);
   stencil_to_image->Update();
 
-//  VTK_NEW(vtkImageStencil, stencil);
-//  stencil->SetStencil(polytostencil.GetOutput());
-//  stencil->SetBackgroundColor(0.0, 0.0, 0.0, 0.0);
-//  stencil->SetInput(m_stencil_binary_image);
-//  stencil->Update();
+  VTK_NEW(vtkImageContinuousDilate3D, dilate);
+  dilate->SetInput(stencil_to_image->GetOutput());
+  dilate->SetKernelSize(10, 10, 1);
+  dilate->Update();
 
-//  VTK_NEW(vtkImageContinuousDilate3D, dilate);
-//  dilate->SetInput(stencil->GetOutput());
-//  dilate->SetKernelSize(10, 10, 1);
-//  dilate->Update();
+  VTK_NEW(vtkImageContinuousErode3D, erode);
+  erode->SetInput(dilate->GetOutput());
+  erode->SetKernelSize(10, 10, 1);
+  erode->Update();
 
-//  VTK_NEW(vtkImageContinuousErode3D, erode);
-//  erode->SetInput(dilate->GetOutput());
-//  erode->SetKernelSize(10, 10, 1);
-//  erode->Update();
-
-//  m_stencil_binary_image->DeepCopy(erode->GetOutput());
-
-    m_stencil_binary_image->DeepCopy(stencil_to_image->GetOutput());
+  m_stencil_binary_image->DeepCopy(erode->GetOutput());
 }
 
 //------------RENDERING---------------------------------------------------------

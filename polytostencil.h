@@ -99,6 +99,7 @@ class PolyToStencil {
   double GetTolerance();
 
   void SetInformationInput(vtkImageData *info_input);
+  void ClearOutputStencil();
   void Update();
 
   vtkImageStencilData *GetOutput();

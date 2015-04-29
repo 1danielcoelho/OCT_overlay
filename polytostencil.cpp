@@ -90,6 +90,23 @@ void PolyToStencil::SetInformationInput(vtkImageData *info_input) {
   m_output->AllocateExtents();
 }
 
+void PolyToStencil::ClearOutputStencil()
+{
+  int output_extent[6];
+  double output_origin[3];
+  double output_spacing[3];
+
+  m_output->GetExtent(output_extent);
+  m_output->GetOrigin(output_origin);
+  m_output->GetSpacing(output_spacing);
+
+  m_output = vtkSmartPointer<vtkImageStencilData>::New();
+  m_output->SetExtent(output_extent);
+  m_output->SetOrigin(output_origin);
+  m_output->SetSpacing(output_spacing);
+  m_output->AllocateExtents();
+}
+
 //----------------------------------------------------------------------------
 // A helper class to quickly locate an edge, given the endpoint ids.
 // It uses an stl map rather than a table partitioning scheme, since
