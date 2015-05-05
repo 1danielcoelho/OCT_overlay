@@ -1120,6 +1120,7 @@ void Form::encodeColorDepth(vtkSmartPointer<vtkPolyData> surface,
     old_color[0] *= color_to_add[0];
     old_color[1] *= color_to_add[1];
     old_color[2] *= color_to_add[2];
+    old_color[3] = 255;
 
     colors->SetTuple(i, old_color);
   }
@@ -1138,11 +1139,11 @@ void Form::encodeStereoProjDepth(vtkSmartPointer<vtkPolyData> surface,
   // Color the "in" pixel accordingly in the polydata surface
   // Done
 
-  //  VTK_NEW(vtkActor2D, stencil_actor);
-  //  render2DImageData(m_stencil_binary_image, stencil_actor);
+//    VTK_NEW(vtkActor2D, stencil_actor);
+//    render2DImageData(m_stencil_binary_image, stencil_actor);
 
-  //  m_renderer_2->RemoveAllViewProps();
-  //  m_renderer_2->AddActor2D(stencil_actor);
+//    m_renderer_2->RemoveAllViewProps();
+//    m_renderer_2->AddActor2D(stencil_actor);
 
   int dimensions[3];
   int num_surf_pts = surface->GetNumberOfPoints();
@@ -1184,6 +1185,7 @@ void Form::encodeStereoProjDepth(vtkSmartPointer<vtkPolyData> surface,
       old_color[0] *= color_to_add[0];
       old_color[1] *= color_to_add[1];
       old_color[2] *= color_to_add[2];
+      old_color[3] = 255;
 
       colors->SetTuple(pt_id, old_color);
     }
@@ -1192,13 +1194,6 @@ void Form::encodeStereoProjDepth(vtkSmartPointer<vtkPolyData> surface,
   // Turns on transparency calculations
   surface_actor->GetProperty()->SetOpacity(0.99);
   surface_actor->GetProperty()->SetPointSize(5);
-
-  // TODO: Get this to work
-  //  VTK_NEW(vtkPolyDataMapper, mapper);
-  //  mapper->SetInput(m_silhouette_polyline);
-  //  VTK_NEW(vtkActor, actor);
-  //  actor->SetMapper(mapper);
-  //  m_renderer_0->AddActor(actor);
 }
 
 void Form::encodeOCTProjDepth(vtkSmartPointer<vtkPolyData> surface,
@@ -1292,17 +1287,18 @@ void Form::constructViewPOVPolyline() {
   silh_filt->SetEnableFeatureAngle(1);
   silh_filt->SetFeatureAngle(0);
   silh_filt->SetPieceInvariant(0);
-  silh_filt->SetCamera(m_renderer_0->GetActiveCamera());
+  silh_filt->SetDirectionToSpecifiedOrigin();
+  silh_filt->SetOrigin(0, 0, 0);
   silh_filt->SetInput(m_oct_mass_poly_data_processed);
   silh_filt->Update();
 
-  m_silhouette_poly_data = silh_filt->GetOutput();
+  m_silhouette_poly_data->DeepCopy(silh_filt->GetOutput());
 
   uint32_t num_pts = m_silhouette_poly_data->GetNumberOfPoints();
 
   // Transform the silhouette polydata into the coordinate space of the left
   // camera image, that is, vertex coordinates will go to the 0->640 range for x
-  // and 0->480 range for y
+  // and 0->480 range for y, assuming 640x480
   for (uint32_t i = 0; i < num_pts; i++) {
 
     double pos_3d[4];
@@ -1362,7 +1358,7 @@ void Form::constructViewPOVPolyline() {
   erode->SetKernelSize(10, 10, 1);
   erode->Update();
 
-  m_stencil_binary_image->DeepCopy(erode->GetOutput());
+  m_stencil_binary_image->DeepCopy(erode->GetOutput());  
 }
 
 //------------RENDERING---------------------------------------------------------
@@ -1525,29 +1521,31 @@ void Form::reconstructStereoSurface() {
   uint32_t cols = dimensions[0];
 
   VTK_NEW(vtkTypeUInt8Array, color_array);
-  color_array->SetNumberOfComponents(4);
   color_array->SetNumberOfTuples(rows * cols);
+  color_array->SetNumberOfComponents(4);
   color_array->SetName("Colors");
 
   VTK_NEW(vtkPoints, points);
   points->SetNumberOfPoints(rows * cols);
 
+  uint8_t new_color[4];
+
   vtkIdType point_id = 0;
   for (uint32_t i = 0; i < rows; i++) {
     for (uint32_t j = 0; j < cols; j++) {
+
       float* coords =
           static_cast<float*>(m_stereo_depth_image->GetScalarPointer(j, i, 0));
       uint8_t* color =
           static_cast<uint8_t*>(m_stereo_left_image->GetScalarPointer(j, i, 0));
 
-      float color_float[3];
-      color_float[0] = (float)color[0];
-      color_float[1] = (float)color[1];
-      color_float[2] = (float)color[2];
-      color_float[3] = 255.0f;
-
       points->SetPoint(point_id, coords[0], coords[1], coords[2]);
-      color_array->SetTuple(point_id, color_float);
+
+      // Sets the color and the alpha
+      memcpy(&(new_color[0]), &(color[0]), 3*sizeof(uint8_t));
+      new_color[3] = 255;
+
+      color_array->SetTupleValue(point_id, new_color);
 
       point_id++;
     }
@@ -1555,14 +1553,6 @@ void Form::reconstructStereoSurface() {
 
   m_stereo_reconstr_poly_data->SetPoints(points);
   m_stereo_reconstr_poly_data->GetPointData()->SetScalars(color_array);
-
-  double* range = m_stereo_left_image->GetScalarRange();
-  std::cout << "Left scalar range: " << range[0] << ", " << range[1] << std::endl;
-
-  range = m_stereo_depth_image->GetScalarRange();
-  std::cout << "Depth scalar range: " << range[0] << ", " << range[1] << std::endl;
-
-  m_stereo_reconstr_poly_data->Print(std::cout << "reconstr\n");
 }
 
 void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data,
@@ -3081,6 +3071,8 @@ void Form::on_over_start_button_clicked() {
       3000);
   QApplication::processEvents();
 
+  m_ui->over_depth_checkbox->setChecked(true);
+
   m_viewing_realtime_overlay = true;
   m_waiting_response = true;
   updateUIStates();
@@ -3327,9 +3319,11 @@ void Form::on_over_mode_select_combobox_currentIndexChanged(int index) {
 
       m_renderer_1->RemoveActor2D(m_stereo_2d_actor);
 
-      m_renderer_0->GetActiveCamera()->SetPosition(0, 0, 0);  //-30);
-      m_renderer_0->GetActiveCamera()->SetFocalPoint(0, 0, 30);
-      m_renderer_0->GetActiveCamera()->SetViewUp(0, -1, 0);
+      //m_renderer_0->GetActiveCamera()->SetPosition(0, 0, -30);  //-30);
+      //m_renderer_0->GetActiveCamera()->SetFocalPoint(0, 0, 30);
+      //m_renderer_0->GetActiveCamera()->SetViewUp(0, -1, 0);
+      this->m_ui->qvtkWidget->update();
+      QApplication::processEvents();
       break;
   }
 }
@@ -3373,8 +3367,8 @@ void Form::on_over_encoding_combobox_currentIndexChanged(int index) {
       m_scalar_bar_actor->SetPosition(0.2, 0);
       m_scalar_bar_actor->SetOrientationToHorizontal();
       m_scalar_bar_actor->SetLayerNumber(1);
-
       m_renderer_2->AddActor2D(m_scalar_bar_actor);
+
       this->m_ui->qvtkWidget->update();
       QApplication::processEvents();
       break;
@@ -3394,10 +3388,10 @@ void Form::on_over_encoding_combobox_currentIndexChanged(int index) {
       m_scalar_bar_actor->SetPosition(0.2, 0);
       m_scalar_bar_actor->SetOrientationToHorizontal();
       m_scalar_bar_actor->SetLayerNumber(1);
+      m_renderer_2->AddActor2D(m_scalar_bar_actor);
 
       constructViewPOVPolyline();
 
-      m_renderer_2->AddActor2D(m_scalar_bar_actor);
       this->m_ui->qvtkWidget->update();
       QApplication::processEvents();
       break;

@@ -210,6 +210,30 @@ class SliceViewer {
   }
 
   static void viewPolyDataDirect(vtkPolyData *polydata) {
+    VTK_NEW(vtkVertexGlyphFilter, vert_filter);
+    vert_filter->SetInput(polydata);
+
+    VTK_NEW(vtkPolyDataMapper, mapper);
+    mapper->SetInputConnection(vert_filter->GetOutputPort());
+
+    VTK_NEW(vtkActor, actor);
+    actor->SetMapper(mapper);
+
+    VTK_NEW(vtkRenderer, renderer);
+    renderer->AddActor(actor);
+
+    VTK_NEW(vtkRenderWindowInteractor, interactor);
+
+    VTK_NEW(vtkRenderWindow, window);
+    window->AddRenderer(renderer);
+    window->SetInteractor(interactor);
+    window->SetSize(1024, 768);
+
+    renderer->Render();
+    interactor->Start();  // Will not return until window is closed
+  }
+
+  static void viewPolyDataAsColouredVertices(vtkPolyData *polydata) {
     // Simple way of dropping cell data without changing input
     VTK_NEW(vtkPolyDataMapper, mapper);
     mapper->SetInput(polydata);

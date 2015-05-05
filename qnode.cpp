@@ -161,8 +161,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
         float color_float[4];
         color_float[0] = (float)color[0];
         color_float[1] = (float)color[1];
-        color_float[2] = (float)color[2];
-        color_float[3] = 255.0f;
+        color_float[2] = (float)color[2];    
 
         // Sets our color in the background image
         unsigned char *pixel = static_cast<unsigned char *>(
@@ -288,9 +287,9 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
         memcpy(&pixel[0], &color[0], 3);
 
         // Depth image
-        position[0] = (float) image_depth.at<cv::Vec3d>(i, j)[0];
-        position[1] = (float) image_depth.at<cv::Vec3d>(i, j)[1];
-        position[2] = (float) image_depth.at<cv::Vec3d>(i, j)[2];
+        position[0] = image_depth.at<cv::Vec3f>(i, j)[0];
+        position[1] = image_depth.at<cv::Vec3f>(i, j)[1];
+        position[2] = image_depth.at<cv::Vec3f>(i, j)[2];
         pixel_float = static_cast<float *>(
             depth_imagedata->GetScalarPointer(j, rows - i - 1, 0));
         memcpy(&pixel_float[0], &position[0], 3*sizeof(float));
@@ -535,7 +534,7 @@ void QNode::startOverlay() {
     static ros::Rate loop_rate(30);
     loop_rate.sleep();
 
-    // Checks our subscriptions
+    // Checks our subscriptions for image callbacks
     ros::spinOnce();
 
     // Check for signals

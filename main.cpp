@@ -1,32 +1,33 @@
 /*  TODO LIST:
  *
- *  -Change m_oct_mass_poly_data_stereo3D to something less stupid
+ *  -Something strange is happening with the alpha levels on the reconstruction
+ *   surface. It seems to always reset to zero, for some reason. This causes
+ *   the 2D mode to also map to zero
  *
- *  -QNode is sending out depth_image with double scalars, but previously we
- *   converted it to uchar. We have to make it so that the depth image gets
- *   transmitted either as double or float, and properly handled on Form. This
- *   also includes making it so opening and saving an image converts from vector
- *   to double/float, as well as making sure that render2DImageData can cast
- *   down from double/float to a sensible unsigned char
+ *  -Have it remove and add all the proper actors between 2d and 3d mode: Some
+ *   still show up below the 2D image, like the oct surface
+ *
+ *  -Change m_oct_mass_poly_data_stereo3D to something less stupid
  *
  *  -Fix weird bug that happened during presentation. I think it had something
  *   to do with Starting in 2D mode as opposed to 3D, but I couldn't get it to
  *   happen again. At least fix that to make sure everything is properly
  *   initialized
  *
- *  -Make sure that ticking stereo reconstruction in overlay and starting/
- *   stopping do similar things in similar ways
- *
  *  -Implement the silhouette visualization from the OCT POV
  *    -Apply the inverse OCT->stereo transform; Discard Z coordinate; Find all
  *     edges in the mass poly that belong to only one triangle (outer edges);
  *
-
+ *  -Kill the z=-1 points in stereo reconstruction. Watch out: Simply discarding
+ *   the points will make the StereoProj encoding fall out of sync (it uses
+ *   rows and cols to determine point index)
+ *
+ *  -Now that the z=-1 points are gone, using ResetCamera might produce better
+ *   results
  *
  *  -Maybe find a way to implement opacity encoding
  *
  *  -Have P be read from the file as opposed to being hard-coded
- *
  *
  * */
 
