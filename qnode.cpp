@@ -161,12 +161,13 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
         float color_float[4];
         color_float[0] = (float)color[0];
         color_float[1] = (float)color[1];
-        color_float[2] = (float)color[2];    
+        color_float[2] = (float)color[2];
+        color_float[3] = 255; //All points start off full opaque
 
         // Sets our color in the background image
         unsigned char *pixel = static_cast<unsigned char *>(
             left_imagedata->GetScalarPointer(j, rows - i - 1, 0));
-        memcpy(&pixel[0], &color[0], 3);
+        memcpy(&pixel[0], &color[0], 4);
 
         // Sets our point in the polydata arrays
         points->SetPoint(point_id, pt_x, pt_y, pt_z);

@@ -1,8 +1,7 @@
 /*  TODO LIST:
  *
- *  -Something strange is happening with the alpha levels on the reconstruction
- *   surface. It seems to always reset to zero, for some reason. This causes
- *   the 2D mode to also map to zero
+ *  -Strange bug claiming 2d actors have no mappers set when mode changes to 2D.
+ *   Hard to reproduce
  *
  *  -Have it remove and add all the proper actors between 2d and 3d mode: Some
  *   still show up below the 2D image, like the oct surface

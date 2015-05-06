@@ -194,6 +194,7 @@ class SliceViewer {
     VTK_NEW(vtkActor, actor);
     actor->SetMapper(mapper);
     actor->GetProperty()->SetColor(1.0, 0.8, 0.8);
+    actor->GetProperty()->SetOpacity(1);
 
     VTK_NEW(vtkRenderer, renderer);
     renderer->AddActor(actor);
