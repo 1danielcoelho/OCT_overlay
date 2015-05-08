@@ -1124,8 +1124,6 @@ void Form::encodeColorDepth(vtkSmartPointer<vtkPolyData> surface,
     colors->SetTuple(i, old_color);
   }
 
-  // Turns on transparency calculations
-  surface_actor->GetProperty()->SetOpacity(0.99);
   surface_actor->GetProperty()->SetPointSize(5);
 }
 
@@ -1144,12 +1142,10 @@ void Form::encodeStereoProjDepth(vtkSmartPointer<vtkPolyData> surface,
   //    m_renderer_2->RemoveAllViewProps();
   //    m_renderer_2->AddActor2D(stencil_actor);
 
-  int dimensions[3];
-  int num_surf_pts = surface->GetNumberOfPoints();
-
   vtkTypeUInt8Array* colors = vtkTypeUInt8Array::SafeDownCast(
       surface->GetPointData()->GetArray("Colors"));
 
+  int dimensions[3];
   m_stencil_binary_image->GetDimensions(dimensions);
   unsigned char* pixel;
   int pt_id = -1;
@@ -1189,8 +1185,6 @@ void Form::encodeStereoProjDepth(vtkSmartPointer<vtkPolyData> surface,
     }
   }
 
-  // Turns on transparency calculations
-  surface_actor->GetProperty()->SetOpacity(0.99);
   surface_actor->GetProperty()->SetPointSize(5);
 }
 
@@ -2826,10 +2820,18 @@ void Form::on_over_depth_checkbox_clicked() {
       return;
     }
 
-    reconstructStereoSurface();
-    renderPointPolyDataActor(m_stereo_reconstr_poly_data,
-                             m_stereo_reconstr_actor);
     m_renderer_0->AddActor(m_stereo_reconstr_actor);
+
+    // If we're not viewing the overlay in real time, adding the actor will have
+    // no effect since no new images will be sent, so we reconstruct from our
+    // own
+    // images
+    if (!m_viewing_realtime_overlay) {
+      reconstructStereoSurface();
+      renderPointPolyDataActor(m_stereo_reconstr_poly_data,
+                               m_stereo_reconstr_actor);
+    }
+
     // m_stereo_reconstr_poly_data->Print(std::cout << "Checkbox\n");
     this->m_ui->qvtkWidget->update();
 
@@ -3066,10 +3068,8 @@ void Form::on_over_start_button_clicked() {
       3000);
   QApplication::processEvents();
 
-  m_ui->over_depth_checkbox->setChecked(true);
-
   m_viewing_realtime_overlay = true;
-  m_waiting_response = true;
+  //m_waiting_response = true;
   updateUIStates();
 
   on_over_mode_select_combobox_currentIndexChanged(m_view_mode);
@@ -3084,7 +3084,7 @@ void Form::on_over_stop_button_clicked() {
       3000);
 
   m_viewing_realtime_overlay = false;
-  m_waiting_response = false;
+  //m_waiting_response = false;
   updateUIStates();
 
   Q_EMIT stopOverlay();
@@ -3233,7 +3233,6 @@ void Form::newSurface(vtkPolyData* surf) {
 
     renderPointPolyDataActor(m_stereo_reconstr_poly_data,
                              m_stereo_reconstr_actor);
-    m_renderer_0->AddActor(m_stereo_reconstr_actor);
 
     this->m_ui->qvtkWidget->update();
     QApplication::processEvents();
@@ -3286,7 +3285,6 @@ void Form::newSurface(vtkPolyData* surf) {
 
     renderPointPolyDataActor(m_stereo_reconstr_poly_data,
                              m_stereo_reconstr_actor);
-    m_renderer_0->AddActor(m_stereo_reconstr_actor);
 
     this->m_ui->qvtkWidget->update();
     QApplication::processEvents();
@@ -3306,14 +3304,35 @@ void Form::on_over_mode_select_combobox_currentIndexChanged(int index) {
   switch (m_view_mode) {
     case 0:  // 2D
       m_renderer_0->RemoveActor(m_stereo_reconstr_actor);
-      m_renderer_0->AddActor2D(m_stereo_2d_background_actor);
+      m_renderer_0->RemoveActor(m_oct_mass_actor);
+      m_renderer_0->RemoveActor(m_oct_surf_actor);
+      m_renderer_0->RemoveActor(m_oct_axes_actor);
+      m_renderer_0->RemoveActor(m_trans_axes_actor);
+      m_renderer_0->RemoveActor(m_oct_vol_actor);
 
+      m_renderer_0->AddActor2D(m_stereo_2d_background_actor);
       m_renderer_1->AddActor2D(m_stereo_2d_actor);
       break;
     case 1:  // 3D
-      m_renderer_0->AddActor(m_stereo_reconstr_actor);
-      m_renderer_0->RemoveActor2D(m_stereo_2d_background_actor);
+      if (m_ui->over_raw_checkbox->isChecked())
+        m_renderer_0->AddActor(m_oct_vol_actor);
 
+      if (m_ui->over_oct_surf_checkbox->isChecked())
+        m_renderer_0->AddActor(m_oct_surf_actor);
+
+      if (m_ui->over_oct_mass_checkbox->isChecked())
+        m_renderer_0->AddActor(m_oct_mass_actor);
+
+      if (m_ui->over_depth_checkbox->isChecked())
+        m_renderer_0->AddActor(m_stereo_reconstr_actor);
+
+      if (m_ui->over_oct_axes_checkbox->isChecked())
+        m_renderer_0->AddActor(m_oct_axes_actor);
+
+      if (m_ui->over_trans_axes_checkbox->isChecked())
+        m_renderer_0->AddActor(m_trans_axes_actor);
+
+      m_renderer_0->RemoveActor2D(m_stereo_2d_background_actor);
       m_renderer_1->RemoveActor2D(m_stereo_2d_actor);
 
       // m_renderer_0->GetActiveCamera()->SetPosition(0, 0, -30);  //-30);

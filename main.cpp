@@ -1,9 +1,4 @@
 /*  TODO LIST:
- *  -Strange bug claiming 2d actors have no mappers set when mode changes to 2D.
- *   Hard to reproduce
- *
- *  -Have it remove and add all the proper actors between 2d and 3d mode: Some
- *   still show up below the 2D image, like the oct surface
  *
  *  -Change m_oct_mass_poly_data_stereo3D to something less stupid
  *
@@ -24,6 +19,10 @@
  *   results
  *
  *  -Maybe find a way to implement opacity encoding
+ *
+ *  -Change color of all masses to full red
+ *
+ *  -Handle resetting camera position
  *
  * */
 
