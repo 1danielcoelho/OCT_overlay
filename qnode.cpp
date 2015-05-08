@@ -158,11 +158,19 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
         color[1] = image_left.at<cv::Vec3b>(i, j)[1];
         color[2] = image_left.at<cv::Vec3b>(i, j)[2];
 
+        //Discard failure points
         float color_float[4];
-        color_float[0] = (float)color[0];
-        color_float[1] = (float)color[1];
-        color_float[2] = (float)color[2];
-        color_float[3] = 255; //All points start off full opaque
+        if (pt_z == -1) {
+          color_float[0] = 255;
+          color_float[1] = 0;
+          color_float[2] = 0;
+          color_float[3] = 0;
+        } else {
+          color_float[0] = (float)color[0];
+          color_float[1] = (float)color[1];
+          color_float[2] = (float)color[2];
+          color_float[3] = 255;
+        }
 
         // Sets our color in the background image
         unsigned char *pixel = static_cast<unsigned char *>(
@@ -217,9 +225,9 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
     cv::normalize(image_disp, image_disp_r, 0, 255, cv::NORM_MINMAX, CV_8U);
 
     // Convert depth image from 32FC3 to 8UC3
-//    cv::Mat image_depth_rgb;
-//    cv::normalize(image_depth, image_depth_rgb, 0, 255, cv::NORM_MINMAX,
-//                  CV_8UC3);
+    //    cv::Mat image_depth_rgb;
+    //    cv::normalize(image_depth, image_depth_rgb, 0, 255, cv::NORM_MINMAX,
+    //                  CV_8UC3);
 
     int rows = image_left.rows;
     int cols = image_left.cols;
@@ -256,7 +264,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
     unsigned char color[3];
     float position[3];
     unsigned char *pixel;
-    float* pixel_float;
+    float *pixel_float;
 
     for (uint32_t i = 0; i < rows; i++) {
       for (uint32_t j = 0; j < cols; j++) {
@@ -293,7 +301,7 @@ void QNode::imageCallback(const sensor_msgs::ImageConstPtr &msg_left,
         position[2] = image_depth.at<cv::Vec3f>(i, j)[2];
         pixel_float = static_cast<float *>(
             depth_imagedata->GetScalarPointer(j, rows - i - 1, 0));
-        memcpy(&pixel_float[0], &position[0], 3*sizeof(float));
+        memcpy(&pixel_float[0], &position[0], 3 * sizeof(float));
       }
     }
 

@@ -136,6 +136,13 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_oct_mass_kd_tree_locator = vtkSmartPointer<vtkKdTreePointLocator>::New();
   m_overlay_lut = vtkSmartPointer<vtkLookupTable>::New();
 
+  //Depth peeling for correct opacity calculations. WARNING: SLOW
+//  m_ui->qvtkWidget->GetRenderWindow()->SetAlphaBitPlanes(1);
+//  m_ui->qvtkWidget->GetRenderWindow()->SetMultiSamples(0);
+//  m_renderer_0->SetUseDepthPeeling(1);
+//  m_renderer_0->SetMaximumNumberOfPeels(100);
+//  m_renderer_0->SetOcclusionRatio(0.1);
+
   // A non-black background allows us to see datapoints with scalar value 0
   m_renderer_0->SetBackground(0, 0, 0.1);
   m_renderer_0->SetBackground2(0, 0, 0.05);
@@ -1124,6 +1131,10 @@ void Form::encodeColorDepth(vtkSmartPointer<vtkPolyData> surface,
     colors->SetTuple(i, old_color);
   }
 
+  // We have to set the actor opacity to something other than 1 for VTK to
+  // decide
+  // to use the opacity values we have for our scalars
+  surface_actor->GetProperty()->SetOpacity(0.99);
   surface_actor->GetProperty()->SetPointSize(5);
 }
 
@@ -1147,6 +1158,7 @@ void Form::encodeStereoProjDepth(vtkSmartPointer<vtkPolyData> surface,
 
   int dimensions[3];
   m_stencil_binary_image->GetDimensions(dimensions);
+
   unsigned char* pixel;
   int pt_id = -1;
   double position[3];
@@ -1185,6 +1197,10 @@ void Form::encodeStereoProjDepth(vtkSmartPointer<vtkPolyData> surface,
     }
   }
 
+  // We have to set the actor opacity to something other than 1 for VTK to
+  // decide
+  // to use the opacity values we have for our scalars
+  surface_actor->GetProperty()->SetOpacity(0.99);
   surface_actor->GetProperty()->SetPointSize(5);
 }
 
@@ -1533,7 +1549,13 @@ void Form::reconstructStereoSurface() {
       points->SetPoint(point_id, coords[0], coords[1], coords[2]);
 
       color_array->SetTupleValue(point_id, color);
-      color_array->SetComponent(point_id, 3, 255);  // Full opaque
+
+      // Discard failure points
+      if (coords[2] == -1) {
+        color_array->SetComponent(point_id, 3, 0);
+      } else {
+        color_array->SetComponent(point_id, 3, 255);
+      }
 
       point_id++;
     }
@@ -1640,9 +1662,8 @@ void Form::renderPointPolyDataActor(vtkPolyData* polydata, vtkActor* actor) {
   mapper->SetInput(vert->GetOutput());
   mapper->SetScalarVisibility(1);
 
-  std::cout << "setting mapper\n";
+  actor->GetProperty()->SetOpacity(0.99);
   actor->SetMapper(mapper);
-  std::cout << "after setting mapper\n";
 }
 
 //--------------UI CALLBACKS----------------------------------------------------
@@ -3069,7 +3090,7 @@ void Form::on_over_start_button_clicked() {
   QApplication::processEvents();
 
   m_viewing_realtime_overlay = true;
-  //m_waiting_response = true;
+  // m_waiting_response = true;
   updateUIStates();
 
   on_over_mode_select_combobox_currentIndexChanged(m_view_mode);
@@ -3084,7 +3105,7 @@ void Form::on_over_stop_button_clicked() {
       3000);
 
   m_viewing_realtime_overlay = false;
-  //m_waiting_response = false;
+  // m_waiting_response = false;
   updateUIStates();
 
   Q_EMIT stopOverlay();
