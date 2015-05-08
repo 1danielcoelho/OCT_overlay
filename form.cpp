@@ -1507,7 +1507,7 @@ void Form::renderOCTSurface(vtkSmartPointer<vtkTransform> trans) {
   updateUIStates();
 }
 
-void Form::reconstructStereoSurface() {  
+void Form::reconstructStereoSurface() {
   this->statusBar()->showMessage("Rendering stereocamera reconstruction... ",
                                  3000);
   QApplication::processEvents();
@@ -1519,58 +1519,34 @@ void Form::reconstructStereoSurface() {
   uint32_t cols = dimensions[0];
 
   VTK_NEW(vtkTypeUInt8Array, color_array);
-  color_array->SetNumberOfTuples(rows * cols);
+  // Make sure we set the number of components before the number of tuples. The
+  // second line reallocates space, the first one doesn't
   color_array->SetNumberOfComponents(4);
+  color_array->SetNumberOfTuples(rows * cols);
   color_array->SetName("Colors");
 
   VTK_NEW(vtkPoints, points);
   points->SetNumberOfPoints(rows * cols);
 
-  uint8_t new_color[4];
-  double new_coords[3];
-
   vtkIdType point_id = 0;
   for (uint32_t i = 0; i < rows; i++) {
     for (uint32_t j = 0; j < cols; j++) {
-
       float* coords =
           static_cast<float*>(m_stereo_depth_image->GetScalarPointer(j, i, 0));
       uint8_t* color =
           static_cast<uint8_t*>(m_stereo_left_image->GetScalarPointer(j, i, 0));
 
-      new_coords[0] = (double)coords[0];
-      new_coords[1] = (double)coords[1];
-      new_coords[2] = (double)coords[2];
+      points->SetPoint(point_id, coords[0], coords[1], coords[2]);
 
-      points->SetPoint(point_id, new_coords);
-
-      // Sets the color and the alpha
-      new_color[0] = color[0];
-      new_color[1] = color[1];
-      new_color[2] = color[2];
-      new_color[3] = 255;
-      color_array->SetTupleValue(point_id, new_color);
-
-//        std::cout << "pid: " << point_id << ", \t\tcoords: " << coords[0] << ", " <<
-//        coords[1] << ", " << coords[2] << ", \t\tnewcolor: " << (unsigned int)new_color[0] << ", "
-//        << (unsigned int)new_color[1] << ", " << (unsigned int)new_color[2] << ", " << (unsigned int)new_color[3] << "\n";
+      color_array->SetTupleValue(point_id, color);
+      color_array->SetComponent(point_id, 3, 255);  // Full opaque
 
       point_id++;
     }
   }
 
-  m_stereo_reconstr_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_reconstr_poly_data->SetPoints(points);
   m_stereo_reconstr_poly_data->GetPointData()->SetScalars(color_array);
-
-  SliceViewer::viewPolyData(m_stereo_reconstr_poly_data);
-
-  double range[2];
-  m_stereo_depth_image->GetScalarRange(range);
-
-  std::cout << "depth image range: " << range[0] << ", " << range[1] << std::endl;
-
-  points->Print(std::cout << "points after\n");
 }
 
 void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data,
@@ -1652,15 +1628,15 @@ void Form::renderOCTMass(vtkSmartPointer<vtkTransform> trans) {
 
 void Form::renderPointPolyDataActor(vtkPolyData* polydata, vtkActor* actor) {
 
-//  if (polydata == NULL || actor == NULL) {
-//    std::cerr << "One of the arguments to renderPointPolyDataActor is null!";
-//    std::abort;
-//  }
+  if (polydata == NULL || actor == NULL) {
+    std::cerr << "One of the arguments to renderPointPolyDataActor is null!";
+    // std::abort;
+  }
 
-//  if (polydata->GetNumberOfPoints() == 0) {
-//    std::cerr << "Polydata passed to renderPointPolyDataActor has zero points!";
-//    std::abort;
-//  }
+  if (polydata->GetNumberOfPoints() == 0) {
+    std::cerr << "Polydata passed to renderPointPolyDataActor has zero points!";
+    // std::abort;
+  }
 
   VTK_NEW(vtkVertexGlyphFilter, vert);
   vert->SetInput(polydata);
@@ -1670,7 +1646,9 @@ void Form::renderPointPolyDataActor(vtkPolyData* polydata, vtkActor* actor) {
   mapper->SetInput(vert->GetOutput());
   mapper->SetScalarVisibility(1);
 
+  std::cout << "setting mapper\n";
   actor->SetMapper(mapper);
+  std::cout << "after setting mapper\n";
 }
 
 //--------------UI CALLBACKS----------------------------------------------------
@@ -2852,7 +2830,7 @@ void Form::on_over_depth_checkbox_clicked() {
     renderPointPolyDataActor(m_stereo_reconstr_poly_data,
                              m_stereo_reconstr_actor);
     m_renderer_0->AddActor(m_stereo_reconstr_actor);
-    //m_stereo_reconstr_poly_data->Print(std::cout << "Checkbox\n");
+    // m_stereo_reconstr_poly_data->Print(std::cout << "Checkbox\n");
     this->m_ui->qvtkWidget->update();
 
   } else {
@@ -3234,6 +3212,7 @@ void Form::receivedRegistration() {
 
 void Form::newSurface(vtkPolyData* surf) {
   // Take ownership of the surf
+  std::cout << "Replacing reconstr polydata\n";
   m_stereo_reconstr_poly_data.TakeReference(surf);
 
   // No depth encoding, 2D view
@@ -3317,6 +3296,7 @@ void Form::newSurface(vtkPolyData* surf) {
 }
 
 void Form::newBackground(vtkImageData* back) {
+  std::cout << "Replacing stereo left\n";
   m_stereo_left_image.TakeReference(back);
 }
 
@@ -3346,6 +3326,8 @@ void Form::on_over_mode_select_combobox_currentIndexChanged(int index) {
 }
 
 void Form::newStereoImages(std::vector<vtkImageData*> images) {
+  std::cout << "Replacing stereo images\n";
+
   m_stereo_left_image.TakeReference(images[0]);
   m_stereo_right_image.TakeReference(images[1]);
   m_stereo_disp_image.TakeReference(images[2]);

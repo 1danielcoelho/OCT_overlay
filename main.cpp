@@ -1,5 +1,4 @@
 /*  TODO LIST:
- *
  *  -Strange bug claiming 2d actors have no mappers set when mode changes to 2D.
  *   Hard to reproduce
  *
@@ -25,8 +24,6 @@
  *   results
  *
  *  -Maybe find a way to implement opacity encoding
- *
- *  -Have P be read from the file as opposed to being hard-coded
  *
  * */
 
