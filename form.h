@@ -214,40 +214,39 @@ class Form : public QMainWindow {
   // rendering the color overlay from the stereocamera's POV
   void constructViewPOVPolyline();
 
-  //-------------RENDERING------------------------------------------------------
-
-  // Adds an actor with x,y,z axes to m_renderer. Origin, scale, orientation set
-  // by a 4x4 matrix
-  void renderAxes(vtkSmartPointer<vtkAxesActor> actor,
-                  vtkSmartPointer<vtkTransform> trans);
-
-  // Adds m_oct_vol_actor, containing points as individual vertices, to
-  // m_renderer. Prunes points based on their scalar values, according to
-  // m_vis_threshold. Applies the passed in transform before rendering
-  void renderOCTVolumePolyData(vtkSmartPointer<vtkTransform> trans);
-
-  // Renders the surface received from the OCT_segmentation node. Applies the
-  // passed in transform before rendering
-  void renderOCTSurface(vtkSmartPointer<vtkTransform> trans);
-
   // Combines the position information in m_stereo_depth_image with the color in
   // m_stereo_left_image to generate a 3d, coloured vtkPolyData of the surface
-  // observed by the stereocamera
+  // observed by the stereocamera, stores it in m_stereo_reconstr_poly_data
   void reconstructStereoSurface();
 
-  // Clears m_renderer from actors and renders either the left, right or
-  // displacement map vtkImageData objects from by load2DVectorCacheToImageData
-  void render2DImageData(vtkSmartPointer<vtkImageData> image_data,
+  //-------------RENDERING------------------------------------------------------
+
+  // Configures the passed in vtkAxesActor (colors, sizes, etc) and transforms
+  // it with 'trans'
+  void prepareAxesActor(vtkSmartPointer<vtkAxesActor> actor,
+                  vtkSmartPointer<vtkTransform> trans);
+
+  // Uses m_oct_poly_data to extract points based on m_min_vis_thresh and
+  // m_max_vis_thresh, transforms them with 'trans' and adds the resulting
+  // polydata to m_oct_vol_actor
+  void prepareOCTVolumeActor(vtkSmartPointer<vtkTransform> trans);
+
+  // Reconstructs a mesh from m_oct_surf_poly_data, transforms it with 'trans'
+  // and adds it to m_oct_surf_actor
+  void prepareOCTSurfaceActor(vtkSmartPointer<vtkTransform> trans);
+
+  // Optimally resizes and repositions the passed in 2D vtkImageData, configures
+  // it to be displayed as an 32bit RGBA image, and adds the resul to 'actor'
+  void prepare2DImageActor(vtkSmartPointer<vtkImageData> image_data,
                          vtkSmartPointer<vtkActor2D> actor);
 
-  // Renders the mesh stored in m_oct_mass_poly_data as a triangular mesh.
-  // Applies the passed in transform before rendering
-  void renderOCTMass(vtkSmartPointer<vtkTransform> trans);
+  // Transforms m_oct_mass_poly_data with 'trans', adds it to m_oct_mass_actor
+  // and colors it red
+  void prepareOCTMassActor(vtkSmartPointer<vtkTransform> trans);
 
-  // Runs the passed 'polydata' through a vtkVertexGlyphFilter, assigns the
-  // result to a vtkPolyDataMapper 'mapper', sets this mapper into the passed
-  // 'actor'
-  void renderPointPolyDataActor(vtkPolyData* polydata, vtkActor* actor);
+  // Runs 'polydata' through a vtkVertexGlyphFilter and renders it with the
+  // default colour mode
+  void preparePointPolyDataActor(vtkPolyData* polydata, vtkActor* actor);
 
   //--------------UI CALLBACKS--------------------------------------------------
 

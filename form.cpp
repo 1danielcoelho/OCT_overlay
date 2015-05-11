@@ -136,12 +136,12 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_oct_mass_kd_tree_locator = vtkSmartPointer<vtkKdTreePointLocator>::New();
   m_overlay_lut = vtkSmartPointer<vtkLookupTable>::New();
 
-  //Depth peeling for correct opacity calculations. WARNING: SLOW
-//  m_ui->qvtkWidget->GetRenderWindow()->SetAlphaBitPlanes(1);
-//  m_ui->qvtkWidget->GetRenderWindow()->SetMultiSamples(0);
-//  m_renderer_0->SetUseDepthPeeling(1);
-//  m_renderer_0->SetMaximumNumberOfPeels(100);
-//  m_renderer_0->SetOcclusionRatio(0.1);
+  // Depth peeling for correct opacity calculations. WARNING: SLOW
+  //  m_ui->qvtkWidget->GetRenderWindow()->SetAlphaBitPlanes(1);
+  //  m_ui->qvtkWidget->GetRenderWindow()->SetMultiSamples(0);
+  //  m_renderer_0->SetUseDepthPeeling(1);
+  //  m_renderer_0->SetMaximumNumberOfPeels(100);
+  //  m_renderer_0->SetOcclusionRatio(0.1);
 
   // A non-black background allows us to see datapoints with scalar value 0
   m_renderer_0->SetBackground(0, 0, 0.1);
@@ -608,11 +608,6 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
   if (m_current_params.depth_range != 0)
     depth_incrm = m_current_params.depth_range / m_current_params.depth_steps;
 
-#ifdef AT_HOME
-  // Free up some resources
-  m_oct_poly_data = NULL;
-#endif  // AT_HOME
-
   // No smart pointers here since we force-delete this later to conserve RAM
   vtkImageData* image = vtkImageData::New();
   image->SetExtent(0, m_current_params.length_steps - 1, 0,  // here
@@ -1031,21 +1026,6 @@ void Form::segmentTumour(vtkSmartPointer<vtkActor> actor,
 
   m_oct_mass_poly_data = append_filter2->GetOutput();
 
-// We cleared our oct point cloud to conserve RAM. Let's load it again
-#ifdef AT_HOME
-  std::vector<uint8_t> data;
-  m_crossbar->readVector(OCT_RAW_CACHE_PATH, data);
-  m_crossbar->ucharVectorToPolyData(data, m_current_params, m_oct_poly_data);
-#endif  // AT_HOME
-
-  buildKDTree();
-
-  VTK_NEW(vtkTransform, trans);
-  trans->Identity();
-
-  renderOCTMass(trans);
-  m_renderer_0->AddActor(m_oct_mass_actor);
-
   m_has_oct_mass = true;
   m_waiting_response = false;
   updateUIStates();
@@ -1371,8 +1351,8 @@ void Form::constructViewPOVPolyline() {
 
 //------------RENDERING---------------------------------------------------------
 
-void Form::renderAxes(vtkSmartPointer<vtkAxesActor> actor,
-                      vtkSmartPointer<vtkTransform> trans) {
+void Form::prepareAxesActor(vtkSmartPointer<vtkAxesActor> actor,
+                            vtkSmartPointer<vtkTransform> trans) {
   actor->SetNormalizedShaftLength(1.0, 1.0, 1.0);
   actor->SetShaftTypeToCylinder();
   actor->SetCylinderRadius(0.02);
@@ -1401,22 +1381,15 @@ void Form::renderAxes(vtkSmartPointer<vtkAxesActor> actor,
   actor->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->SetColor(0.0, 0.0,
                                                                       1.0);
   actor->SetUserTransform(trans);
-
-  this->m_ui->qvtkWidget->update();
-  QApplication::processEvents();
 }
 
-void Form::renderOCTVolumePolyData(vtkSmartPointer<vtkTransform> trans) {
+void Form::prepareOCTVolumeActor(vtkSmartPointer<vtkTransform> trans) {
   uint32_t num_pts = m_oct_poly_data->GetPointData()->GetNumberOfTuples();
 
   if (num_pts == 0) {
     qDebug() << "m_oct_poly_data is empty!";
     return;
   }
-
-  m_waiting_response = true;
-  updateUIStates();
-
   vtkPoints* old_points = m_oct_poly_data->GetPoints();
   vtkTypeUInt8Array* old_data_array = vtkTypeUInt8Array::SafeDownCast(
       m_oct_poly_data->GetPointData()->GetScalars());
@@ -1460,27 +1433,9 @@ void Form::renderOCTVolumePolyData(vtkSmartPointer<vtkTransform> trans) {
   mapper->SetScalarVisibility(1);
 
   m_oct_vol_actor->SetMapper(mapper);
-
-  m_renderer_0->AddActor(m_oct_vol_actor);
-
-  this->statusBar()->showMessage("Rendering... ");
-  QApplication::processEvents();
-
-  this->m_ui->qvtkWidget->update();
-  QApplication::processEvents();
-
-  this->statusBar()->showMessage("Rendering... done!");
-  QApplication::processEvents();
-
-  m_waiting_response = false;
-  updateUIStates();
 }
 
-void Form::renderOCTSurface(vtkSmartPointer<vtkTransform> trans) {
-
-  m_waiting_response = true;
-  updateUIStates();
-
+void Form::prepareOCTSurfaceActor(vtkSmartPointer<vtkTransform> trans) {
   assert("Input vtkPolyData is NULL!" && m_oct_surf_poly_data != NULL);
 
   int num_pts = m_oct_surf_poly_data->GetNumberOfPoints();
@@ -1501,20 +1456,6 @@ void Form::renderOCTSurface(vtkSmartPointer<vtkTransform> trans) {
   mapper->SetInputConnection(trans_filter->GetOutputPort());
 
   m_oct_surf_actor->SetMapper(mapper);
-
-  m_renderer_0->AddActor(m_oct_surf_actor);
-
-  this->statusBar()->showMessage("Rendering OCT surface... ");
-  QApplication::processEvents();
-
-  this->m_ui->qvtkWidget->update();
-  QApplication::processEvents();
-
-  this->statusBar()->showMessage("Rendering OCT surface... done!");
-  QApplication::processEvents();
-
-  m_waiting_response = false;
-  updateUIStates();
 }
 
 void Form::reconstructStereoSurface() {
@@ -1565,8 +1506,8 @@ void Form::reconstructStereoSurface() {
   m_stereo_reconstr_poly_data->GetPointData()->SetScalars(color_array);
 }
 
-void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data,
-                             vtkSmartPointer<vtkActor2D> actor) {
+void Form::prepare2DImageActor(vtkSmartPointer<vtkImageData> image_data,
+                               vtkSmartPointer<vtkActor2D> actor) {
 
   // Calculate the image and window's aspect ratios
   int* window_sizes = this->m_ui->qvtkWidget->GetRenderWindow()->GetSize();
@@ -1608,14 +1549,11 @@ void Form::render2DImageData(vtkSmartPointer<vtkImageData> image_data,
   actor->SetMapper(image_mapper);
 }
 
-void Form::renderOCTMass(vtkSmartPointer<vtkTransform> trans) {
-  m_waiting_response = true;
-  updateUIStates();
-
+void Form::prepareOCTMassActor(vtkSmartPointer<vtkTransform> trans) {
   assert("m_oct_mass_poly_data is empty!" &&
          m_oct_mass_poly_data->GetNumberOfCells() > 0);
 
-  this->statusBar()->showMessage("Rendering OCT mass... ");
+  this->statusBar()->showMessage("Rendering OCT anomaly... ");
   QApplication::processEvents();
 
   // Applies the transform received from registration. Should be the
@@ -1626,23 +1564,13 @@ void Form::renderOCTMass(vtkSmartPointer<vtkTransform> trans) {
 
   VTK_NEW(vtkPolyDataMapper, mapper);
   mapper->SetInputConnection(trans_filter->GetOutputPort());
-  mapper->SetScalarModeToDefault();
-  mapper->SetScalarVisibility(1);
+  mapper->SetScalarVisibility(0);
 
   m_oct_mass_actor->SetMapper(mapper);
-  // m_oct_mass_actor->GetProperty()->SetColor(0.8d, 0.8d, 1.0d);
-
-  this->m_ui->qvtkWidget->update();
-  QApplication::processEvents();
-
-  this->statusBar()->showMessage("Rendering OCT mass...  done!");
-  QApplication::processEvents();
-
-  m_waiting_response = false;
-  updateUIStates();
+  m_oct_mass_actor->GetProperty()->SetColor(1.0d, 0.0d, 0.0d);
 }
 
-void Form::renderPointPolyDataActor(vtkPolyData* polydata, vtkActor* actor) {
+void Form::preparePointPolyDataActor(vtkPolyData* polydata, vtkActor* actor) {
 
   if (polydata == NULL || actor == NULL) {
     std::cerr << "One of the arguments to renderPointPolyDataActor is null!";
@@ -1765,14 +1693,19 @@ void Form::on_browse_button_clicked() {
     m_renderer_0->RemoveAllViewProps();
     m_renderer_1->RemoveAllViewProps();
     m_renderer_2->RemoveAllViewProps();
-    renderOCTVolumePolyData(trans);
+    prepareOCTVolumeActor(trans);
+    m_renderer_0->AddActor(m_oct_vol_actor);
     m_renderer_0->ResetCamera();
 
-    renderAxes(m_oct_axes_actor, trans);
+    prepareAxesActor(m_oct_axes_actor, trans);
     m_renderer_0->AddActor(m_oct_axes_actor);
 
     // Updates our UI param boxes
     on_reset_params_button_clicked();
+
+    this->m_ui->qvtkWidget->update();
+    this->m_ui->status_bar->showMessage("Rendering OCT volume... done!");
+    QApplication::processEvents();
 
     m_has_raw_oct = true;
     m_waiting_response = false;
@@ -1831,7 +1764,7 @@ void Form::on_save_button_clicked() {
 }
 
 void Form::on_view_raw_oct_button_clicked() {
-  this->m_ui->status_bar->showMessage("Rendering OCT volume data... ");
+  this->m_ui->status_bar->showMessage("Rendering OCT volume... ");
   QApplication::processEvents();
 
   m_waiting_response = true;
@@ -1844,12 +1777,15 @@ void Form::on_view_raw_oct_button_clicked() {
   m_renderer_0->RemoveAllViewProps();
   m_renderer_1->RemoveAllViewProps();
   m_renderer_2->RemoveAllViewProps();
-  renderOCTVolumePolyData(trans);
+  prepareOCTVolumeActor(trans);
+  m_renderer_0->AddActor(m_oct_vol_actor);
+  m_renderer_0->ResetCamera();
 
-  renderAxes(m_oct_axes_actor, trans);
+  prepareAxesActor(m_oct_axes_actor, trans);
   m_renderer_0->AddActor(m_oct_axes_actor);
 
-  this->m_ui->status_bar->showMessage("Rendering OCT volume data... done!");
+  this->m_ui->qvtkWidget->update();
+  this->m_ui->status_bar->showMessage("Rendering OCT volume... done!");
   QApplication::processEvents();
 
   m_waiting_response = false;
@@ -1869,7 +1805,7 @@ void Form::on_calc_oct_surf_button_clicked() {
 }
 
 void Form::on_calc_oct_mass_button_clicked() {
-  this->m_ui->status_bar->showMessage("Rendering OCT mass... ");
+  this->m_ui->status_bar->showMessage("Rendering OCT anomaly... ");
   QApplication::processEvents();
 
   m_waiting_response = true;
@@ -1880,7 +1816,18 @@ void Form::on_calc_oct_mass_button_clicked() {
   m_renderer_2->RemoveAllViewProps();
   segmentTumour(m_oct_mass_actor, m_oct_surf_poly_data);
 
-  this->m_ui->status_bar->showMessage("Rendering OCT mass... done!");
+  buildKDTree();
+
+  VTK_NEW(vtkTransform, trans);
+  trans->Identity();
+
+  prepareOCTMassActor(trans);
+
+  m_renderer_0->AddActor(m_oct_mass_actor);
+  m_renderer_0->ResetCamera();
+
+  this->m_ui->qvtkWidget->update();
+  this->m_ui->status_bar->showMessage("Rendering OCT anomaly... done!");
   QApplication::processEvents();
 
   m_waiting_response = false;
@@ -1921,11 +1868,16 @@ void Form::on_browse_oct_surf_button_clicked() {
     m_renderer_0->RemoveAllViewProps();
     m_renderer_1->RemoveAllViewProps();
     m_renderer_2->RemoveAllViewProps();
-    renderOCTSurface(trans);
+    prepareOCTSurfaceActor(trans);
+    m_renderer_0->AddActor(m_oct_surf_actor);
     m_renderer_0->ResetCamera();
 
-    renderAxes(m_oct_axes_actor, trans);
+    prepareAxesActor(m_oct_axes_actor, trans);
     m_renderer_0->AddActor(m_oct_axes_actor);
+
+    this->m_ui->qvtkWidget->update();
+    this->m_ui->status_bar->showMessage("Rendering OCT surface... done!");
+    QApplication::processEvents();
 
     m_has_oct_surf = true;
     m_waiting_response = false;
@@ -1940,7 +1892,7 @@ void Form::on_browse_oct_mass_button_clicked() {
   QString file_name;
   QFileDialog dialog(this);
   dialog.setFileMode(QFileDialog::ExistingFile);
-  dialog.setFilter(tr("OCT mass file (*.mass)"));
+  dialog.setFilter(tr("OCT anomaly file (*.mass)"));
   if (dialog.exec()) {
     file_name = dialog.selectedFiles().first();
   } else {
@@ -1969,14 +1921,17 @@ void Form::on_browse_oct_mass_button_clicked() {
     m_renderer_0->RemoveAllViewProps();
     m_renderer_1->RemoveAllViewProps();
     m_renderer_2->RemoveAllViewProps();
-    renderOCTMass(trans);
+    prepareOCTMassActor(trans);
     m_renderer_0->AddActor(m_oct_mass_actor);
     m_renderer_0->ResetCamera();
 
-    renderAxes(m_oct_axes_actor, trans);
+    prepareAxesActor(m_oct_axes_actor, trans);
     m_renderer_0->AddActor(m_oct_axes_actor);
 
-    this->m_ui->status_bar->showMessage("Reading file... done!");
+    this->m_ui->qvtkWidget->update();
+    this->m_ui->status_bar->showMessage(
+        "Rendering OCT anomaly segmentation... "
+        "done!");
     QApplication::processEvents();
 
     m_has_oct_mass = true;
@@ -2023,7 +1978,7 @@ void Form::on_save_oct_mass_button_clicked() {
   QFileDialog dialog(this);
   dialog.setFileMode(QFileDialog::AnyFile);
   dialog.setDefaultSuffix("mass");
-  dialog.setFilter(tr("OCT mass file (*.mass)"));
+  dialog.setFilter(tr("OCT anomaly file (*.mass)"));
   if (dialog.exec()) {
     file_name = dialog.selectedFiles().first();
   } else {
@@ -2064,11 +2019,14 @@ void Form::on_view_oct_surf_button_clicked() {
   m_renderer_0->RemoveAllViewProps();
   m_renderer_1->RemoveAllViewProps();
   m_renderer_2->RemoveAllViewProps();
-  renderOCTSurface(trans);
+  prepareOCTSurfaceActor(trans);
+  m_renderer_0->AddActor(m_oct_surf_actor);
+  m_renderer_0->ResetCamera();
 
-  renderAxes(m_oct_axes_actor, trans);
+  prepareAxesActor(m_oct_axes_actor, trans);
   m_renderer_0->AddActor(m_oct_axes_actor);
 
+  this->m_ui->qvtkWidget->update();
   this->m_ui->status_bar->showMessage("Rendering OCT surface... done!");
   QApplication::processEvents();
 
@@ -2089,14 +2047,16 @@ void Form::on_view_oct_mass_button_clicked() {
   m_renderer_0->RemoveAllViewProps();
   m_renderer_1->RemoveAllViewProps();
   m_renderer_2->RemoveAllViewProps();
-  renderOCTMass(trans);
+  prepareOCTMassActor(trans);
   m_renderer_0->AddActor(m_oct_mass_actor);
+  m_renderer_0->ResetCamera();
 
-  renderAxes(m_oct_axes_actor, trans);
+  prepareAxesActor(m_oct_axes_actor, trans);
   m_renderer_0->AddActor(m_oct_axes_actor);
 
+  this->m_ui->qvtkWidget->update();
   this->m_ui->status_bar->showMessage(
-      "Rendering OCT tumour segmentation... done!");
+      "Rendering OCT anomaly segmentation... done!");
   QApplication::processEvents();
 
   m_waiting_response = false;
@@ -2153,7 +2113,7 @@ void Form::on_browse_left_image_button_clicked() {
     m_renderer_2->RemoveAllViewProps();
     m_renderer_0->AddActor2D(m_stereo_2d_actor);
 
-    render2DImageData(m_stereo_left_image, m_stereo_2d_actor);
+    prepare2DImageActor(m_stereo_left_image, m_stereo_2d_actor);
 
     this->m_ui->qvtkWidget->update();
     QApplication::processEvents();
@@ -2207,7 +2167,7 @@ void Form::on_browse_right_image_button_clicked() {
     m_renderer_2->RemoveAllViewProps();
     m_renderer_0->AddActor2D(m_stereo_2d_actor);
 
-    render2DImageData(m_stereo_right_image, m_stereo_2d_actor);
+    prepare2DImageActor(m_stereo_right_image, m_stereo_2d_actor);
 
     this->m_ui->qvtkWidget->update();
     QApplication::processEvents();
@@ -2260,7 +2220,7 @@ void Form::on_browse_disp_image_button_clicked() {
     m_renderer_2->RemoveAllViewProps();
     m_renderer_0->AddActor2D(m_stereo_2d_actor);
 
-    render2DImageData(m_stereo_disp_image, m_stereo_2d_actor);
+    prepare2DImageActor(m_stereo_disp_image, m_stereo_2d_actor);
 
     this->m_ui->qvtkWidget->update();
     QApplication::processEvents();
@@ -2308,7 +2268,7 @@ void Form::on_browse_depth_image_button_clicked() {
     m_renderer_2->RemoveAllViewProps();
     m_renderer_0->AddActor2D(m_stereo_2d_actor);
 
-    render2DImageData(m_stereo_depth_image, m_stereo_2d_actor);
+    prepare2DImageActor(m_stereo_depth_image, m_stereo_2d_actor);
 
     this->m_ui->qvtkWidget->update();
     QApplication::processEvents();
@@ -2489,7 +2449,7 @@ void Form::on_view_left_image_button_clicked() {
   m_renderer_2->RemoveAllViewProps();
   m_renderer_0->AddActor2D(m_stereo_2d_actor);
 
-  render2DImageData(m_stereo_left_image, m_stereo_2d_actor);
+  prepare2DImageActor(m_stereo_left_image, m_stereo_2d_actor);
 
   this->m_ui->qvtkWidget->update();
   QApplication::processEvents();
@@ -2514,7 +2474,7 @@ void Form::on_view_right_image_button_clicked() {
   m_renderer_2->RemoveAllViewProps();
   m_renderer_0->AddActor2D(m_stereo_2d_actor);
 
-  render2DImageData(m_stereo_right_image, m_stereo_2d_actor);
+  prepare2DImageActor(m_stereo_right_image, m_stereo_2d_actor);
 
   this->m_ui->qvtkWidget->update();
   QApplication::processEvents();
@@ -2539,7 +2499,7 @@ void Form::on_view_disp_image_button_clicked() {
   m_renderer_2->RemoveAllViewProps();
   m_renderer_0->AddActor2D(m_stereo_2d_actor);
 
-  render2DImageData(m_stereo_disp_image, m_stereo_2d_actor);
+  prepare2DImageActor(m_stereo_disp_image, m_stereo_2d_actor);
 
   this->m_ui->qvtkWidget->update();
   QApplication::processEvents();
@@ -2564,7 +2524,7 @@ void Form::on_view_depth_image_button_clicked() {
   m_renderer_2->RemoveAllViewProps();
   m_renderer_0->AddActor2D(m_stereo_2d_actor);
 
-  render2DImageData(m_stereo_depth_image, m_stereo_2d_actor);
+  prepare2DImageActor(m_stereo_depth_image, m_stereo_2d_actor);
 
   this->m_ui->qvtkWidget->update();
   QApplication::processEvents();
@@ -2577,6 +2537,9 @@ void Form::on_view_depth_image_button_clicked() {
 }
 
 void Form::on_raw_min_vis_spinbox_editingFinished() {
+  m_waiting_response = true;
+  updateUIStates();
+
   uint8_t new_value = m_ui->raw_min_vis_spinbox->value();
 
   // Update the slider to the side. This will not call a redraw. The actual
@@ -2589,13 +2552,23 @@ void Form::on_raw_min_vis_spinbox_editingFinished() {
   m_renderer_0->RemoveAllViewProps();
   m_renderer_1->RemoveAllViewProps();
   m_renderer_2->RemoveAllViewProps();
-  renderOCTVolumePolyData(trans);
+  prepareOCTVolumeActor(trans);
+  m_renderer_0->AddActor(m_oct_vol_actor);
 
-  renderAxes(m_oct_axes_actor, trans);
+  prepareAxesActor(m_oct_axes_actor, trans);
   m_renderer_0->AddActor(m_oct_axes_actor);
+
+  this->m_ui->qvtkWidget->update();
+  QApplication::processEvents();
+
+  m_waiting_response = false;
+  updateUIStates();
 }
 
 void Form::on_raw_max_vis_spinbox_editingFinished() {
+  m_waiting_response = true;
+  updateUIStates();
+
   uint8_t new_value = m_ui->raw_max_vis_spinbox->value();
 
   // Update the slider to the side. This will not call a redraw. The actual
@@ -2608,10 +2581,17 @@ void Form::on_raw_max_vis_spinbox_editingFinished() {
   m_renderer_0->RemoveAllViewProps();
   m_renderer_1->RemoveAllViewProps();
   m_renderer_2->RemoveAllViewProps();
-  renderOCTVolumePolyData(trans);
+  prepareOCTVolumeActor(trans);
+  m_renderer_0->AddActor(m_oct_vol_actor);
 
-  renderAxes(m_oct_axes_actor, trans);
+  prepareAxesActor(m_oct_axes_actor, trans);
   m_renderer_0->AddActor(m_oct_axes_actor);
+
+  this->m_ui->qvtkWidget->update();
+  QApplication::processEvents();
+
+  m_waiting_response = false;
+  updateUIStates();
 }
 
 void Form::on_raw_min_vis_slider_valueChanged(int value) {
@@ -2637,32 +2617,60 @@ void Form::on_raw_max_vis_slider_valueChanged(int value) {
 }
 
 void Form::on_raw_min_vis_slider_sliderReleased() {
+  m_waiting_response = true;
+  updateUIStates();
+  QApplication::processEvents();
+
   m_renderer_0->RemoveAllViewProps();
   m_renderer_1->RemoveAllViewProps();
   m_renderer_2->RemoveAllViewProps();
   VTK_NEW(vtkTransform, trans);
   trans->Identity();
 
-  renderOCTVolumePolyData(trans);
+  prepareOCTVolumeActor(trans);
+  m_renderer_0->AddActor(m_oct_vol_actor);
 
-  renderAxes(m_oct_axes_actor, trans);
+  prepareAxesActor(m_oct_axes_actor, trans);
   m_renderer_0->AddActor(m_oct_axes_actor);
+
+  this->m_ui->qvtkWidget->update();
+  QApplication::processEvents();
+
+  m_waiting_response = false;
+  updateUIStates();
+  QApplication::processEvents();
 }
 
 void Form::on_raw_max_vis_slider_sliderReleased() {
+  m_waiting_response = true;
+  updateUIStates();
+  QApplication::processEvents();
+
   m_renderer_0->RemoveAllViewProps();
   m_renderer_1->RemoveAllViewProps();
   m_renderer_2->RemoveAllViewProps();
   VTK_NEW(vtkTransform, trans);
   trans->Identity();
 
-  renderOCTVolumePolyData(trans);
+  prepareOCTVolumeActor(trans);
+  m_renderer_0->AddActor(m_oct_vol_actor);
 
-  renderAxes(m_oct_axes_actor, trans);
+  prepareAxesActor(m_oct_axes_actor, trans);
   m_renderer_0->AddActor(m_oct_axes_actor);
+
+  this->m_ui->qvtkWidget->update();
+  QApplication::processEvents();
+
+  m_waiting_response = false;
+  updateUIStates();
+  QApplication::processEvents();
 }
 
 void Form::on_over_min_vis_spinbox_editingFinished() {
+  m_waiting_response = true;
+  updateUIStates();
+  QApplication::processEvents();
+
   uint8_t new_value = m_ui->over_min_vis_spinbox->value();
 
   // Update the slider to the side. This will not call a redraw. The actual
@@ -2670,10 +2678,22 @@ void Form::on_over_min_vis_spinbox_editingFinished() {
   m_ui->over_min_vis_slider->setValue(new_value);
 
   m_renderer_0->RemoveActor(m_oct_vol_actor);
-  renderOCTVolumePolyData(m_oct_stereo_trans);
+  prepareOCTVolumeActor(m_oct_stereo_trans);
+  m_renderer_0->AddActor(m_oct_vol_actor);
+
+  this->m_ui->qvtkWidget->update();
+  QApplication::processEvents();
+
+  m_waiting_response = false;
+  updateUIStates();
+  QApplication::processEvents();
 }
 
 void Form::on_over_max_vis_spinbox_editingFinished() {
+  m_waiting_response = true;
+  updateUIStates();
+  QApplication::processEvents();
+
   uint8_t new_value = m_ui->over_max_vis_spinbox->value();
 
   // Update the slider to the side. This will not call a redraw. The actual
@@ -2681,7 +2701,15 @@ void Form::on_over_max_vis_spinbox_editingFinished() {
   m_ui->over_max_vis_slider->setValue(new_value);
 
   m_renderer_0->RemoveActor(m_oct_vol_actor);
-  renderOCTVolumePolyData(m_oct_stereo_trans);
+  prepareOCTVolumeActor(m_oct_stereo_trans);
+  m_renderer_0->AddActor(m_oct_vol_actor);
+
+  this->m_ui->qvtkWidget->update();
+  QApplication::processEvents();
+
+  m_waiting_response = false;
+  updateUIStates();
+  QApplication::processEvents();
 }
 
 void Form::on_over_min_vis_slider_valueChanged(int value) {
@@ -2707,13 +2735,37 @@ void Form::on_over_max_vis_slider_valueChanged(int value) {
 }
 
 void Form::on_over_min_vis_slider_sliderReleased() {
+  m_waiting_response = true;
+  updateUIStates();
+  QApplication::processEvents();
+
   m_renderer_0->RemoveActor(m_oct_vol_actor);
-  renderOCTVolumePolyData(m_oct_stereo_trans);
+  prepareOCTVolumeActor(m_oct_stereo_trans);
+  m_renderer_0->AddActor(m_oct_vol_actor);
+
+  this->m_ui->qvtkWidget->update();
+  QApplication::processEvents();
+
+  m_waiting_response = false;
+  updateUIStates();
+  QApplication::processEvents();
 }
 
 void Form::on_over_max_vis_slider_sliderReleased() {
+  m_waiting_response = true;
+  updateUIStates();
+  QApplication::processEvents();
+
   m_renderer_0->RemoveActor(m_oct_vol_actor);
-  renderOCTVolumePolyData(m_oct_stereo_trans);
+  prepareOCTVolumeActor(m_oct_stereo_trans);
+  m_renderer_0->AddActor(m_oct_vol_actor);
+
+  this->m_ui->qvtkWidget->update();
+  QApplication::processEvents();
+
+  m_waiting_response = false;
+  updateUIStates();
+  QApplication::processEvents();
 }
 
 void Form::on_over_raw_checkbox_clicked() {
@@ -2732,8 +2784,12 @@ void Form::on_over_raw_checkbox_clicked() {
         "Adding OCT raw data to overlay view...");
     QApplication::processEvents();
 
-    renderOCTVolumePolyData(m_oct_stereo_trans);
+    prepareOCTVolumeActor(m_oct_stereo_trans);
+    m_renderer_0->AddActor(m_oct_vol_actor);
+    m_renderer_0->ResetCamera();
+
     this->m_ui->qvtkWidget->update();
+    QApplication::processEvents();
   } else {
     this->m_ui->status_bar->showMessage(
         "Removing OCT raw data from overlay view...", 3000);
@@ -2763,8 +2819,12 @@ void Form::on_over_oct_surf_checkbox_clicked() {
         "Adding OCT surface to overlay view...");
     QApplication::processEvents();
 
-    renderOCTSurface(m_oct_stereo_trans);
+    prepareOCTSurfaceActor(m_oct_stereo_trans);
+    m_renderer_0->AddActor(m_oct_surf_actor);
+    m_renderer_0->ResetCamera();
+
     this->m_ui->qvtkWidget->update();
+    QApplication::processEvents();
   } else {
     this->m_ui->status_bar->showMessage(
         "Removing OCT surface from overlay view...", 3000);
@@ -2790,15 +2850,17 @@ void Form::on_over_oct_mass_checkbox_clicked() {
   updateUIStates();
 
   if (m_ui->over_oct_mass_checkbox->isChecked()) {
-    this->m_ui->status_bar->showMessage("Adding OCT mass to overlay view...");
+    this->m_ui->status_bar->showMessage("Adding OCT anomaly to overlay view...");
     QApplication::processEvents();
 
-    renderOCTMass(m_oct_stereo_trans);
+    prepareOCTMassActor(m_oct_stereo_trans);
     m_renderer_0->AddActor(m_oct_mass_actor);
+    m_renderer_0->ResetCamera();
     this->m_ui->qvtkWidget->update();
+    QApplication::processEvents();
   } else {
     this->m_ui->status_bar->showMessage(
-        "Removing OCT mass from overlay view...", 3000);
+        "Removing OCT anomaly from overlay view...", 3000);
     QApplication::processEvents();
 
     m_renderer_0->RemoveActor(m_oct_mass_actor);
@@ -2841,17 +2903,18 @@ void Form::on_over_depth_checkbox_clicked() {
       return;
     }
 
-    m_renderer_0->AddActor(m_stereo_reconstr_actor);
-
     // If we're not viewing the overlay in real time, adding the actor will have
     // no effect since no new images will be sent, so we reconstruct from our
     // own
     // images
     if (!m_viewing_realtime_overlay) {
       reconstructStereoSurface();
-      renderPointPolyDataActor(m_stereo_reconstr_poly_data,
-                               m_stereo_reconstr_actor);
+      preparePointPolyDataActor(m_stereo_reconstr_poly_data,
+                                m_stereo_reconstr_actor);
     }
+
+    m_renderer_0->AddActor(m_stereo_reconstr_actor);
+    m_renderer_0->ResetCamera();
 
     // m_stereo_reconstr_poly_data->Print(std::cout << "Checkbox\n");
     this->m_ui->qvtkWidget->update();
@@ -2864,6 +2927,7 @@ void Form::on_over_depth_checkbox_clicked() {
     QApplication::processEvents();
     m_renderer_0->RemoveActor(m_stereo_reconstr_actor);
     this->m_ui->qvtkWidget->update();
+    QApplication::processEvents();
   }
 
   m_waiting_response = false;
@@ -2890,9 +2954,11 @@ void Form::on_over_oct_axes_checkbox_clicked() {
 
     VTK_NEW(vtkTransform, trans);
     trans->Identity();
-    renderAxes(m_oct_axes_actor, trans);
+    prepareAxesActor(m_oct_axes_actor, trans);
     m_renderer_0->AddActor(m_oct_axes_actor);
+    m_renderer_0->ResetCamera();
     this->m_ui->qvtkWidget->update();
+    QApplication::processEvents();
 
   } else {
     this->m_ui->status_bar->showMessage(
@@ -2925,9 +2991,11 @@ void Form::on_over_trans_axes_checkbox_clicked() {
         3000);
     QApplication::processEvents();
 
-    renderAxes(m_trans_axes_actor, m_oct_stereo_trans);
+    prepareAxesActor(m_trans_axes_actor, m_oct_stereo_trans);
     m_renderer_0->AddActor(m_trans_axes_actor);
+    m_renderer_0->ResetCamera();
     this->m_ui->qvtkWidget->update();
+    QApplication::processEvents();
 
   } else {
     this->m_ui->status_bar->showMessage(
@@ -3148,11 +3216,16 @@ void Form::receivedRawOCTData(OCTinfo params) {
   m_renderer_0->RemoveAllViewProps();
   m_renderer_1->RemoveAllViewProps();
   m_renderer_2->RemoveAllViewProps();
-  renderOCTVolumePolyData(trans);
+  prepareOCTVolumeActor(trans);
+  m_renderer_0->AddActor(m_oct_vol_actor);
   m_renderer_0->ResetCamera();
 
-  renderAxes(m_oct_axes_actor, trans);
+  prepareAxesActor(m_oct_axes_actor, trans);
   m_renderer_0->AddActor(m_oct_axes_actor);
+
+  this->m_ui->qvtkWidget->update();
+  this->m_ui->status_bar->showMessage("Rendering OCT volume... done!");
+  QApplication::processEvents();
 
   m_has_raw_oct = true;
   m_waiting_response = false;
@@ -3177,11 +3250,16 @@ void Form::receivedOCTSurfData(OCTinfo params) {
   m_renderer_0->RemoveAllViewProps();
   m_renderer_1->RemoveAllViewProps();
   m_renderer_2->RemoveAllViewProps();
-  renderOCTSurface(trans);
+  prepareOCTSurfaceActor(trans);
+  m_renderer_0->AddActor(m_oct_surf_actor);
   m_renderer_0->ResetCamera();
 
-  renderAxes(m_oct_axes_actor, trans);
+  prepareAxesActor(m_oct_axes_actor, trans);
   m_renderer_0->AddActor(m_oct_axes_actor);
+
+  this->m_ui->qvtkWidget->update();
+  this->m_ui->status_bar->showMessage("Rendering OCT surface... done!");
+  QApplication::processEvents();
 
   m_has_oct_surf = true;
   m_waiting_response = false;
@@ -3242,8 +3320,8 @@ void Form::newSurface(vtkPolyData* surf) {
     mapReconstructionTo2D(m_stereo_reconstr_poly_data, m_left_proj_trans,
                           m_stereo_reproject_image, 640, 480);
 
-    render2DImageData(m_stereo_reproject_image, m_stereo_2d_actor);
-    render2DImageData(m_stereo_left_image, m_stereo_2d_background_actor);
+    prepare2DImageActor(m_stereo_reproject_image, m_stereo_2d_actor);
+    prepare2DImageActor(m_stereo_left_image, m_stereo_2d_background_actor);
 
     this->m_ui->qvtkWidget->update();
     QApplication::processEvents();
@@ -3252,8 +3330,8 @@ void Form::newSurface(vtkPolyData* surf) {
   // No depth encoding, 3D view
   if (m_viewing_realtime_overlay && m_encoding_mode == 0 && m_view_mode == 1) {
 
-    renderPointPolyDataActor(m_stereo_reconstr_poly_data,
-                             m_stereo_reconstr_actor);
+    preparePointPolyDataActor(m_stereo_reconstr_poly_data,
+                              m_stereo_reconstr_actor);
 
     this->m_ui->qvtkWidget->update();
     QApplication::processEvents();
@@ -3279,8 +3357,8 @@ void Form::newSurface(vtkPolyData* surf) {
     mapReconstructionTo2D(m_stereo_reconstr_poly_data, m_left_proj_trans,
                           m_stereo_reproject_image, 640, 480);
 
-    render2DImageData(m_stereo_reproject_image, m_stereo_2d_actor);
-    render2DImageData(m_stereo_left_image, m_stereo_2d_background_actor);
+    prepare2DImageActor(m_stereo_reproject_image, m_stereo_2d_actor);
+    prepare2DImageActor(m_stereo_left_image, m_stereo_2d_background_actor);
 
     this->m_ui->qvtkWidget->update();
     QApplication::processEvents();
@@ -3304,8 +3382,8 @@ void Form::newSurface(vtkPolyData* surf) {
         break;
     }
 
-    renderPointPolyDataActor(m_stereo_reconstr_poly_data,
-                             m_stereo_reconstr_actor);
+    preparePointPolyDataActor(m_stereo_reconstr_poly_data,
+                              m_stereo_reconstr_actor);
 
     this->m_ui->qvtkWidget->update();
     QApplication::processEvents();

@@ -1,12 +1,5 @@
 /*  TODO LIST:
  *
- *  -Change m_oct_mass_poly_data_stereo3D to something less stupid
- *
- *  -Use ResetCamera to place the surfaces in front of the camera when rendered
- *
- *  -Decide wether to ignore the opacity bug or not. This is a consequence of
- *   not reordering the translucent geometry every frame (which is expensive)
- *
  *  -Fix weird bug that happened during presentation. I think it had something
  *   to do with Starting in 2D mode as opposed to 3D, but I couldn't get it to
  *   happen again. At least fix that to make sure everything is properly
@@ -18,15 +11,7 @@
  *
  *  -Maybe find a way to implement opacity encoding
  *
- *  -Change color of all masses to full red
- *
- *  -Handle resetting camera position
- *
  * */
-
-/* NEXT EXPERIMENT:
-*
-* */
 
 /*  POSSIBLE BUGS / THINGS TO CHECK:
  *
@@ -36,7 +21,7 @@
  * -Registration transform not written/read from the correct location
  *
  * -Ensure that if depth map uses left image, then guarantee both use same
- *resolution
+ *  resolution
  *
  *
  *
@@ -55,6 +40,11 @@
 *
 * -Use Smaract_Jog_Mode/Jog_Mode/Jog_Mode.pro -> run executable -> Connect ->
 *  -> Enc. nullen -> 34 mm -> GO !
+*
+* -The opacity bug is a consequence of not reordering the translucent geometry
+*  every frame (which is expensive). Depth Peeling (which does just that) can
+*  be enabled in the constructor of Form, but will will halve FPS at best.
+*  Volume scans with depth peeling on are virtually unmanageable
 *
 * */
 
