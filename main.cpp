@@ -1,5 +1,12 @@
 /*  TODO LIST:
  *
+ *  -Need to understand what P does if I'm to implement/fix the projections
+ *   correctly. I suggest making it so ticking stereo reconstruction while not
+ *   streaming will add another actor (along with the normal surface) with the
+ *   transformed surface onto the overlay. Warning: It will scale up to 600, so
+ *   maybe it would be interesting to multiply the transform by an inverse
+ *   scaling first
+ *
  *  -Fix weird bug that happened during presentation. I think it had something
  *   to do with Starting in 2D mode as opposed to 3D, but I couldn't get it to
  *   happen again. At least fix that to make sure everything is properly

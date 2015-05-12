@@ -168,7 +168,7 @@ Form::Form(int argc, char** argv, QWidget* parent)
   double left_P[] = {654.93728456, 0.00000000,   275.52497101, 0.00000000,
                      0.00000000,   654.93728456, 264.49638748, 0.00000000,
                      0.00000000,   0.00000000,   1.00000000,   0.00000000,
-                     0.00000000,   0.00000000,   0.00000000,   0.00000000};
+                     0.00000000,   0.00000000,   0.00000000,   0.800000000};
   VTK_NEW(vtkMatrix4x4, mat);
   for (int i = 0; i < 4; i++) {
     for (int j = 0; j < 4; j++) {
@@ -1272,15 +1272,22 @@ void Form::constructViewPOVPolyline() {
 
   // Extract its silhouette when projected on the XY plane
   VTK_NEW(vtkPolyDataSilhouette, silh_filt);
-  silh_filt->SetEnableFeatureAngle(1);
-  silh_filt->SetFeatureAngle(0);
-  silh_filt->SetPieceInvariant(0);
-  silh_filt->SetDirectionToSpecifiedOrigin();
-  silh_filt->SetOrigin(0, 0, 0);
-  silh_filt->SetInput(m_oct_mass_poly_data_processed);
-  silh_filt->Update();
+//  silh_filt->SetEnableFeatureAngle(1);
+//  silh_filt->SetFeatureAngle(0);
+//  silh_filt->SetPieceInvariant(0);
+//  silh_filt->SetDirectionToSpecifiedOrigin();
+//  silh_filt->SetOrigin(rand()%5000, rand()%5000, rand()%100);
+//  silh_filt->SetInput(m_oct_mass_poly_data_processed);
+//  silh_filt->Update();
+
+//  double* origin = silh_filt->GetOrigin();
+//  std::cout << "origin: " << origin[0] << ", " << origin[1] << ", " << origin[2]
+//    << std::endl;
 
   m_silhouette_poly_data->DeepCopy(silh_filt->GetOutput());
+
+//  SliceViewer::viewPolyDataAsColouredVertices(m_oct_mass_poly_data_processed);
+//  SliceViewer::viewPolyDataAsColouredVertices(m_silhouette_poly_data);
 
   uint32_t num_pts = m_silhouette_poly_data->GetNumberOfPoints();
 
@@ -3311,7 +3318,6 @@ void Form::receivedRegistration() {
 
 void Form::newSurface(vtkPolyData* surf) {
   // Take ownership of the surf
-  std::cout << "Replacing reconstr polydata\n";
   m_stereo_reconstr_poly_data.TakeReference(surf);
 
   // No depth encoding, 2D view
@@ -3393,7 +3399,6 @@ void Form::newSurface(vtkPolyData* surf) {
 }
 
 void Form::newBackground(vtkImageData* back) {
-  std::cout << "Replacing stereo left\n";
   m_stereo_left_image.TakeReference(back);
 }
 
@@ -3444,8 +3449,6 @@ void Form::on_over_mode_select_combobox_currentIndexChanged(int index) {
 }
 
 void Form::newStereoImages(std::vector<vtkImageData*> images) {
-  std::cout << "Replacing stereo images\n";
-
   m_stereo_left_image.TakeReference(images[0]);
   m_stereo_right_image.TakeReference(images[1]);
   m_stereo_disp_image.TakeReference(images[2]);
