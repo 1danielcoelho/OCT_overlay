@@ -1272,22 +1272,23 @@ void Form::constructViewPOVPolyline() {
 
   // Extract its silhouette when projected on the XY plane
   VTK_NEW(vtkPolyDataSilhouette, silh_filt);
-//  silh_filt->SetEnableFeatureAngle(1);
-//  silh_filt->SetFeatureAngle(0);
-//  silh_filt->SetPieceInvariant(0);
-//  silh_filt->SetDirectionToSpecifiedOrigin();
-//  silh_filt->SetOrigin(rand()%5000, rand()%5000, rand()%100);
-//  silh_filt->SetInput(m_oct_mass_poly_data_processed);
-//  silh_filt->Update();
+  silh_filt->SetEnableFeatureAngle(1);
+  silh_filt->SetFeatureAngle(0);
+  silh_filt->SetPieceInvariant(0);
+  silh_filt->SetDirectionToSpecifiedOrigin();
+  silh_filt->SetOrigin(0, 0, 0);
+  silh_filt->SetInput(m_oct_mass_poly_data_processed);
+  silh_filt->Update();
 
-//  double* origin = silh_filt->GetOrigin();
-//  std::cout << "origin: " << origin[0] << ", " << origin[1] << ", " << origin[2]
-//    << std::endl;
+  //  double* origin = silh_filt->GetOrigin();
+  //  std::cout << "origin: " << origin[0] << ", " << origin[1] << ", " <<
+  // origin[2]
+  //    << std::endl;
 
   m_silhouette_poly_data->DeepCopy(silh_filt->GetOutput());
 
-//  SliceViewer::viewPolyDataAsColouredVertices(m_oct_mass_poly_data_processed);
-//  SliceViewer::viewPolyDataAsColouredVertices(m_silhouette_poly_data);
+  //  SliceViewer::viewPolyDataAsColouredVertices(m_oct_mass_poly_data_processed);
+  //  SliceViewer::viewPolyDataAsColouredVertices(m_silhouette_poly_data);
 
   uint32_t num_pts = m_silhouette_poly_data->GetNumberOfPoints();
 
@@ -2857,12 +2858,53 @@ void Form::on_over_oct_mass_checkbox_clicked() {
   updateUIStates();
 
   if (m_ui->over_oct_mass_checkbox->isChecked()) {
-    this->m_ui->status_bar->showMessage("Adding OCT anomaly to overlay view...");
+    this->m_ui->status_bar->showMessage(
+        "Adding OCT anomaly to overlay view...");
     QApplication::processEvents();
 
     prepareOCTMassActor(m_oct_stereo_trans);
     m_renderer_0->AddActor(m_oct_mass_actor);
     m_renderer_0->ResetCamera();
+
+    VTK_NEW(vtkPolyData, weird);
+    weird->DeepCopy(m_oct_mass_poly_data);
+
+    VTK_NEW(vtkTransformFilter, trans_filter)
+    trans_filter->SetInput(weird);
+    trans_filter->SetTransform(m_oct_stereo_trans);
+    trans_filter->Update();
+
+    weird->DeepCopy(trans_filter->GetOutput());
+
+    uint32_t num_pts = weird->GetNumberOfPoints();
+
+    for (uint32_t i = 0; i < num_pts; i++) {
+
+      double pos_3d[4];
+      weird->GetPoint(i, pos_3d);
+
+      // Set the 'w' coordinate to 1
+      pos_3d[3] = 1;
+
+      double pos_2d[4];
+      m_left_proj_trans->MultiplyPoint(pos_3d, pos_2d);  // out = P * in
+
+      pos_2d[0] /= pos_2d[2];
+      pos_2d[1] /= pos_2d[2];
+
+      weird->GetPoints()->SetPoint(i, pos_2d[0], pos_2d[1], 0);
+    }
+
+    VTK_NEW(vtkPolyDataMapper, mapper);
+    mapper->SetInput(weird);
+    mapper->SetScalarVisibility(1);
+
+    VTK_NEW(vtkActor, actor);
+    actor->GetProperty()->SetOpacity(0.99);
+    actor->SetMapper(mapper);
+
+    m_renderer_0->AddActor(actor);
+
     this->m_ui->qvtkWidget->update();
     QApplication::processEvents();
   } else {
@@ -2918,6 +2960,42 @@ void Form::on_over_depth_checkbox_clicked() {
       reconstructStereoSurface();
       preparePointPolyDataActor(m_stereo_reconstr_poly_data,
                                 m_stereo_reconstr_actor);
+
+      VTK_NEW(vtkPolyData, weird);
+      weird->DeepCopy(m_stereo_reconstr_poly_data);
+
+      uint32_t num_pts = weird->GetNumberOfPoints();
+
+      for (uint32_t i = 0; i < num_pts; i++) {
+
+        double pos_3d[4];
+        weird->GetPoint(i, pos_3d);
+
+        // Set the 'w' coordinate to 1
+        pos_3d[3] = 1;
+
+        double pos_2d[4];
+        m_left_proj_trans->MultiplyPoint(pos_3d, pos_2d);  // out = P * in
+
+        pos_2d[0] /= pos_2d[2];
+        pos_2d[1] /= pos_2d[2];
+
+        weird->GetPoints()->SetPoint(i, pos_2d[0], pos_2d[1], 0);
+      }
+
+      VTK_NEW(vtkVertexGlyphFilter, vert);
+      vert->SetInput(weird);
+      vert->Update();
+
+      VTK_NEW(vtkPolyDataMapper, mapper);
+      mapper->SetInput(vert->GetOutput());
+      mapper->SetScalarVisibility(1);
+
+      VTK_NEW(vtkActor, actor);
+      actor->GetProperty()->SetOpacity(0.99);
+      actor->SetMapper(mapper);
+
+      m_renderer_0->AddActor(actor);
     }
 
     m_renderer_0->AddActor(m_stereo_reconstr_actor);

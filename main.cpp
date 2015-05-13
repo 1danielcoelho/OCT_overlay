@@ -6,11 +6,17 @@
  *   transformed surface onto the overlay. Warning: It will scale up to 600, so
  *   maybe it would be interesting to multiply the transform by an inverse
  *   scaling first
+ *    -Stereo projection seems to be working properly
  *
  *  -Fix weird bug that happened during presentation. I think it had something
  *   to do with Starting in 2D mode as opposed to 3D, but I couldn't get it to
  *   happen again. At least fix that to make sure everything is properly
  *   initialized
+ *
+ *  -Stop streaming while in 2D and add ators -> 2D actors still remain
+ *
+ *  -Click to view something outside of overlay -> Things in overlay remain
+ *   ticked
  *
  *  -Implement the silhouette visualization from the OCT POV
  *    -Apply the inverse OCT->stereo transform; Discard Z coordinate; Find all
