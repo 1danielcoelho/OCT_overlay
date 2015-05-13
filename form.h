@@ -43,6 +43,7 @@
 #include <vtkPlane.h>
 #include <vtkImageStencil.h>
 #include <vtkImageStencilData.h>
+#include <vtkPolygon.h>
 // Filters
 #include <vtkContourFilter.h>
 #include <vtkVertexGlyphFilter.h>
@@ -81,6 +82,7 @@
 #include <vtkStripper.h>
 #include <vtkLinearSubdivisionFilter.h>
 #include <vtkImageStencilToImage.h>
+#include <vtkPointsProjectedHull.h>
 // Mappers
 #include <vtkPolyDataMapper.h>
 #include <vtkImageMapper.h>

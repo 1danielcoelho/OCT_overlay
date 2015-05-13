@@ -1386,20 +1386,79 @@ void Form::constructOCTPOVPolygons() {
   del->SetInput(polygon_polydata);
   del->Update();
 
-  del->GetOutput()->Print(std::cout << "Delaunay2d output: \n");
+  VTK_NEW(vtkPointsProjectedHull, proj_hull);
+  proj_hull->DeepCopy(del->GetOutput()->GetPoints());
 
-  vtkPolyData* del_out = del->GetOutput();
+  int z_size = proj_hull->GetSizeCCWHullZ();
+  double* pts = new double[z_size * 2];
 
-  for (int i = 0; i < del_out->GetNumberOfCells(); i++) {
-    del_out->GetCell(i)->GetEdge(0)->Print(std::cout << "I'm edge 0 of pt " << i
-                                                     << std::endl);
+  proj_hull->GetCCWHullZ(pts, z_size);
 
-    del_out->GetCell(i)->GetEdge(1)->Print(std::cout << "I'm edge 1 of pt " << i
-                                                     << std::endl);
+  VTK_NEW(vtkPoints, contour_pts);
+  contour_pts->SetNumberOfPoints(z_size + 1);
 
-    del_out->GetCell(i)->GetEdge(2)->Print(std::cout << "I'm edge 2 of pt " << i
-                                                     << std::endl);
+  for (int i = 0; i < z_size; i++) {
+    contour_pts->SetPoint(i, pts[2 * i], pts[2 * i + 1], 0);
   }
+
+  // Insert the first point again to close the loop
+  contour_pts->SetPoint(z_size, pts[0], pts[1], 0);
+
+  VTK_NEW(vtkPolygon, polygon);
+  polygon->GetPointIds()->SetNumberOfIds(z_size + 1);
+
+  for (vtkIdType i = 0; i < z_size + 1; i++) {
+    polygon->GetPointIds()->SetId(i, i);
+  }
+
+  VTK_NEW(vtkCellArray, cells);
+  cells->InsertNextCell(polygon);
+
+  polygon_polydata->SetPoints(contour_pts);
+  polygon_polydata->SetLines(cells);
+
+  //==pts
+
+  VTK_NEW(vtkPoints, pts_zero);
+  pts_zero->ShallowCopy(m_oct_mass_poly_data->GetPoints());
+
+  VTK_NEW(vtkPolyData, new_polydata);
+  new_polydata->SetPoints(pts_zero);
+
+  VTK_NEW(vtkVertexGlyphFilter, vert_filter);
+  vert_filter->SetInput(new_polydata);
+
+  VTK_NEW(vtkPolyDataMapper, mapper_pts);
+  mapper_pts->SetInputConnection(vert_filter->GetOutputPort());
+
+  VTK_NEW(vtkActor, actor_pts);
+  actor_pts->SetMapper(mapper_pts);
+  actor_pts->GetProperty()->SetColor(1.0, 0.8, 0.8);
+  actor_pts->GetProperty()->SetOpacity(1);
+
+  //===
+
+  VTK_NEW(vtkPolyDataMapper, mapper);
+  mapper->SetInput(polygon_polydata);
+
+  VTK_NEW(vtkActor, actor);
+  actor->SetMapper(mapper);
+
+  VTK_NEW(vtkRenderer, renderer);
+  renderer->AddActor(actor);
+  renderer->AddActor(actor_pts);
+
+  VTK_NEW(vtkRenderWindowInteractor, interactor);
+
+  VTK_NEW(vtkRenderWindow, window);
+  window->AddRenderer(renderer);
+  window->SetInteractor(interactor);
+  window->SetSize(1024, 768);
+
+  renderer->Render();
+  interactor->Start();
+
+  delete pts;
 }
 
 //------------RENDERING---------------------------------------------------------
