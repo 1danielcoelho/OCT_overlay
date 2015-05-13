@@ -118,6 +118,7 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_oct_stereo_trans->Identity();
   m_left_proj_trans = vtkSmartPointer<vtkTransform>::New();
   m_left_proj_trans->Identity();
+  m_stereo_pov_polygons = vtkSmartPointer<vtkCellArray>::New();
   // Actors
   m_oct_vol_actor = vtkSmartPointer<vtkActor>::New();
   m_oct_surf_actor = vtkSmartPointer<vtkActor>::New();
@@ -1355,6 +1356,50 @@ void Form::constructViewPOVPolyline() {
   erode->Update();
 
   m_stencil_binary_image->DeepCopy(erode->GetOutput());
+}
+
+void Form::constructOCTPOVPolygons() {
+  uint32_t num_pts = m_oct_mass_poly_data->GetNumberOfPoints();
+
+  if (num_pts == 0) {
+    std::cout << "Cannot construct an OCT POV Polygon with an empty OCT anomaly"
+              << std::endl;
+  }
+
+  VTK_NEW(vtkPoints, new_pts);
+  new_pts->SetNumberOfPoints(num_pts);
+
+  // Flatten the oct mass into the 0xy plane, discards cell data
+  for (uint32_t i = 0; i < num_pts; i++) {
+    double pos_3d[4];
+    m_oct_mass_poly_data->GetPoint(i, pos_3d);
+
+    pos_3d[2] = 0;
+
+    new_pts->SetPoint(i, pos_3d[0], pos_3d[1], 0);
+  }
+
+  VTK_NEW(vtkPolyData, polygon_polydata);
+  polygon_polydata->SetPoints(new_pts);
+
+  VTK_NEW(vtkDelaunay2D, del);
+  del->SetInput(polygon_polydata);
+  del->Update();
+
+  del->GetOutput()->Print(std::cout << "Delaunay2d output: \n");
+
+  vtkPolyData* del_out = del->GetOutput();
+
+  for (int i = 0; i < del_out->GetNumberOfCells(); i++) {
+    del_out->GetCell(i)->GetEdge(0)->Print(std::cout << "I'm edge 0 of pt " << i
+                                                     << std::endl);
+
+    del_out->GetCell(i)->GetEdge(1)->Print(std::cout << "I'm edge 1 of pt " << i
+                                                     << std::endl);
+
+    del_out->GetCell(i)->GetEdge(2)->Print(std::cout << "I'm edge 2 of pt " << i
+                                                     << std::endl);
+  }
 }
 
 //------------RENDERING---------------------------------------------------------
@@ -2865,46 +2910,6 @@ void Form::on_over_oct_mass_checkbox_clicked() {
     prepareOCTMassActor(m_oct_stereo_trans);
     m_renderer_0->AddActor(m_oct_mass_actor);
     m_renderer_0->ResetCamera();
-
-    VTK_NEW(vtkPolyData, weird);
-    weird->DeepCopy(m_oct_mass_poly_data);
-
-    VTK_NEW(vtkTransformFilter, trans_filter)
-    trans_filter->SetInput(weird);
-    trans_filter->SetTransform(m_oct_stereo_trans);
-    trans_filter->Update();
-
-    weird->DeepCopy(trans_filter->GetOutput());
-
-    uint32_t num_pts = weird->GetNumberOfPoints();
-
-    for (uint32_t i = 0; i < num_pts; i++) {
-
-      double pos_3d[4];
-      weird->GetPoint(i, pos_3d);
-
-      // Set the 'w' coordinate to 1
-      pos_3d[3] = 1;
-
-      double pos_2d[4];
-      m_left_proj_trans->MultiplyPoint(pos_3d, pos_2d);  // out = P * in
-
-      pos_2d[0] /= pos_2d[2];
-      pos_2d[1] /= pos_2d[2];
-
-      weird->GetPoints()->SetPoint(i, pos_2d[0], pos_2d[1], 0);
-    }
-
-    VTK_NEW(vtkPolyDataMapper, mapper);
-    mapper->SetInput(weird);
-    mapper->SetScalarVisibility(1);
-
-    VTK_NEW(vtkActor, actor);
-    actor->GetProperty()->SetOpacity(0.99);
-    actor->SetMapper(mapper);
-
-    m_renderer_0->AddActor(actor);
-
     this->m_ui->qvtkWidget->update();
     QApplication::processEvents();
   } else {
@@ -2960,42 +2965,6 @@ void Form::on_over_depth_checkbox_clicked() {
       reconstructStereoSurface();
       preparePointPolyDataActor(m_stereo_reconstr_poly_data,
                                 m_stereo_reconstr_actor);
-
-      VTK_NEW(vtkPolyData, weird);
-      weird->DeepCopy(m_stereo_reconstr_poly_data);
-
-      uint32_t num_pts = weird->GetNumberOfPoints();
-
-      for (uint32_t i = 0; i < num_pts; i++) {
-
-        double pos_3d[4];
-        weird->GetPoint(i, pos_3d);
-
-        // Set the 'w' coordinate to 1
-        pos_3d[3] = 1;
-
-        double pos_2d[4];
-        m_left_proj_trans->MultiplyPoint(pos_3d, pos_2d);  // out = P * in
-
-        pos_2d[0] /= pos_2d[2];
-        pos_2d[1] /= pos_2d[2];
-
-        weird->GetPoints()->SetPoint(i, pos_2d[0], pos_2d[1], 0);
-      }
-
-      VTK_NEW(vtkVertexGlyphFilter, vert);
-      vert->SetInput(weird);
-      vert->Update();
-
-      VTK_NEW(vtkPolyDataMapper, mapper);
-      mapper->SetInput(vert->GetOutput());
-      mapper->SetScalarVisibility(1);
-
-      VTK_NEW(vtkActor, actor);
-      actor->GetProperty()->SetOpacity(0.99);
-      actor->SetMapper(mapper);
-
-      m_renderer_0->AddActor(actor);
     }
 
     m_renderer_0->AddActor(m_stereo_reconstr_actor);
@@ -3594,7 +3563,25 @@ void Form::on_over_encoding_combobox_currentIndexChanged(int index) {
       QApplication::processEvents();
       break;
     case 3:  // OCT silhouette
-      m_renderer_2->RemoveActor2D(m_scalar_bar_actor);
+      m_overlay_lut->SetTableRange(0, 5);
+      m_overlay_lut->SetSaturationRange(1, 0);
+      m_overlay_lut->SetHueRange(0.0, 0.667);
+      m_overlay_lut->SetValueRange(1, 1);
+      m_overlay_lut->SetAlphaRange(1, 1);
+      m_overlay_lut->Build();
+
+      m_scalar_bar_actor->SetLookupTable(m_overlay_lut);
+      m_scalar_bar_actor->SetTitle("Distance to mass surface [mm]");
+      m_scalar_bar_actor->SetNumberOfLabels(5);
+      m_scalar_bar_actor->SetHeight(0.08);
+      m_scalar_bar_actor->SetWidth(0.6);
+      m_scalar_bar_actor->SetPosition(0.2, 0);
+      m_scalar_bar_actor->SetOrientationToHorizontal();
+      m_scalar_bar_actor->SetLayerNumber(1);
+      m_renderer_2->AddActor2D(m_scalar_bar_actor);
+
+      constructOCTPOVPolygons();
+
       this->m_ui->qvtkWidget->update();
       QApplication::processEvents();
       break;

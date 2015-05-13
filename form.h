@@ -219,6 +219,12 @@ class Form : public QMainWindow {
   // observed by the stereocamera, stores it in m_stereo_reconstr_poly_data
   void reconstructStereoSurface();
 
+  // Constructs a group of polygons that represent the silhouette of the
+  // vertical projection of the OCT anomaly up onto the stereo surface, in a
+  // perpendicular fashion. This emulates the silhouette of the mass as seen by
+  // a surgical laser
+  void constructOCTPOVPolygons();
+
   //-------------RENDERING------------------------------------------------------
 
   // Configures the passed in vtkAxesActor (colors, sizes, etc) and transforms
@@ -384,6 +390,7 @@ Q_SIGNALS:
   vtkSmartPointer<vtkImageData> m_stencil_binary_image;
   vtkSmartPointer<vtkTransform> m_oct_stereo_trans;
   vtkSmartPointer<vtkTransform> m_left_proj_trans;
+  vtkSmartPointer<vtkCellArray> m_stereo_pov_polygons;
   // Actors are kept since we need their references when we add/remove actors in
   // the Overlay section of the program
   vtkSmartPointer<vtkActor> m_oct_vol_actor;

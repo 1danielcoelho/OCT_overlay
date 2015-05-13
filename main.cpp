@@ -1,12 +1,15 @@
 /*  TODO LIST:
  *
- *  -Need to understand what P does if I'm to implement/fix the projections
- *   correctly. I suggest making it so ticking stereo reconstruction while not
- *   streaming will add another actor (along with the normal surface) with the
- *   transformed surface onto the overlay. Warning: It will scale up to 600, so
- *   maybe it would be interesting to multiply the transform by an inverse
- *   scaling first
- *    -Stereo projection seems to be working properly
+ *  -OCT proj: Transform stereo surf to OCT KS -> Discard it's and the mass' z
+ *   coordinates -> Mass is made into a set of polygons. Enveloped by circles.
+ *   (beforehand) -> For every point of stereo reconstr, check the distance to
+ *   the center of the circle. If it's less than the radius, perform
+ *   vtkPolygon::PointInPolygon(). If it is in the polygon, perform normal color
+ *   encoding directly on the stereo surf -> The rest (including 2d mapping) is
+ *   performed just like for stereo proj
+ *    -Discard Z coordinate -> Delaunay2D (already aligned to XY, so great) ->
+ *     Select all edges that belong to a single triangle only (inner edges will
+ *     belong to two triangles) -> Craft polygon
  *
  *  -Fix weird bug that happened during presentation. I think it had something
  *   to do with Starting in 2D mode as opposed to 3D, but I couldn't get it to
@@ -23,6 +26,8 @@
  *     edges in the mass poly that belong to only one triangle (outer edges);
  *
  *  -Maybe find a way to implement opacity encoding
+ *
+ *  -Fix all instances of 640x480
  *
  * */
 
