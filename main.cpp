@@ -10,6 +10,9 @@
  *    -Discard Z coordinate -> Delaunay2D (already aligned to XY, so great) ->
  *     Select all edges that belong to a single triangle only (inner edges will
  *     belong to two triangles) -> Craft polygon
+ *    -NEXT STEPS: Run the constructOCTPOVPolygons through a
+ *     vtkPolyDataConnectivityFilter to isolate independent meshes, then try
+ *     using PointInPolygon
  *
  *  -Fix weird bug that happened during presentation. I think it had something
  *   to do with Starting in 2D mode as opposed to 3D, but I couldn't get it to
