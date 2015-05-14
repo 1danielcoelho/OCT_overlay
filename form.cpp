@@ -118,7 +118,7 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_oct_stereo_trans->Identity();
   m_left_proj_trans = vtkSmartPointer<vtkTransform>::New();
   m_left_proj_trans->Identity();
-  m_oct_pov_polygons = vtkSmartPointer<vtkCellArray>::New();
+  m_oct_pov_polygons = vtkSmartPointer<vtkPolyData>::New();
   // Actors
   m_oct_vol_actor = vtkSmartPointer<vtkActor>::New();
   m_oct_surf_actor = vtkSmartPointer<vtkActor>::New();
@@ -1188,7 +1188,23 @@ void Form::encodeStereoProjDepth(vtkSmartPointer<vtkPolyData> surface,
 void Form::encodeOCTProjDepth(vtkSmartPointer<vtkPolyData> surface,
                               vtkSmartPointer<vtkActor> surface_actor) {
 
-  // pass
+  //Elsewhere, along the construction of the polygons, find the circle that
+  //envelops the m_oct_pov_polygons. Store its center and radius squared in
+  //class variables
+
+  //For each point in m_stereo_reconstr_poly_data:
+
+    //Transform m_stereo_reconstr_poly_data with the inverse of
+    //m_oct_stereo_trans, which will throw it to the universal (0,0,0) range
+
+    //Check whether the (x,y,0) distance squared from this point to the center
+    //of the polygon circule is less than its radius squared
+
+    //If it is, for every cell (polygon) of m_oct_pov_polygons, check if the
+    //(x,y,0) point is inside with vtkPolygon::PointInPolygon
+
+    //If it is, perform the kd_tree_locator distance check, and color the
+    //corresponding pointID in the colors array of m_stereo_reconstr_poly_data
 }
 
 void Form::mapReconstructionTo2D(vtkSmartPointer<vtkPolyData> surface,
@@ -1359,22 +1375,38 @@ void Form::constructViewPOVPolyline() {
 }
 
 void Form::constructOCTPOVPolygons() {
+  // This function uses vtkPolyDataConnectivityFilter to extract independent
+  // meshes from m_oct_mass_poly_data one by one. To each, it applies
+  // vtkPointsProjectedHull, to find the points that correspond to the outer
+  // hull of the points of the mesh when projected on the 0xy plane. Using those
+  // points it builds a polygon, and sets it into m_oct_pov_polygons. At the
+  // end, all of the hull points are also set into the same polydata
+
   if (m_oct_mass_poly_data->GetNumberOfPoints() == 0) {
     std::cout << "Cannot construct an OCT POV Polygon with an empty OCT anomaly"
               << std::endl;
   }
 
-  m_oct_pov_polygons = vtkSmartPointer<vtkCellArray>::New();
+  m_oct_pov_polygons = vtkSmartPointer<vtkPolyData>::New();
 
+  // Some anomalies contain isolated "blobs". We need to deal with them
+  // separately, else the gap between them will be part of the polygon hull
   VTK_NEW(vtkPolyDataConnectivityFilter, con_filter);
   con_filter->SetInput(m_oct_mass_poly_data);
   con_filter->SetExtractionModeToAllRegions();
   con_filter->Update();
   int num_regions = con_filter->GetNumberOfExtractedRegions();
 
+  //Now that we know how many regions we have, we will start extracting them
   con_filter->SetExtractionModeToSpecifiedRegions();
 
+  // vtkPolyDataConnectivityFilter, even in "specified regions" mode, does not
+  // remove the unused points, so we run them through vtkCleanPolyData to
+  // discard
+  // points that don't belong to any cell
+  VTK_NEW(vtkCleanPolyData, clean);
   VTK_NEW(vtkPointsProjectedHull, proj_hull);
+  VTK_NEW(vtkCellArray, polys);
   VTK_NEW(vtkPoints, contour_pts);
 
   for (int i = 0; i < num_regions; i++) {
@@ -1382,81 +1414,38 @@ void Form::constructOCTPOVPolygons() {
     con_filter->AddSpecifiedRegion(i);
     con_filter->Update();
 
-    proj_hull->DeepCopy(con_filter->GetOutput()->GetPoints());
+    clean->SetInput(con_filter->GetOutput());
+    clean->Update();
 
+    proj_hull->ShallowCopy(clean->GetOutput()->GetPoints());
+
+    //This filter has a weird interface. Here we try our best at it
     int z_size = proj_hull->GetSizeCCWHullZ();
-    double* pts = new double[z_size * 2];
-
+    double pts[z_size * 2];
     proj_hull->GetCCWHullZ(pts, z_size);
 
-    contour_pts->SetNumberOfPoints(z_size + 1);
+    // Our contour_pts already has the points of the previous polygon, so we
+    // need to add an offset whenever our new polygon references a point ID
+    int prev_points = contour_pts->GetNumberOfPoints();
 
+    //Set the hull points into a datastructure we'll actually use
     for (int i = 0; i < z_size; i++) {
-      contour_pts->SetPoint(i, pts[2 * i], pts[2 * i + 1], 0);
+      contour_pts->InsertNextPoint(pts[2 * i], pts[2 * i + 1], 0);
     }
-
-    // Insert the first point again to close the loop
-    contour_pts->SetPoint(z_size, pts[0], pts[1], 0);
 
     VTK_NEW(vtkPolygon, polygon);
-    polygon->GetPointIds()->SetNumberOfIds(z_size + 1);
-
-    for (vtkIdType i = 0; i < z_size + 1; i++) {
-      polygon->GetPointIds()->SetId(i, i);
+    for (vtkIdType i = 0; i < z_size; i++) {
+      // Here we consider that our polydata has the points of the previous
+      // polygon too, so we need to add an offset when refering to the points of
+      // this new one
+      polygon->GetPointIds()->InsertNextId(prev_points + i);
     }
 
-    m_oct_pov_polygons->InsertNextCell(polygon);
-
-    delete pts;
+    polys->InsertNextCell(polygon);
   }
-  VTK_NEW(vtkPoints, stupid);
-  stupid->DeepCopy(m_oct_mass_poly_data->GetPoints());
 
-  VTK_NEW(vtkPolyData, polygon_polydata);
-  polygon_polydata->SetPoints(stupid);
-  polygon_polydata->SetPolys(m_oct_pov_polygons);
-
-  //==pts
-
-  VTK_NEW(vtkPoints, pts_zero);
-  pts_zero->DeepCopy(m_oct_mass_poly_data->GetPoints());
-
-  VTK_NEW(vtkPolyData, new_polydata);
-  new_polydata->SetPoints(pts_zero);
-
-  VTK_NEW(vtkVertexGlyphFilter, vert_filter);
-  vert_filter->SetInput(new_polydata);
-
-  VTK_NEW(vtkPolyDataMapper, mapper_pts);
-  mapper_pts->SetInputConnection(vert_filter->GetOutputPort());
-
-  VTK_NEW(vtkActor, actor_pts);
-  actor_pts->SetMapper(mapper_pts);
-  actor_pts->GetProperty()->SetColor(1.0, 0.8, 0.8);
-  actor_pts->GetProperty()->SetOpacity(1);
-
-  //===
-
-  VTK_NEW(vtkPolyDataMapper, mapper);
-  mapper->SetInput(polygon_polydata);
-
-  VTK_NEW(vtkActor, actor);
-  actor->SetMapper(mapper);
-
-  VTK_NEW(vtkRenderer, renderer);
-  renderer->AddActor(actor);
-  renderer->AddActor(actor_pts);
-
-  VTK_NEW(vtkRenderWindowInteractor, interactor);
-
-  VTK_NEW(vtkRenderWindow, window);
-  window->AddRenderer(renderer);
-  window->SetInteractor(interactor);
-  window->SetSize(1024, 768);
-
-  renderer->Render();
-  interactor->Start();
-
+  m_oct_pov_polygons->SetPoints(contour_pts);
+  m_oct_pov_polygons->SetPolys(polys);
 }
 
 //------------RENDERING---------------------------------------------------------

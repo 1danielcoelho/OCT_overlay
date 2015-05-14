@@ -22,7 +22,9 @@
  *  -Stop streaming while in 2D and add ators -> 2D actors still remain
  *
  *  -Click to view something outside of overlay -> Things in overlay remain
- *   ticked
+ *   ticked; Silhouette overlays need to be reselected whenever the mass changes
+ *    -Implement some sort of "clearOverlayTab" function, that resets everything
+ *     to default
  *
  *  -Implement the silhouette visualization from the OCT POV
  *    -Apply the inverse OCT->stereo transform; Discard Z coordinate; Find all
