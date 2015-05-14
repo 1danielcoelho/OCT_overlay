@@ -118,7 +118,7 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_oct_stereo_trans->Identity();
   m_left_proj_trans = vtkSmartPointer<vtkTransform>::New();
   m_left_proj_trans->Identity();
-  m_stereo_pov_polygons = vtkSmartPointer<vtkCellArray>::New();
+  m_oct_pov_polygons = vtkSmartPointer<vtkCellArray>::New();
   // Actors
   m_oct_vol_actor = vtkSmartPointer<vtkActor>::New();
   m_oct_surf_actor = vtkSmartPointer<vtkActor>::New();
@@ -1359,68 +1359,67 @@ void Form::constructViewPOVPolyline() {
 }
 
 void Form::constructOCTPOVPolygons() {
-  uint32_t num_pts = m_oct_mass_poly_data->GetNumberOfPoints();
-
-  if (num_pts == 0) {
+  if (m_oct_mass_poly_data->GetNumberOfPoints() == 0) {
     std::cout << "Cannot construct an OCT POV Polygon with an empty OCT anomaly"
               << std::endl;
   }
 
-  VTK_NEW(vtkPoints, new_pts);
-  new_pts->SetNumberOfPoints(num_pts);
+  m_oct_pov_polygons = vtkSmartPointer<vtkCellArray>::New();
 
-  // Flatten the oct mass into the 0xy plane, discards cell data
-  for (uint32_t i = 0; i < num_pts; i++) {
-    double pos_3d[4];
-    m_oct_mass_poly_data->GetPoint(i, pos_3d);
+  VTK_NEW(vtkPolyDataConnectivityFilter, con_filter);
+  con_filter->SetInput(m_oct_mass_poly_data);
+  con_filter->SetExtractionModeToAllRegions();
+  con_filter->Update();
+  int num_regions = con_filter->GetNumberOfExtractedRegions();
 
-    pos_3d[2] = 0;
-
-    new_pts->SetPoint(i, pos_3d[0], pos_3d[1], 0);
-  }
-
-  VTK_NEW(vtkPolyData, polygon_polydata);
-  polygon_polydata->SetPoints(new_pts);
-
-  VTK_NEW(vtkDelaunay2D, del);
-  del->SetInput(polygon_polydata);
-  del->Update();
+  con_filter->SetExtractionModeToSpecifiedRegions();
 
   VTK_NEW(vtkPointsProjectedHull, proj_hull);
-  proj_hull->DeepCopy(del->GetOutput()->GetPoints());
-
-  int z_size = proj_hull->GetSizeCCWHullZ();
-  double* pts = new double[z_size * 2];
-
-  proj_hull->GetCCWHullZ(pts, z_size);
-
   VTK_NEW(vtkPoints, contour_pts);
-  contour_pts->SetNumberOfPoints(z_size + 1);
 
-  for (int i = 0; i < z_size; i++) {
-    contour_pts->SetPoint(i, pts[2 * i], pts[2 * i + 1], 0);
+  for (int i = 0; i < num_regions; i++) {
+    con_filter->InitializeSpecifiedRegionList();
+    con_filter->AddSpecifiedRegion(i);
+    con_filter->Update();
+
+    proj_hull->DeepCopy(con_filter->GetOutput()->GetPoints());
+
+    int z_size = proj_hull->GetSizeCCWHullZ();
+    double* pts = new double[z_size * 2];
+
+    proj_hull->GetCCWHullZ(pts, z_size);
+
+    contour_pts->SetNumberOfPoints(z_size + 1);
+
+    for (int i = 0; i < z_size; i++) {
+      contour_pts->SetPoint(i, pts[2 * i], pts[2 * i + 1], 0);
+    }
+
+    // Insert the first point again to close the loop
+    contour_pts->SetPoint(z_size, pts[0], pts[1], 0);
+
+    VTK_NEW(vtkPolygon, polygon);
+    polygon->GetPointIds()->SetNumberOfIds(z_size + 1);
+
+    for (vtkIdType i = 0; i < z_size + 1; i++) {
+      polygon->GetPointIds()->SetId(i, i);
+    }
+
+    m_oct_pov_polygons->InsertNextCell(polygon);
+
+    delete pts;
   }
+  VTK_NEW(vtkPoints, stupid);
+  stupid->DeepCopy(m_oct_mass_poly_data->GetPoints());
 
-  // Insert the first point again to close the loop
-  contour_pts->SetPoint(z_size, pts[0], pts[1], 0);
-
-  VTK_NEW(vtkPolygon, polygon);
-  polygon->GetPointIds()->SetNumberOfIds(z_size + 1);
-
-  for (vtkIdType i = 0; i < z_size + 1; i++) {
-    polygon->GetPointIds()->SetId(i, i);
-  }
-
-  VTK_NEW(vtkCellArray, cells);
-  cells->InsertNextCell(polygon);
-
-  polygon_polydata->SetPoints(contour_pts);
-  polygon_polydata->SetLines(cells);
+  VTK_NEW(vtkPolyData, polygon_polydata);
+  polygon_polydata->SetPoints(stupid);
+  polygon_polydata->SetPolys(m_oct_pov_polygons);
 
   //==pts
 
   VTK_NEW(vtkPoints, pts_zero);
-  pts_zero->ShallowCopy(m_oct_mass_poly_data->GetPoints());
+  pts_zero->DeepCopy(m_oct_mass_poly_data->GetPoints());
 
   VTK_NEW(vtkPolyData, new_polydata);
   new_polydata->SetPoints(pts_zero);
@@ -1458,7 +1457,6 @@ void Form::constructOCTPOVPolygons() {
   renderer->Render();
   interactor->Start();
 
-  delete pts;
 }
 
 //------------RENDERING---------------------------------------------------------
