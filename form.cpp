@@ -1208,7 +1208,8 @@ void Form::encodeOCTProjDepth(vtkSmartPointer<vtkPolyData> surface,
   double dist_to_center_squared = m_polygon_center_radii[2];
 
   double normal[3] = {0, 0, 1};
-  double red[] = {255, 0, 0, 255};
+  double distance;
+  double position[3];
 
   for (int i = 0; i < num_pts; i++) {
     trans_out->GetPoint(i, point);
@@ -1218,13 +1219,32 @@ void Form::encodeOCTProjDepth(vtkSmartPointer<vtkPolyData> surface,
 
     if (dist_squared <= dist_to_center_squared) {
       for (int j = 0; j < m_polygon_points.size(); j++) {
-        vtkPoints* points = m_polygon_points[j];
+        vtkPolygon* polygon = m_polygon_points[j];
 
         if (vtkPolygon::PointInPolygon(
-                point, points->GetNumberOfPoints(),
-                static_cast<double*>(points->GetData()->GetVoidPointer(0)),
-                points->GetBounds(), normal)) {
-          colors->SetTuple(i, red);
+                point, polygon->GetPoints()->GetNumberOfPoints(),
+                static_cast<double*>(
+                    polygon->GetPoints()->GetData()->GetVoidPointer(0)),
+                polygon->GetPoints()->GetBounds(), normal)) {
+
+          surface->GetPoint(i, position);
+
+          int other_id = m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(
+              5.0, position, distance);
+
+          distance = std::sqrt(distance);
+
+          double old_color[4];
+          double color_to_add[4];
+
+          colors->GetTuple(i, old_color);
+          m_overlay_lut->GetColor(distance, color_to_add);
+
+          old_color[0] *= color_to_add[0];
+          old_color[1] *= color_to_add[1];
+          old_color[2] *= color_to_add[2];
+
+          colors->SetTuple(i, old_color);
         }
       }
     }
@@ -1467,16 +1487,16 @@ void Form::constructOCTPOVPolygons() {
     double pts[z_size * 2];
     proj_hull->GetCCWHullZ(pts, z_size);
 
-    VTK_NEW(vtkPoints, poly_points);
+    VTK_NEW(vtkPolygon, polygon);
 
     // Set the hull points into a datastructure we'll actually use
     for (int i = 0; i < z_size; i++) {
-      poly_points->InsertNextPoint(pts[2 * i], pts[2 * i + 1], 0);
+      polygon->GetPoints()->InsertNextPoint(pts[2 * i], pts[2 * i + 1], 0);
       all_points->InsertNextPoint(pts[2 * i], pts[2 * i + 1], 0);
     }
 
-    poly_points->Register(NULL);  // Keeps our points alive
-    m_polygon_points.push_back(poly_points);
+    polygon->Register(NULL);  // Keeps our polygon alive
+    m_polygon_points.push_back(polygon);
   }
 
   int total_contour_pts = all_points->GetNumberOfPoints();

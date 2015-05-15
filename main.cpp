@@ -36,6 +36,8 @@
  *
  *  -Fix all instances of 640x480
  *
+ *  -Have stereo point size be large by default
+ *
  * */
 
 /*  POSSIBLE BUGS / THINGS TO CHECK:
