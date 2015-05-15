@@ -1188,23 +1188,25 @@ void Form::encodeStereoProjDepth(vtkSmartPointer<vtkPolyData> surface,
 void Form::encodeOCTProjDepth(vtkSmartPointer<vtkPolyData> surface,
                               vtkSmartPointer<vtkActor> surface_actor) {
 
-  //Elsewhere, along the construction of the polygons, find the circle that
-  //envelops the m_oct_pov_polygons. Store its center and radius squared in
-  //class variables
+  // Elsewhere, along the construction of the polygons, find the circle that
+  // envelops the m_oct_pov_polygons. Store its center and radius squared in
+  // class variables
+  //-Largest distance between two points divided by 2
+  //-Average of those two points to find the center
 
-  //For each point in m_stereo_reconstr_poly_data:
+  // For each point in m_stereo_reconstr_poly_data:
 
-    //Transform m_stereo_reconstr_poly_data with the inverse of
-    //m_oct_stereo_trans, which will throw it to the universal (0,0,0) range
+  // Transform m_stereo_reconstr_poly_data with the inverse of
+  // m_oct_stereo_trans, which will throw it to the universal (0,0,0) range
 
-    //Check whether the (x,y,0) distance squared from this point to the center
-    //of the polygon circule is less than its radius squared
+  // Check whether the (x,y,0) distance squared from this point to the center
+  // of the polygon circule is less than its radius squared
 
-    //If it is, for every cell (polygon) of m_oct_pov_polygons, check if the
-    //(x,y,0) point is inside with vtkPolygon::PointInPolygon
+  // If it is, for every cell (polygon) of m_oct_pov_polygons, check if the
+  //(x,y,0) point is inside with vtkPolygon::PointInPolygon
 
-    //If it is, perform the kd_tree_locator distance check, and color the
-    //corresponding pointID in the colors array of m_stereo_reconstr_poly_data
+  // If it is, perform the kd_tree_locator distance check, and color the
+  // corresponding pointID in the colors array of m_stereo_reconstr_poly_data
 }
 
 void Form::mapReconstructionTo2D(vtkSmartPointer<vtkPolyData> surface,
@@ -1397,7 +1399,7 @@ void Form::constructOCTPOVPolygons() {
   con_filter->Update();
   int num_regions = con_filter->GetNumberOfExtractedRegions();
 
-  //Now that we know how many regions we have, we will start extracting them
+  // Now that we know how many regions we have, we will start extracting them
   con_filter->SetExtractionModeToSpecifiedRegions();
 
   // vtkPolyDataConnectivityFilter, even in "specified regions" mode, does not
@@ -1419,7 +1421,7 @@ void Form::constructOCTPOVPolygons() {
 
     proj_hull->ShallowCopy(clean->GetOutput()->GetPoints());
 
-    //This filter has a weird interface. Here we try our best at it
+    // This filter has a weird interface. Here we try our best at it
     int z_size = proj_hull->GetSizeCCWHullZ();
     double pts[z_size * 2];
     proj_hull->GetCCWHullZ(pts, z_size);
@@ -1428,7 +1430,7 @@ void Form::constructOCTPOVPolygons() {
     // need to add an offset whenever our new polygon references a point ID
     int prev_points = contour_pts->GetNumberOfPoints();
 
-    //Set the hull points into a datastructure we'll actually use
+    // Set the hull points into a datastructure we'll actually use
     for (int i = 0; i < z_size; i++) {
       contour_pts->InsertNextPoint(pts[2 * i], pts[2 * i + 1], 0);
     }
@@ -1446,6 +1448,120 @@ void Form::constructOCTPOVPolygons() {
 
   m_oct_pov_polygons->SetPoints(contour_pts);
   m_oct_pov_polygons->SetPolys(polys);
+
+  int total_contour_pts = contour_pts->GetNumberOfPoints();
+
+  double point1[3];
+  double point2[3];
+  double distance_squared = 0;
+
+  double pt1[3];
+  double pt2[3];
+
+  for (int i = 0; i < total_contour_pts - 1; i++) {
+    contour_pts->GetPoint(i, pt1);
+
+    for (int j = i + 1; j < total_contour_pts; j++) {
+      std::cout << "i: " << i << ", j: " << j << std::endl;
+      contour_pts->GetPoint(j, pt2);
+
+      std::cout << "pt1: " << pt1[0] << ", " << pt1[1] << ", " << pt1[2]
+                << std::endl;
+      std::cout << "pt2: " << pt2[0] << ", " << pt2[1] << ", " << pt2[2]
+                << std::endl;
+
+      double dist = vtkMath::Distance2BetweenPoints(pt1, pt2);
+      std::cout << "dist: " << dist << std::endl << std::endl;
+
+      if (dist > distance_squared) {
+        std::memcpy(&(point1[0]), pt1, 3 * sizeof(double));
+        std::memcpy(&(point2[0]), pt2, 3 * sizeof(double));
+        distance_squared = dist;
+      }
+    }
+  }
+
+  m_polygon_center_radii.clear();
+  m_polygon_center_radii.push_back((point1[0] + point2[0]) / 2);
+  m_polygon_center_radii.push_back((point1[1] + point2[1]) / 2);
+  m_polygon_center_radii.push_back(distance_squared);
+
+  std::cout << "poly center: " << m_polygon_center_radii[0] << ", "
+            << m_polygon_center_radii[1]
+            << ". Dist2: " << m_polygon_center_radii[2] << std::endl;
+
+  VTK_NEW(vtkPoints, test_pts);
+  test_pts->InsertNextPoint(m_polygon_center_radii[0],
+                            m_polygon_center_radii[1], 0);
+
+  test_pts->InsertNextPoint(
+      m_polygon_center_radii[0] + std::sqrt(m_polygon_center_radii[2]) / 2.0,
+      m_polygon_center_radii[1], 0);
+
+  test_pts->InsertNextPoint(
+      m_polygon_center_radii[0] - std::sqrt(m_polygon_center_radii[2]) / 2.0,
+      m_polygon_center_radii[1], 0);
+
+  test_pts->InsertNextPoint(
+      m_polygon_center_radii[0],
+      m_polygon_center_radii[1] + std::sqrt(m_polygon_center_radii[2]) / 2.0,
+      0);
+  test_pts->InsertNextPoint(
+      m_polygon_center_radii[0],
+      m_polygon_center_radii[1] - std::sqrt(m_polygon_center_radii[2]) / 2.0,
+      0);
+
+  VTK_NEW(vtkLine, line0);
+  line0->GetPointIds()->SetId(0, 0);
+  line0->GetPointIds()->SetId(1, 1);
+
+  VTK_NEW(vtkLine, line1);
+  line1->GetPointIds()->SetId(0, 0);
+  line1->GetPointIds()->SetId(1, 2);
+
+  VTK_NEW(vtkLine, line2);
+  line2->GetPointIds()->SetId(0, 0);
+  line2->GetPointIds()->SetId(1, 3);
+
+  VTK_NEW(vtkLine, line3);
+  line3->GetPointIds()->SetId(0, 0);
+  line3->GetPointIds()->SetId(1, 4);
+
+  VTK_NEW(vtkCellArray, lines);
+  lines->InsertNextCell(line0);
+  lines->InsertNextCell(line1);
+  lines->InsertNextCell(line2);
+  lines->InsertNextCell(line3);
+
+  VTK_NEW(vtkPolyData, crosshair);
+  crosshair->SetPoints(test_pts);
+  crosshair->SetLines(lines);
+
+  VTK_NEW(vtkPolyDataMapper, contour_mapper);
+  contour_mapper->SetInput(m_oct_pov_polygons);
+
+  VTK_NEW(vtkPolyDataMapper, crosshair_mapper);
+  crosshair_mapper->SetInput(crosshair);
+
+  VTK_NEW(vtkActor, contour_actor);
+  contour_actor->SetMapper(contour_mapper);
+
+  VTK_NEW(vtkActor, crosshair_actor);
+  crosshair_actor->SetMapper(crosshair_mapper);
+
+  VTK_NEW(vtkRenderer, renderer);
+  renderer->AddActor(contour_actor);
+  renderer->AddActor(crosshair_actor);
+
+  VTK_NEW(vtkRenderWindowInteractor, interactor);
+
+  VTK_NEW(vtkRenderWindow, window);
+  window->AddRenderer(renderer);
+  window->SetInteractor(interactor);
+  window->SetSize(1024, 768);
+
+  renderer->Render();
+  interactor->Start();  // Will not return until window is closed
 }
 
 //------------RENDERING---------------------------------------------------------
