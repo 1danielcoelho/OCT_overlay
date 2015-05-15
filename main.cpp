@@ -13,6 +13,8 @@
  *    -NEXT STEPS: Run the constructOCTPOVPolygons through a
  *     vtkPolyDataConnectivityFilter to isolate independent meshes, then try
  *     using PointInPolygon
+ *    -As it turns out, the optimal thing to do is to have an array of vtkPoints
+ *     where each one represents the points of a polygon
  *
  *  -Fix weird bug that happened during presentation. I think it had something
  *   to do with Starting in 2D mode as opposed to 3D, but I couldn't get it to
