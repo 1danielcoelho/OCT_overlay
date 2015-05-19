@@ -106,8 +106,7 @@ Form::Form(int argc, char** argv, QWidget* parent)
   m_oct_mass_poly_data = vtkSmartPointer<vtkPolyData>::New();
   m_oct_mass_poly_data_processed = vtkSmartPointer<vtkPolyData>::New();
   m_stereo_left_poly_data = vtkSmartPointer<vtkPolyData>::New();
-  m_stereo_reconstr_poly_data = vtkSmartPointer<vtkPolyData>::New();
-  m_silhouette_poly_data = vtkSmartPointer<vtkPolyData>::New();
+  m_stereo_reconstr_poly_data = vtkSmartPointer<vtkPolyData>::New();  
   m_stereo_left_image = vtkSmartPointer<vtkImageData>::New();
   m_stereo_right_image = vtkSmartPointer<vtkImageData>::New();
   m_stereo_disp_image = vtkSmartPointer<vtkImageData>::New();
@@ -1187,10 +1186,6 @@ void Form::encodeStereoProjDepth(vtkSmartPointer<vtkPolyData> surface,
 void Form::encodeOCTProjDepth(vtkSmartPointer<vtkPolyData> surface,
                               vtkSmartPointer<vtkActor> surface_actor) {
 
-  // Elsewhere, along the construction of the polygons, find the circle that
-  // envelops the m_oct_pov_polygons. Store its center and radius squared in
-  // class variables
-
   vtkTypeUInt8Array* colors = vtkTypeUInt8Array::SafeDownCast(
       surface->GetPointData()->GetArray("Colors"));
 
@@ -1218,8 +1213,8 @@ void Form::encodeOCTProjDepth(vtkSmartPointer<vtkPolyData> surface,
     double dist_squared = vtkMath::Distance2BetweenPoints(point, poly_center);
 
     if (dist_squared <= dist_to_center_squared) {
-      for (int j = 0; j < m_polygon_points.size(); j++) {
-        vtkPolygon* polygon = m_polygon_points[j];
+      for (int j = 0; j < m_oct_pov_polygons.size(); j++) {
+        vtkPolygon* polygon = m_oct_pov_polygons[j];
 
         if (vtkPolygon::PointInPolygon(
                 point, polygon->GetPoints()->GetNumberOfPoints(),
@@ -1315,51 +1310,33 @@ void Form::mapReconstructionTo2D(vtkSmartPointer<vtkPolyData> surface,
 }
 
 void Form::constructViewPOVPolyline() {
-  // Ideally we just create a silhouette with vtkPolyDataSilhouette, transform
-  // the vertices to the same coordinate space as the stereo left image (that
-  // is, x going from 0 to 640; y going from 0 to 480, and z = 0), then convert
-  // the silhouette to a stencil with vtkPolyDataToImageStencil. We use this
-  // stencil to create a binary image (that is, black and white vtkImageData),
-  // which gets stored in m_stencil_binary_image, to be used every frame.
+  // Ideally we just transform the vertices to the same coordinate space as the
+  // stereo left image (that is, x going from 0 to 640; y going from 0 to 480,
+  // and z = 0), then convert the polydata to a stencil with
+  // vtkPolyDataToImageStencil. We use this stencil to create a binary image
+  // (that is, black and white vtkImageData), which gets stored in
+  // m_stencil_binary_image, to be used every frame.
   //
   // There is a huge bug in vtkPolyDataToImageStencil, however, that generates
   // huge horizontal lines between random disconnected points (check the mailing
   // list). I've even tried making another class with the updated, supposedly
   // "fixed" version of this filter, to no avail. The best way to sidestep the
-  // problem altogether is to independently process each mesh by itself, then
-  // add the stencils together. We'll fill in the silhouettes anyway, if we get
-  // the horizontal artifact lines there they will actually help filling in the
-  // space
+  // problem altogether is to independently process each "mesh"blob" by itself,
+  // then add the stencils together
 
-  // Extract its silhouette when projected on the XY plane
-  VTK_NEW(vtkPolyDataSilhouette, silh_filt);
-  silh_filt->SetEnableFeatureAngle(1);
-  silh_filt->SetFeatureAngle(0);
-  silh_filt->SetPieceInvariant(0);
-  silh_filt->SetDirectionToSpecifiedOrigin();
-  silh_filt->SetOrigin(0, 0, 0);
-  silh_filt->SetInput(m_oct_mass_poly_data_processed);
-  silh_filt->Update();
+  // We'll actually modify the points, so we need to take a copy of them
+  VTK_NEW(vtkPolyData, silhouette_poly_data);
+  silhouette_poly_data->DeepCopy(m_oct_mass_poly_data_processed);
 
-  //  double* origin = silh_filt->GetOrigin();
-  //  std::cout << "origin: " << origin[0] << ", " << origin[1] << ", " <<
-  // origin[2]
-  //    << std::endl;
-
-  m_silhouette_poly_data->DeepCopy(silh_filt->GetOutput());
-
-  //  SliceViewer::viewPolyDataAsColouredVertices(m_oct_mass_poly_data_processed);
-  //  SliceViewer::viewPolyDataAsColouredVertices(m_silhouette_poly_data);
-
-  uint32_t num_pts = m_silhouette_poly_data->GetNumberOfPoints();
+  uint32_t num_pts = silhouette_poly_data->GetNumberOfPoints();
 
   // Transform the silhouette polydata into the coordinate space of the left
   // camera image, that is, vertex coordinates will go to the 0->640 range for x
-  // and 0->480 range for y, assuming 640x480
+  // and 0->480 range for y, assuming 640x480. Also, sets z=0 for all points
   for (uint32_t i = 0; i < num_pts; i++) {
 
     double pos_3d[4];
-    m_silhouette_poly_data->GetPoint(i, pos_3d);
+    silhouette_poly_data->GetPoint(i, pos_3d);
 
     // Set the 'w' coordinate to 1
     pos_3d[3] = 1;
@@ -1370,19 +1347,27 @@ void Form::constructViewPOVPolyline() {
     pos_2d[0] /= pos_2d[2];
     pos_2d[1] /= pos_2d[2];
 
-    m_silhouette_poly_data->GetPoints()->SetPoint(i, pos_2d[0], pos_2d[1], 0);
+    silhouette_poly_data->GetPoints()->SetPoint(i, pos_2d[0], pos_2d[1], 0);
   }
+
+  // We'll use this to convert vtkPolyData to vtkPolyLine, which is a requisite
+  // for vtkPolyDataToImageStencil
+  VTK_NEW(vtkStripper, stripper);
 
   VTK_NEW(vtkPolyDataToImageStencil, poly_to_stencil);
   poly_to_stencil->SetTolerance(0);
   poly_to_stencil->SetInformationInput(m_stereo_left_image);
 
+  // This object holds the actual stencil data. We'll add the independent
+  // stencils of every "blob" to it
   VTK_NEW(vtkImageStencilData, stencil);
 
+  // We use this to separate independent blobs
   VTK_NEW(vtkPolyDataConnectivityFilter, con_filter);
-  con_filter->SetInput(m_silhouette_poly_data);
+  con_filter->SetInput(silhouette_poly_data);
   con_filter->SetExtractionModeToAllRegions();
   con_filter->Update();
+
   int num_regions = con_filter->GetNumberOfExtractedRegions();
 
   con_filter->SetExtractionModeToSpecifiedRegions();
@@ -1392,12 +1377,16 @@ void Form::constructViewPOVPolyline() {
     con_filter->AddSpecifiedRegion(i);
     con_filter->Update();
 
-    poly_to_stencil->SetInput(con_filter->GetOutput());
+    stripper->SetInput(con_filter->GetOutput());
+    stripper->Update();
+
+    poly_to_stencil->SetInput(stripper->GetOutput());
     poly_to_stencil->Update();
 
     stencil->Add(poly_to_stencil->GetOutput());
   }
 
+  // This creates the binary image with the stencil
   VTK_NEW(vtkImageStencilToImage, stencil_to_image);
   stencil_to_image->SetInsideValue(255);
   stencil_to_image->SetOutsideValue(0);
@@ -1405,6 +1394,7 @@ void Form::constructViewPOVPolyline() {
   stencil_to_image->SetInput(stencil);
   stencil_to_image->Update();
 
+  // We use dilate/erode to fill in "holes" in the binary image
   VTK_NEW(vtkImageContinuousDilate3D, dilate);
   dilate->SetInput(stencil_to_image->GetOutput());
   dilate->SetKernelSize(10, 10, 1);
@@ -1419,20 +1409,21 @@ void Form::constructViewPOVPolyline() {
 }
 
 void Form::constructOCTPOVPolygons() {
-  // fix me
-
   // This function uses vtkPolyDataConnectivityFilter to extract independent
   // meshes from m_oct_mass_poly_data one by one. To each, it applies
   // vtkPointsProjectedHull, to find the points that correspond to the outer
   // hull of the points of the mesh when projected on the 0xy plane. Using those
-  // points it builds a polygon, and sets it into m_oct_pov_polygons. At the
-  // end, all of the hull points are also set into the same polydata
+  // points it builds a polygon, and sets it into m_oct_pov_polygons
 
   // We also store information about a circle (center and radius squared). It is
   // the smallest circle that completely circumscribe the polygons in the 0xy
   // plane. We get this information by finding the largest distance between any
   // two points of the polygons (2*circle radius) and the point in the middle of
   // these two points (circle center).
+
+  // In encodeOCTProjDepth we'll use this so that we don't have to check to see
+  // if all the surface points are inside the polygons. We just check to see if
+  // they are inside this circle first, which is much faster
 
   if (m_oct_mass_poly_data->GetNumberOfPoints() == 0) {
     std::cout << "Cannot construct an OCT POV Polygon with an empty OCT anomaly"
@@ -1452,13 +1443,12 @@ void Form::constructOCTPOVPolygons() {
 
   // vtkPolyDataConnectivityFilter, even in "specified regions" mode, does not
   // remove the unused points, so we run them through vtkCleanPolyData to
-  // discard
-  // points that don't belong to any cell
+  // discard points that don't belong to any cell
   VTK_NEW(vtkCleanPolyData, clean);
   VTK_NEW(vtkPointsProjectedHull, proj_hull);
   VTK_NEW(vtkPoints, all_points);
 
-  m_polygon_points.clear();
+  m_oct_pov_polygons.clear();
 
   for (int i = 0; i < num_regions; i++) {
     con_filter->InitializeSpecifiedRegionList();
@@ -1477,22 +1467,20 @@ void Form::constructOCTPOVPolygons() {
 
     VTK_NEW(vtkPolygon, polygon);
 
-    // Set the hull points into a datastructure we'll actually use
+    // Set the hull points into our polygon
     for (int i = 0; i < z_size; i++) {
       polygon->GetPoints()->InsertNextPoint(pts[2 * i], pts[2 * i + 1], 0);
       all_points->InsertNextPoint(pts[2 * i], pts[2 * i + 1], 0);
     }
 
-    polygon->Register(NULL);  // Keeps our polygon alive
-    m_polygon_points.push_back(polygon);
+    m_oct_pov_polygons.push_back(polygon);
   }
 
+  //Calculate the circumscribing circle
   int total_contour_pts = all_points->GetNumberOfPoints();
-
   double point1[3];
   double point2[3];
   double distance_squared = 0;
-
   double point1_temp[3];
   double point2_temp[3];
   double distance_squared_temp = 0;
@@ -1514,6 +1502,7 @@ void Form::constructOCTPOVPolygons() {
     }
   }
 
+  //Now we store the data about the circumscribing circle in a class variable
   m_polygon_center_radii.clear();
   m_polygon_center_radii.push_back((point1[0] + point2[0]) / 2);
   m_polygon_center_radii.push_back((point1[1] + point2[1]) / 2);

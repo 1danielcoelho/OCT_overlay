@@ -385,8 +385,7 @@ Q_SIGNALS:
   vtkSmartPointer<vtkPolyData> m_oct_mass_poly_data_processed;
   vtkSmartPointer<vtkPolyData> m_oct_surf_poly_data;
   vtkSmartPointer<vtkPolyData> m_stereo_left_poly_data;
-  vtkSmartPointer<vtkPolyData> m_stereo_reconstr_poly_data;
-  vtkSmartPointer<vtkPolyData> m_silhouette_poly_data;
+  vtkSmartPointer<vtkPolyData> m_stereo_reconstr_poly_data;  
   vtkSmartPointer<vtkImageData> m_stereo_left_image;
   vtkSmartPointer<vtkImageData> m_stereo_right_image;
   vtkSmartPointer<vtkImageData> m_stereo_disp_image;
@@ -395,7 +394,7 @@ Q_SIGNALS:
   vtkSmartPointer<vtkImageData> m_stencil_binary_image;
   vtkSmartPointer<vtkTransform> m_oct_stereo_trans;
   vtkSmartPointer<vtkTransform> m_left_proj_trans;
-  std::vector<vtkSmartPointer<vtkPolygon> > m_polygon_points;
+  std::vector<vtkSmartPointer<vtkPolygon> > m_oct_pov_polygons;
   std::vector<double> m_polygon_center_radii;
   // Actors are kept since we need their references when we add/remove actors in
   // the Overlay section of the program

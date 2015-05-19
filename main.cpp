@@ -1,12 +1,6 @@
 /*  TODO LIST:
  *
  *
- *
- *
- *  -Clean up constructViewPOVPolyline
- *
- *  -Fix comments for it and constructOCTPOVPolygons
- *
  * */
 
 /*  POSSIBLE BUGS / THINGS TO CHECK:
