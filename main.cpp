@@ -1,42 +1,11 @@
 /*  TODO LIST:
  *
- *  -OCT proj: Transform stereo surf to OCT KS -> Discard it's and the mass' z
- *   coordinates -> Mass is made into a set of polygons. Enveloped by circles.
- *   (beforehand) -> For every point of stereo reconstr, check the distance to
- *   the center of the circle. If it's less than the radius, perform
- *   vtkPolygon::PointInPolygon(). If it is in the polygon, perform normal color
- *   encoding directly on the stereo surf -> The rest (including 2d mapping) is
- *   performed just like for stereo proj
- *    -Discard Z coordinate -> Delaunay2D (already aligned to XY, so great) ->
- *     Select all edges that belong to a single triangle only (inner edges will
- *     belong to two triangles) -> Craft polygon
- *    -NEXT STEPS: Run the constructOCTPOVPolygons through a
- *     vtkPolyDataConnectivityFilter to isolate independent meshes, then try
- *     using PointInPolygon
- *    -As it turns out, the optimal thing to do is to have an array of vtkPoints
- *     where each one represents the points of a polygon
  *
- *  -Fix weird bug that happened during presentation. I think it had something
- *   to do with Starting in 2D mode as opposed to 3D, but I couldn't get it to
- *   happen again. At least fix that to make sure everything is properly
- *   initialized
  *
- *  -Stop streaming while in 2D and add ators -> 2D actors still remain
  *
- *  -Click to view something outside of overlay -> Things in overlay remain
- *   ticked; Silhouette overlays need to be reselected whenever the mass changes
- *    -Implement some sort of "clearOverlayTab" function, that resets everything
- *     to default
+ *  -Clean up constructViewPOVPolyline
  *
- *  -Implement the silhouette visualization from the OCT POV
- *    -Apply the inverse OCT->stereo transform; Discard Z coordinate; Find all
- *     edges in the mass poly that belong to only one triangle (outer edges);
- *
- *  -Maybe find a way to implement opacity encoding
- *
- *  -Fix all instances of 640x480
- *
- *  -Have stereo point size be large by default
+ *  -Fix comments for it and constructOCTPOVPolygons
  *
  * */
 

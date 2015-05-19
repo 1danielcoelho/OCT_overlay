@@ -1158,7 +1158,7 @@ void Form::encodeStereoProjDepth(vtkSmartPointer<vtkPolyData> surface,
 
       surface->GetPoint(pt_id, position);
 
-      int other_id = m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(
+      m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(
           5.0, position, distance);
 
       distance = std::sqrt(distance);
@@ -1229,7 +1229,7 @@ void Form::encodeOCTProjDepth(vtkSmartPointer<vtkPolyData> surface,
 
           surface->GetPoint(i, position);
 
-          int other_id = m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(
+          m_oct_mass_kd_tree_locator->FindClosestPointWithinRadius(
               5.0, position, distance);
 
           distance = std::sqrt(distance);
@@ -1249,18 +1249,6 @@ void Form::encodeOCTProjDepth(vtkSmartPointer<vtkPolyData> surface,
       }
     }
   }
-
-  // Transform m_stereo_reconstr_poly_data with the inverse of
-  // m_oct_stereo_trans, which will throw it to the universal (0,0,0) range
-
-  // Check whether the (x,y,0) distance squared from this point to the center
-  // of the polygon circule is less than its radius squared
-
-  // If it is, for every cell (polygon) of m_oct_pov_polygons, check if the
-  //(x,y,0) point is inside with vtkPolygon::PointInPolygon
-
-  // If it is, perform the kd_tree_locator distance check, and color the
-  // corresponding pointID in the colors array of m_stereo_reconstr_poly_data
 }
 
 void Form::mapReconstructionTo2D(vtkSmartPointer<vtkPolyData> surface,
@@ -1640,6 +1628,7 @@ void Form::prepareOCTSurfaceActor(vtkSmartPointer<vtkTransform> trans) {
   mapper->SetInputConnection(trans_filter->GetOutputPort());
 
   m_oct_surf_actor->SetMapper(mapper);
+  m_oct_surf_actor->GetProperty()->SetPointSize(5);
 }
 
 void Form::reconstructStereoSurface() {
@@ -1775,6 +1764,7 @@ void Form::preparePointPolyDataActor(vtkPolyData* polydata, vtkActor* actor) {
   mapper->SetScalarVisibility(1);
 
   actor->GetProperty()->SetOpacity(0.99);
+  actor->GetProperty()->SetPointSize(5);
   actor->SetMapper(mapper);
 }
 
@@ -1847,6 +1837,7 @@ void Form::on_browse_button_clicked() {
   if (!file_name.isEmpty()) {
     m_waiting_response = true;
     m_viewing_overlay = false;
+    reset_overlay_tab();
     updateUIStates();
 
     // Allows the file dialog to close before moving on
@@ -1953,6 +1944,7 @@ void Form::on_view_raw_oct_button_clicked() {
 
   m_waiting_response = true;
   m_viewing_overlay = false;
+  reset_overlay_tab();
   updateUIStates();
 
   VTK_NEW(vtkTransform, trans);
@@ -1980,6 +1972,7 @@ void Form::on_calc_oct_surf_button_clicked() {
 
   m_waiting_response = true;
   m_viewing_overlay = false;
+  reset_overlay_tab();
   updateUIStates();
 
   Q_EMIT requestSegmentation(m_current_params);
@@ -2035,6 +2028,7 @@ void Form::on_browse_oct_surf_button_clicked() {
   if (!file_name.isEmpty()) {
     m_waiting_response = true;
     m_viewing_overlay = false;
+    reset_overlay_tab();
     updateUIStates();
 
     // Allows the file dialog to close before moving on
@@ -2086,6 +2080,7 @@ void Form::on_browse_oct_mass_button_clicked() {
   if (!file_name.isEmpty()) {
     m_waiting_response = true;
     m_viewing_overlay = false;
+    reset_overlay_tab();
     updateUIStates();
 
     // Allows the file dialog to close before moving on
@@ -2195,6 +2190,8 @@ void Form::on_view_oct_surf_button_clicked() {
   QApplication::processEvents();
 
   m_waiting_response = true;
+  m_viewing_overlay = false;
+  reset_overlay_tab();
   updateUIStates();
 
   VTK_NEW(vtkTransform, trans);
@@ -2223,6 +2220,8 @@ void Form::on_view_oct_mass_button_clicked() {
   QApplication::processEvents();
 
   m_waiting_response = true;
+  m_viewing_overlay = false;
+  reset_overlay_tab();
   updateUIStates();
 
   VTK_NEW(vtkTransform, trans);
@@ -2253,6 +2252,7 @@ void Form::on_request_stereo_images_clicked() {
 
   m_waiting_response = true;
   m_viewing_overlay = false;
+  reset_overlay_tab();
   updateUIStates();
 
   Q_EMIT readyForStereoImages();
@@ -2275,6 +2275,7 @@ void Form::on_browse_left_image_button_clicked() {
   if (!file_name.isEmpty()) {
     m_waiting_response = true;
     m_viewing_overlay = false;
+    reset_overlay_tab();
     updateUIStates();
 
     // Allows the file dialog to close before moving on
@@ -2328,6 +2329,7 @@ void Form::on_browse_right_image_button_clicked() {
   if (!file_name.isEmpty()) {
     m_waiting_response = true;
     m_viewing_overlay = false;
+    reset_overlay_tab();
     updateUIStates();
 
     // Allows the file dialog to close before moving on
@@ -2382,6 +2384,7 @@ void Form::on_browse_disp_image_button_clicked() {
   if (!file_name.isEmpty()) {
     m_waiting_response = true;
     m_viewing_overlay = false;
+    reset_overlay_tab();
     updateUIStates();
 
     // Allows the file dialog to close before moving on
@@ -2435,6 +2438,7 @@ void Form::on_browse_depth_image_button_clicked() {
   if (!file_name.isEmpty()) {
     m_waiting_response = true;
     m_viewing_overlay = false;
+    reset_overlay_tab();
     updateUIStates();
 
     // Allows the file dialog to close before moving on
@@ -2626,6 +2630,7 @@ void Form::on_view_left_image_button_clicked() {
 
   m_waiting_response = true;
   m_viewing_overlay = false;
+  reset_overlay_tab();
   updateUIStates();
 
   m_renderer_0->RemoveAllViewProps();
@@ -2651,6 +2656,7 @@ void Form::on_view_right_image_button_clicked() {
 
   m_waiting_response = true;
   m_viewing_overlay = false;
+  reset_overlay_tab();
   updateUIStates();
 
   m_renderer_0->RemoveAllViewProps();
@@ -2676,6 +2682,7 @@ void Form::on_view_disp_image_button_clicked() {
 
   m_waiting_response = true;
   m_viewing_overlay = false;
+  reset_overlay_tab();
   updateUIStates();
 
   m_renderer_0->RemoveAllViewProps();
@@ -2701,6 +2708,7 @@ void Form::on_view_depth_image_button_clicked() {
 
   m_waiting_response = true;
   m_viewing_overlay = false;
+  reset_overlay_tab();
   updateUIStates();
 
   m_renderer_0->RemoveAllViewProps();
@@ -2722,6 +2730,8 @@ void Form::on_view_depth_image_button_clicked() {
 
 void Form::on_raw_min_vis_spinbox_editingFinished() {
   m_waiting_response = true;
+  m_viewing_overlay = false;
+  reset_overlay_tab();
   updateUIStates();
 
   uint8_t new_value = m_ui->raw_min_vis_spinbox->value();
@@ -2733,14 +2743,12 @@ void Form::on_raw_min_vis_spinbox_editingFinished() {
   VTK_NEW(vtkTransform, trans);
   trans->Identity();
 
-  m_renderer_0->RemoveAllViewProps();
-  m_renderer_1->RemoveAllViewProps();
-  m_renderer_2->RemoveAllViewProps();
   prepareOCTVolumeActor(trans);
   m_renderer_0->AddActor(m_oct_vol_actor);
 
   prepareAxesActor(m_oct_axes_actor, trans);
   m_renderer_0->AddActor(m_oct_axes_actor);
+  m_renderer_0->ResetCamera();
 
   this->m_ui->qvtkWidget->update();
   QApplication::processEvents();
@@ -2751,6 +2759,8 @@ void Form::on_raw_min_vis_spinbox_editingFinished() {
 
 void Form::on_raw_max_vis_spinbox_editingFinished() {
   m_waiting_response = true;
+  m_viewing_overlay = false;
+  reset_overlay_tab();
   updateUIStates();
 
   uint8_t new_value = m_ui->raw_max_vis_spinbox->value();
@@ -2762,14 +2772,12 @@ void Form::on_raw_max_vis_spinbox_editingFinished() {
   VTK_NEW(vtkTransform, trans);
   trans->Identity();
 
-  m_renderer_0->RemoveAllViewProps();
-  m_renderer_1->RemoveAllViewProps();
-  m_renderer_2->RemoveAllViewProps();
   prepareOCTVolumeActor(trans);
   m_renderer_0->AddActor(m_oct_vol_actor);
 
   prepareAxesActor(m_oct_axes_actor, trans);
   m_renderer_0->AddActor(m_oct_axes_actor);
+  m_renderer_0->ResetCamera();
 
   this->m_ui->qvtkWidget->update();
   QApplication::processEvents();
@@ -2801,13 +2809,12 @@ void Form::on_raw_max_vis_slider_valueChanged(int value) {
 }
 
 void Form::on_raw_min_vis_slider_sliderReleased() {
-  m_waiting_response = true;
+  m_waiting_response = true;  
+  m_viewing_overlay = false;
+  reset_overlay_tab();
   updateUIStates();
   QApplication::processEvents();
 
-  m_renderer_0->RemoveAllViewProps();
-  m_renderer_1->RemoveAllViewProps();
-  m_renderer_2->RemoveAllViewProps();
   VTK_NEW(vtkTransform, trans);
   trans->Identity();
 
@@ -2816,6 +2823,7 @@ void Form::on_raw_min_vis_slider_sliderReleased() {
 
   prepareAxesActor(m_oct_axes_actor, trans);
   m_renderer_0->AddActor(m_oct_axes_actor);
+  m_renderer_0->ResetCamera();
 
   this->m_ui->qvtkWidget->update();
   QApplication::processEvents();
@@ -2827,12 +2835,11 @@ void Form::on_raw_min_vis_slider_sliderReleased() {
 
 void Form::on_raw_max_vis_slider_sliderReleased() {
   m_waiting_response = true;
+  m_viewing_overlay = false;
+  reset_overlay_tab();
   updateUIStates();
   QApplication::processEvents();
 
-  m_renderer_0->RemoveAllViewProps();
-  m_renderer_1->RemoveAllViewProps();
-  m_renderer_2->RemoveAllViewProps();
   VTK_NEW(vtkTransform, trans);
   trans->Identity();
 
@@ -2841,6 +2848,7 @@ void Form::on_raw_max_vis_slider_sliderReleased() {
 
   prepareAxesActor(m_oct_axes_actor, trans);
   m_renderer_0->AddActor(m_oct_axes_actor);
+  m_renderer_0->ResetCamera();
 
   this->m_ui->qvtkWidget->update();
   QApplication::processEvents();
@@ -2851,6 +2859,12 @@ void Form::on_raw_max_vis_slider_sliderReleased() {
 }
 
 void Form::on_over_min_vis_spinbox_editingFinished() {
+  if (!m_viewing_overlay) {
+    m_renderer_0->RemoveAllViewProps();
+    m_renderer_1->RemoveAllViewProps();
+    m_renderer_2->RemoveAllViewProps();
+    m_viewing_overlay = true;
+  }
   m_waiting_response = true;
   updateUIStates();
   QApplication::processEvents();
@@ -2861,9 +2875,7 @@ void Form::on_over_min_vis_spinbox_editingFinished() {
   // m_min_vis_thresh gets updated on the slider callback
   m_ui->over_min_vis_slider->setValue(new_value);
 
-  m_renderer_0->RemoveActor(m_oct_vol_actor);
   prepareOCTVolumeActor(m_oct_stereo_trans);
-  m_renderer_0->AddActor(m_oct_vol_actor);
 
   this->m_ui->qvtkWidget->update();
   QApplication::processEvents();
@@ -2874,6 +2886,12 @@ void Form::on_over_min_vis_spinbox_editingFinished() {
 }
 
 void Form::on_over_max_vis_spinbox_editingFinished() {
+  if (!m_viewing_overlay) {
+    m_renderer_0->RemoveAllViewProps();
+    m_renderer_1->RemoveAllViewProps();
+    m_renderer_2->RemoveAllViewProps();
+    m_viewing_overlay = true;
+  }
   m_waiting_response = true;
   updateUIStates();
   QApplication::processEvents();
@@ -2884,9 +2902,7 @@ void Form::on_over_max_vis_spinbox_editingFinished() {
   // m_min_vis_thresh gets updated on the slider callback
   m_ui->over_max_vis_slider->setValue(new_value);
 
-  m_renderer_0->RemoveActor(m_oct_vol_actor);
   prepareOCTVolumeActor(m_oct_stereo_trans);
-  m_renderer_0->AddActor(m_oct_vol_actor);
 
   this->m_ui->qvtkWidget->update();
   QApplication::processEvents();
@@ -2919,13 +2935,17 @@ void Form::on_over_max_vis_slider_valueChanged(int value) {
 }
 
 void Form::on_over_min_vis_slider_sliderReleased() {
+  if (!m_viewing_overlay) {
+    m_renderer_0->RemoveAllViewProps();
+    m_renderer_1->RemoveAllViewProps();
+    m_renderer_2->RemoveAllViewProps();
+    m_viewing_overlay = true;
+  }
   m_waiting_response = true;
   updateUIStates();
   QApplication::processEvents();
 
-  m_renderer_0->RemoveActor(m_oct_vol_actor);
   prepareOCTVolumeActor(m_oct_stereo_trans);
-  m_renderer_0->AddActor(m_oct_vol_actor);
 
   this->m_ui->qvtkWidget->update();
   QApplication::processEvents();
@@ -2936,14 +2956,17 @@ void Form::on_over_min_vis_slider_sliderReleased() {
 }
 
 void Form::on_over_max_vis_slider_sliderReleased() {
+  if (!m_viewing_overlay) {
+    m_renderer_0->RemoveAllViewProps();
+    m_renderer_1->RemoveAllViewProps();
+    m_renderer_2->RemoveAllViewProps();
+    m_viewing_overlay = true;
+  }
   m_waiting_response = true;
   updateUIStates();
   QApplication::processEvents();
 
-  m_renderer_0->RemoveActor(m_oct_vol_actor);
   prepareOCTVolumeActor(m_oct_stereo_trans);
-  m_renderer_0->AddActor(m_oct_vol_actor);
-
   this->m_ui->qvtkWidget->update();
   QApplication::processEvents();
 
@@ -2962,6 +2985,8 @@ void Form::on_over_raw_checkbox_clicked() {
   }
   m_waiting_response = true;
   updateUIStates();
+
+  m_ui->over_mode_select_combobox->setCurrentIndex(1);
 
   if (m_ui->over_raw_checkbox->isChecked()) {
     this->m_ui->status_bar->showMessage(
@@ -2998,6 +3023,8 @@ void Form::on_over_oct_surf_checkbox_clicked() {
   m_waiting_response = true;
   updateUIStates();
 
+  m_ui->over_mode_select_combobox->setCurrentIndex(1);
+
   if (m_ui->over_oct_surf_checkbox->isChecked()) {
     this->m_ui->status_bar->showMessage(
         "Adding OCT surface to overlay view...");
@@ -3033,6 +3060,8 @@ void Form::on_over_oct_mass_checkbox_clicked() {
   m_waiting_response = true;
   updateUIStates();
 
+  m_ui->over_mode_select_combobox->setCurrentIndex(1);
+
   if (m_ui->over_oct_mass_checkbox->isChecked()) {
     this->m_ui->status_bar->showMessage(
         "Adding OCT anomaly to overlay view...");
@@ -3066,6 +3095,8 @@ void Form::on_over_depth_checkbox_clicked() {
   }
   m_waiting_response = true;
   updateUIStates();
+
+  m_ui->over_mode_select_combobox->setCurrentIndex(1);
 
   if (m_ui->over_depth_checkbox->isChecked()) {
     this->m_ui->status_bar->showMessage(
@@ -3130,6 +3161,8 @@ void Form::on_over_oct_axes_checkbox_clicked() {
   m_waiting_response = true;
   updateUIStates();
 
+  m_ui->over_mode_select_combobox->setCurrentIndex(1);
+
   if (m_ui->over_oct_axes_checkbox->isChecked()) {
     this->m_ui->status_bar->showMessage(
         "Adding OCT axes actor to overlay "
@@ -3168,6 +3201,8 @@ void Form::on_over_trans_axes_checkbox_clicked() {
   }
   m_waiting_response = true;
   updateUIStates();
+
+  m_ui->over_mode_select_combobox->setCurrentIndex(1);
 
   if (m_ui->over_trans_axes_checkbox->isChecked()) {
     this->m_ui->status_bar->showMessage(
@@ -3234,6 +3269,7 @@ void Form::on_browse_transform_button_clicked() {
   if (!file_name.isEmpty()) {
     m_waiting_response = true;
     m_viewing_overlay = false;
+    reset_overlay_tab();
     updateUIStates();
 
     // Allows the file dialog to close before moving on
@@ -3246,17 +3282,6 @@ void Form::on_browse_transform_button_clicked() {
                               m_oct_stereo_trans);
 
     buildKDTree();
-
-    // Since we have a new transform, remove all actors to force re-rendering
-    m_renderer_0->RemoveAllViewProps();
-    m_renderer_1->RemoveAllViewProps();
-    m_renderer_2->RemoveAllViewProps();
-    m_ui->over_oct_mass_checkbox->setChecked(false);
-    m_ui->over_oct_surf_checkbox->setChecked(false);
-    m_ui->over_raw_checkbox->setChecked(false);
-    m_ui->over_depth_checkbox->setChecked(false);
-    m_ui->over_oct_axes_checkbox->setChecked(false);
-    m_ui->over_trans_axes_checkbox->setChecked(false);
     this->m_ui->qvtkWidget->update();
 
     this->m_ui->status_bar->showMessage(
@@ -3501,8 +3526,11 @@ void Form::newSurface(vtkPolyData* surf) {
   // No depth encoding, 2D view
   if (m_viewing_realtime_overlay && m_encoding_mode == 0 && m_view_mode == 0) {
 
+    int dimensions[3];
+    m_stereo_left_image->GetDimensions(dimensions);
+
     mapReconstructionTo2D(m_stereo_reconstr_poly_data, m_left_proj_trans,
-                          m_stereo_reproject_image, 640, 480);
+                          m_stereo_reproject_image, dimensions[0], dimensions[1]);
 
     prepare2DImageActor(m_stereo_reproject_image, m_stereo_2d_actor);
     prepare2DImageActor(m_stereo_left_image, m_stereo_2d_background_actor);
@@ -3538,8 +3566,11 @@ void Form::newSurface(vtkPolyData* surf) {
         break;
     }
 
+    int dimensions[3];
+    m_stereo_left_image->GetDimensions(dimensions);
+
     mapReconstructionTo2D(m_stereo_reconstr_poly_data, m_left_proj_trans,
-                          m_stereo_reproject_image, 640, 480);
+                          m_stereo_reproject_image, dimensions[0], dimensions[1]);
 
     prepare2DImageActor(m_stereo_reproject_image, m_stereo_2d_actor);
     prepare2DImageActor(m_stereo_left_image, m_stereo_2d_background_actor);
@@ -3717,4 +3748,23 @@ void Form::on_over_encoding_combobox_currentIndexChanged(int index) {
       QApplication::processEvents();
       break;
   }
+}
+
+void Form::reset_overlay_tab()
+{
+  m_ui->over_encoding_combobox->setCurrentIndex(0);
+  m_ui->over_mode_select_combobox->setCurrentIndex(0);
+
+  m_ui->over_depth_checkbox->setChecked(false);
+  m_ui->over_raw_checkbox->setChecked(false);
+  m_ui->over_oct_surf_checkbox->setChecked(false);
+  m_ui->over_oct_mass_checkbox->setChecked(false);
+  m_ui->over_oct_axes_checkbox->setChecked(false);
+  m_ui->over_trans_axes_checkbox->setChecked(false);
+
+  m_renderer_0->RemoveAllViewProps();
+  m_renderer_1->RemoveAllViewProps();
+  m_renderer_2->RemoveAllViewProps();
+
+  on_over_stop_button_clicked();
 }

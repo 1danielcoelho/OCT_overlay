@@ -259,6 +259,8 @@ class Form : public QMainWindow {
 
   //--------------UI CALLBACKS--------------------------------------------------
 
+  void reset_overlay_tab();
+
  private
 Q_SLOTS:
 
@@ -324,7 +326,7 @@ Q_SLOTS:
   void on_over_stop_button_clicked();
 
   void on_over_mode_select_combobox_currentIndexChanged(int index);
-  void on_over_encoding_combobox_currentIndexChanged(int index);
+  void on_over_encoding_combobox_currentIndexChanged(int index);  
 
   //------------QNODE CALLBACKS-------------------------------------------------
 
