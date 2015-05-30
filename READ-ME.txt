@@ -1,0 +1,14 @@
+In order to be able to compile this at the laser PC in LUH, two changes have to
+be made:
+
+On the file CMakeLists.txt, comment line 43. That is, change 
+    set(VTK_DIR "/usr/local/lib/vtk-5.8" CACHE PATH directory FORCE)
+to
+    #set(VTK_DIR "/usr/local/lib/vtk-5.8" CACHE PATH directory FORCE)
+
+On the file defines.h, make sure line 12 is commented, like so:
+    #define AT_HOME     
+
+After this, while in the folder where this file is located, just run
+    rosmake --pre-clean
+to compile

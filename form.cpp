@@ -3668,6 +3668,7 @@ void Form::on_over_encoding_combobox_currentIndexChanged(int index) {
 
   switch (m_encoding_mode) {
     case 0:  // None
+      m_renderer_2->RemoveActor2D(m_scalar_bar_actor);
       break;
     case 1:  // Color
       m_overlay_lut->SetTableRange(0, 5);
